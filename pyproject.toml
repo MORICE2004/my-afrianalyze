@@ -1,0 +1,43 @@
+[project]
+name = "my-afrianalyze"
+version = "0.1.0"
+description = "Production-oriented African equity research platform"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.0",
+    "fastapi>=0.100",
+    "uvicorn",
+    "numpy",
+    "pandas",
+    "duckdb",
+    "docling",
+    "langgraph",
+    "pydantic-ai",
+    "httpx",
+    "python-dotenv",
+    "sqlalchemy",
+    "psycopg2-binary",
+    "alembic",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "ruff",
+    "mypy",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.mypy]
+strict = true

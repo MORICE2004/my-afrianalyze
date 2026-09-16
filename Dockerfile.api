@@ -1,0 +1,23 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY pyproject.toml .
+
+# Install dependencies
+RUN pip install --no-cache-dir build && \
+    pip install --no-cache-dir .
+
+COPY packages/ ./packages/
+COPY models/ ./models/
+COPY connectors/ ./connectors/
+COPY agents/ ./agents/
+COPY apps/api/ ./apps/api/
+
+CMD ["uvicorn", "apps.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

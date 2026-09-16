@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: afrianalyze
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+    environment:
+      - DATABASE_URL=postgresql://user:password@postgres:5432/afrianalyze
+
+#  web:
+#    image: node:18
+#    working_dir: /app
+#    command: npm run dev
+#    ports:
+#      - "3000:3000"
+#    volumes:
+#      - ./apps/web:/app
+
+#  firecrawl:
+#    image: mendableai/firecrawl
+#    ports:
+#      - "3002:3002"
+
+volumes:
+  postgres_data:
