@@ -63,3 +63,36 @@ class CurrencyEngine:
             fx_source=fx_source,
             fx_date=fx_date
         )
+
+    @classmethod
+    def get_exchange_rate(cls, from_currency: str, to_currency: str, target_date: Optional[date] = None) -> Optional[float]:
+        """
+        Seamlessly fetch exchange rates, with specific support for TZS to KES tracking
+        to allow portfolios to standardize to a base currency.
+        """
+        if from_currency not in cls.supported_currencies or to_currency not in cls.supported_currencies:
+            raise ValueError("Unsupported currency.")
+        
+        if from_currency == to_currency:
+            return 1.0
+
+        # Simulation for tracking exchange rates (including KES, UGX)
+        rates = {
+            ("TZS", "KES"): 0.051,
+            ("KES", "TZS"): 19.61,
+            ("TZS", "UGX"): 1.45,
+            ("UGX", "TZS"): 0.69,
+            ("USD", "KES"): 135.0,
+            ("USD", "TZS"): 2650.0,
+            ("USD", "UGX"): 3800.0,
+        }
+        
+        return rates.get((from_currency, to_currency))
+
+    @classmethod
+    def convert_seamless(cls, value: float, from_currency: str, to_currency: str, target_date: Optional[date] = None) -> Optional[CurrencyValue]:
+        """
+        Auto-fetches the correct rate to allow standardization.
+        """
+        rate = cls.get_exchange_rate(from_currency, to_currency, target_date)
+        return cls.convert(value, from_currency, to_currency, rate, target_date, "Internal Engine")

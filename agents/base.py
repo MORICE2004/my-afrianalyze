@@ -21,6 +21,16 @@ class AgentRole(enum.Enum):
     SYNTHESIS = "synthesis"
     AUDITOR = "auditor"
     RESEARCH_DIRECTOR = "research_director"
+    
+    # Portfolio Agents
+    ASSET_UNIVERSE = "asset_universe"
+    FUND_RESEARCH = "fund_research"
+    FIXED_INCOME = "fixed_income"
+    PORTFOLIO_CONSTRUCTION = "portfolio_construction"
+    PORTFOLIO_RISK = "portfolio_risk"
+    PORTFOLIO_STRESS = "portfolio_stress"
+    PORTFOLIO_AUDITOR = "portfolio_auditor"
+    PORTFOLIO_RESEARCH_DIRECTOR = "portfolio_research_director"
 
 class AgentResult(BaseModel):
     agent_role: AgentRole

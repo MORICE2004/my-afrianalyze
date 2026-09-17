@@ -52,6 +52,10 @@ class SynthesisAgent(BaseResearchAgent):
         
         # LLM interaction
         # response = await self.llm_client.generate(prompt=prompt)
+        from packages.core.config import settings
+        from packages.core.exceptions import ProductionDataViolation
+        if settings.APP_ENV == "PRODUCTION":
+            raise ProductionDataViolation("Mock reached in production")
         findings = ["Conflict check complete. Signals synthesized successfully. (Placeholder for LLM output)"]
         
         telemetry.end_agent_run(run_id, status="success")

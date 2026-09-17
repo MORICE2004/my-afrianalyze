@@ -41,11 +41,18 @@ class TechnicalAnalysisAgent(BaseResearchAgent):
             f"DO NOT invent data. DO NOT calculate indicators yourself. Rely ONLY on the provided indicators."
         )
         
-        # LLM integration (bypassed in this stub to ensure determinism/observability focus)
-        # response = await self.llm_client.generate(prompt=prompt)
-        # We simulate the parsed output here
-        
-        findings = ["Technical signals processed successfully. (Placeholder for LLM reading)"]
+        try:
+            response = await self.llm_client.generate(prompt=prompt, system_prompt="You are a financial technical analyst.")
+            findings = [f"Technical signals processed successfully. Reading: {response}"]
+        except Exception as e:
+            findings = [f"Failed to process technical signals via LLM: {str(e)}"]
+            telemetry.end_agent_run(run_id, status="failed")
+            return AgentResult(
+                agent_role=self.role,
+                success=False,
+                findings=findings,
+                warnings=[str(e)]
+            )
         
         telemetry.end_agent_run(run_id, status="success")
         return AgentResult(

@@ -42,10 +42,27 @@ class TelemetryManager:
                 logger.info(f"[{self.run_id}] Agent {run['agent_name']} ended with status {status}. Duration: {run['duration']:.2f}s. Cost: ${cost:.6f}")
                 break
 
-    def log_llm_cost(self, provider: str, model_name: str, tokens: int, estimated_cost: float):
+    def log_llm_cost(self, provider: str, model_name: str, tokens: int, estimated_cost: float, prompt: Optional[str] = None):
         self.metrics["total_cost"] += estimated_cost
         self.metrics["total_tokens"] += tokens
-        logger.debug(f"LLM call to {provider}/{model_name} used {tokens} tokens. Cost: ${estimated_cost:.6f}")
+        
+        # Track prompt snapshot info
+        prompt_version = "v1" # Can be extended
+        prompt_length = len(prompt) if prompt else 0
+        
+        if "llm_calls" not in self.metrics:
+            self.metrics["llm_calls"] = []
+            
+        self.metrics["llm_calls"].append({
+            "provider": provider,
+            "model_name": model_name,
+            "tokens": tokens,
+            "cost": estimated_cost,
+            "prompt_version": prompt_version,
+            "prompt_length": prompt_length
+        })
+        
+        logger.debug(f"LLM call to {provider}/{model_name} (Prompt v{prompt_version}) used {tokens} tokens. Cost: ${estimated_cost:.6f}")
 
     def get_summary(self) -> Dict[str, Any]:
         return self.metrics

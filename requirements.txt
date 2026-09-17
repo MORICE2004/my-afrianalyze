@@ -1,0 +1,8 @@
+docling
+pydantic
+pytest
+pandas
+litellm
+tenacity
+celery
+redis

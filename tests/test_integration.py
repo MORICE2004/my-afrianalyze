@@ -1,8 +1,25 @@
 import pytest
 import httpx
+from fastapi.testclient import TestClient
+from unittest.mock import patch, MagicMock
 from apps.api.main import app
 
 from httpx import ASGITransport
+
+client = TestClient(app)
+
+@pytest.fixture(autouse=True)
+def mock_celery_task():
+    with patch("apps.api.tasks.research_tasks.run_research_task.delay") as mock_delay:
+        mock_result = MagicMock()
+        mock_result.id = "mock-task-id-123"
+        mock_result.state = "SUCCESS"
+        mock_result.result = "mock_research_run_id"
+        mock_delay.return_value = mock_result
+        
+        with patch("apps.api.main.AsyncResult") as mock_async_result:
+            mock_async_result.return_value = mock_result
+            yield
 
 @pytest.mark.asyncio
 async def test_health_check():

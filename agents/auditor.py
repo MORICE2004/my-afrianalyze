@@ -27,6 +27,10 @@ class AuditorAgent(BaseResearchAgent):
     async def execute(self, context: ResearchContext) -> AgentResult:
         findings = []
         success = True
+        import json
+        from agents.telemetry import telemetry
+        
+        run_id = telemetry.start_agent_run(self.role.value)
         
         # Check currency consistency
         fin_currency = context.financial_data.get("currency")
@@ -47,8 +51,40 @@ class AuditorAgent(BaseResearchAgent):
                 findings.append(f"Balance sheet does not reconcile: Assets ({assets}) != Liabilities ({liabilities}) + Equity ({equity})")
                 success = False
 
+        # Prepare context for LLM
+        prior_findings = []
+        for result in context.previous_agent_results:
+            for finding in result.findings:
+                finding_lower = finding.lower()
+                if ("compare" in finding_lower or "vs" in finding_lower or "compared" in finding_lower):
+                    if ("tzs" in finding_lower and "kes" in finding_lower) and "normaliz" not in finding_lower and "convert" not in finding_lower:
+                        findings.append(f"WARNING: Unnormalized cross-currency comparison detected in {result.agent_role.value}: {finding}")
+                        success = False
+            
+            prior_findings.append({
+                "agent": result.agent_role.value,
+                "findings": result.findings,
+                "warnings": result.warnings,
+                "errors": result.errors
+            })
+            
+        prompt = (
+            f"Review the following research findings:\n{json.dumps(prior_findings, indent=2)}\n\n"
+            f"Apply your adversarial checklist to identify any hidden risks, inconsistencies, or analytical errors.\n"
+            f"If there are major issues, explain them."
+        )
+        
+        try:
+            llm_response = await self.llm_client.generate(prompt=prompt, system_prompt=self.SYSTEM_PROMPT)
+            findings.append(f"Auditor LLM Review:\n{llm_response}")
+        except Exception as e:
+            findings.append(f"Auditor LLM call failed: {str(e)}")
+            success = False
+
         if not findings:
             findings.append("No material issues found.")
+
+        telemetry.end_agent_run(run_id, status="success" if success else "failed")
 
         return AgentResult(
             agent_role=self.role,

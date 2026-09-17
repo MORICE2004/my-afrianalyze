@@ -39,6 +39,16 @@ class ResearchRun:
         self.state = ResearchRunState.PENDING
         self.context = ResearchContext(research_run_id=self.run_id)
 
+from pydantic import BaseModel
+
+class PortfolioRequest(BaseModel):
+    capital: float
+    currency: str = "TZS"
+    market: str = "Tanzania"
+    horizon_years: int = 3
+    risk_tolerance: str = "Moderate"
+    objective: str
+
 class ResearchOrchestrator:
     def __init__(self, llm_client: LLMClient):
         self.llm_client = llm_client
@@ -57,6 +67,24 @@ class ResearchOrchestrator:
             AgentRole.AUDITOR: AuditorAgent(llm_client),
             AgentRole.RESEARCH_DIRECTOR: ResearchDirectorAgent(llm_client),
         }
+        
+        # Add Portfolio Agents lazily or import them here
+        from agents.portfolio_agents import (
+            AssetUniverseAgent, FundResearchAgent, FixedIncomeAgent,
+            PortfolioConstructionAgent, PortfolioRiskAgent, PortfolioStressAgent,
+            PortfolioAuditor, PortfolioResearchDirector
+        )
+        
+        self.agents.update({
+            AgentRole.ASSET_UNIVERSE: AssetUniverseAgent(llm_client),
+            AgentRole.FUND_RESEARCH: FundResearchAgent(llm_client),
+            AgentRole.FIXED_INCOME: FixedIncomeAgent(llm_client),
+            AgentRole.PORTFOLIO_CONSTRUCTION: PortfolioConstructionAgent(llm_client),
+            AgentRole.PORTFOLIO_RISK: PortfolioRiskAgent(llm_client),
+            AgentRole.PORTFOLIO_STRESS: PortfolioStressAgent(llm_client),
+            AgentRole.PORTFOLIO_AUDITOR: PortfolioAuditor(llm_client),
+            AgentRole.PORTFOLIO_RESEARCH_DIRECTOR: PortfolioResearchDirector(llm_client),
+        })
 
     async def run_research(self, company_ticker: str, exchange: str) -> ResearchRun:
         run = ResearchRun(ticker=company_ticker, exchange=exchange)
@@ -80,7 +108,7 @@ class ResearchOrchestrator:
             # Phase 3: Sequential (Valuation)
             run.state = ResearchRunState.VALUING
             # Check critical data gates before valuation (stubbed)
-            if not run.context.financial_data and False: # Stub for gate check
+            if not run.context.financial_data: # Stub for gate check
                 raise ValueError("Missing critical financial data for valuation.")
             
             result = await self.agents[AgentRole.VALUATION].execute(run.context)
@@ -115,3 +143,28 @@ class ResearchOrchestrator:
             # Add basic exception handling/logging as needed
             
         return run
+
+    async def run_portfolio_research(self, request: PortfolioRequest):
+        run_id = uuid4()
+        context = ResearchContext(research_run_id=run_id)
+        
+        # Portfolio phases
+        phase1_roles = [AgentRole.ASSET_UNIVERSE, AgentRole.FUND_RESEARCH, AgentRole.FIXED_INCOME]
+        for role in phase1_roles:
+            result = await self.agents[role].execute(context)
+            context.previous_agent_results.append(result)
+            
+        result = await self.agents[AgentRole.PORTFOLIO_CONSTRUCTION].execute(context)
+        context.previous_agent_results.append(result)
+        
+        for role in [AgentRole.PORTFOLIO_RISK, AgentRole.PORTFOLIO_STRESS]:
+            result = await self.agents[role].execute(context)
+            context.previous_agent_results.append(result)
+            
+        result = await self.agents[AgentRole.PORTFOLIO_AUDITOR].execute(context)
+        context.previous_agent_results.append(result)
+        
+        result = await self.agents[AgentRole.PORTFOLIO_RESEARCH_DIRECTOR].execute(context)
+        context.previous_agent_results.append(result)
+        
+        return {"status": "success", "run_id": str(run_id), "results": context.previous_agent_results}
