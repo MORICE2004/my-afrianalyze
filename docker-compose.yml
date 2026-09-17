@@ -1,21 +1,17 @@
 version: '3.8'
 
 services:
-  postgres:
-    image: postgres:15
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: afrianalyze
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-  redis:
-    image: redis:7
-    ports:
-      - "6379:6379"
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - api
+    restart: unless-stopped
 
   api:
     build:
@@ -23,39 +19,63 @@ services:
       dockerfile: Dockerfile.api
     ports:
       - "8000:8000"
-    depends_on:
-      - postgres
-      - redis
     environment:
-      - DATABASE_URL=postgresql://user:password@postgres:5432/afrianalyze
+      - DATABASE_URL=postgresql://afrianalyze:afrianalyze_pass@db:5432/afrianalyze
       - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=development
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
 
-  celery_worker:
+  worker:
     build:
       context: .
       dockerfile: Dockerfile.api
-    command: celery -A apps.api.core.celery_app worker --loglevel=info
-    depends_on:
-      - postgres
-      - redis
+    command: celery -A core.tasks worker --loglevel=info
     environment:
-      - DATABASE_URL=postgresql://user:password@postgres:5432/afrianalyze
+      - DATABASE_URL=postgresql://afrianalyze:afrianalyze_pass@db:5432/afrianalyze
       - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=development
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
 
-#  web:
-#    image: node:18
-#    working_dir: /app
-#    command: npm run dev
-#    ports:
-#      - "3000:3000"
-#    volumes:
-#      - ./apps/web:/app
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=afrianalyze
+      - POSTGRES_PASSWORD=afrianalyze_pass
+      - POSTGRES_DB=afrianalyze
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U afrianalyze"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
-#  firecrawl:
-#    image: mendableai/firecrawl
-#    ports:
-#      - "3002:3002"
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
 volumes:
   postgres_data:
-
+  redis_data:
