@@ -47,7 +47,7 @@ def _abs(v: Decimal | None) -> Decimal | None:
 def add_derived(facts: Facts) -> dict[str, dict]:
     """Add derived lines in place and return how each was derived.
 
-    operating_income_pre_impairment: NMB's 'total operating income' is stated after
+    operating_income_pre_impairment: NMB's 'total operating income' and CRDB's 'net operating income' are stated after
     impairment charges, so the charge is added back for cost-to-income.
     """
     derived: dict[str, dict] = {}

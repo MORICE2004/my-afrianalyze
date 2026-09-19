@@ -5,6 +5,17 @@ be read as legal advice (PRODUCT_CONTEXT.md section 71, ROADMAP Milestone 7).
 
 Last updated: 2026-09-19.
 
+## Owner decisions recorded (not legal advice)
+
+| Date | Decision | Effect in the product |
+|---|---|---|
+| 2026-09-19 | The owner's position is that showing target prices and BUY / HOLD / SELL labels does not need a licence | `SHOW_TRADE_LABELS` is now on by default. The disclaimer still appears on every report and PDF. The setting can be switched off |
+| 2026-09-19 | Use the DSE academic route for price data | A draft request is in `DSE_ACADEMIC_DATA_REQUEST.md`. The owner sends it |
+| 2026-09-19 | The owner reviews and approves research runs for now. Target flow: a user requests a report, the system prepares it, the owner reviews it, then users can see it | Only runs approved with `pipelines.review approve` are shown in production. The request queue is not built yet |
+
+The questions below remain open. A written confirmation from the CMSA, or a lawyer's opinion, would document the
+licensing position if it is ever questioned.
+
 ## What the product does today (facts for the reviewer)
 
 - It publishes research reports on listed Tanzanian companies (first: NMB Bank Plc). The reports contain
@@ -14,8 +25,8 @@ Last updated: 2026-09-19.
   - a fair value range and a 12-month target price;
   - a "model view": Undervalued, Fairly valued or Overvalued, from a fixed rule comparing expected total
     return with the cost of equity.
-- BUY / HOLD / SELL labels exist behind a setting (`SHOW_TRADE_LABELS`). The setting is off. The labels are
-  not shown.
+- BUY / HOLD / SELL labels sit behind a setting (`SHOW_TRADE_LABELS`). It is on since the owner's decision of
+  2026-09-19. The labels appear next to the model view once prices exist.
 - Every report and PDF carries this disclaimer: "For research and education only. This is not investment
   advice, an offer, or a solicitation to buy or sell any security."
 - A named person must approve each research run before it is shown in production. The run is logged with

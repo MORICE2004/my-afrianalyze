@@ -3,9 +3,10 @@
   "history_window_years": 3,
   "horizon_years": 5,
   "terminal_growth": {
-    "value": 0.05,
-    "kind": "analyst_assumption",
-    "note": "Long-run nominal growth of book value in TZS. Analyst assumption, not sourced data. Replace with the rate used in the team's CFA Research Challenge model."
+    "value": 0.06,
+    "kind": "owner_assumption",
+    "decided_by": "Owner, 2026-09-19",
+    "note": "Long-run growth of book value and dividends in TZS after the forecast years. Set by the owner at 6%, the growth rate of the Tanzanian economy. It is an assumption, not sourced data."
   },
   "method_weights": {
     "residual_income": 0.5,

@@ -25,7 +25,9 @@ class Settings(BaseSettings):
     FIRECRAWL_API_KEY: str = ""
     # BUY / HOLD / SELL labels may need an investment adviser licence (PRODUCT_CONTEXT.md
     # section 71). Off until the owner confirms the legal position.
-    SHOW_TRADE_LABELS: bool = False
+    # BUY / HOLD / SELL next to the model view (PRODUCT_CONTEXT.md section 71). The owner confirmed on
+    # 2026-09-19 that no licence is needed, so labels are on. Set SHOW_TRADE_LABELS=false to hide them.
+    SHOW_TRADE_LABELS: bool = True
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

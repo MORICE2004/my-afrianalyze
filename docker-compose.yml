@@ -28,7 +28,7 @@ services:
       - APP_ENV=DEVELOPMENT
       - DATABASE_URL=postgresql://afrianalyze:${POSTGRES_PASSWORD:-afrianalyze_dev}@db:5432/afrianalyze
       - CORS_ORIGINS=http://localhost:3000
-      - SHOW_TRADE_LABELS=false
+      - SHOW_TRADE_LABELS=true   # owner decision 2026-09-19
     volumes:
       - ./data:/app/data   # downloaded reports and processed extraction files
     depends_on:

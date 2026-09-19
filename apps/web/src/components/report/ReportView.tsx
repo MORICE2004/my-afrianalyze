@@ -320,7 +320,8 @@ function Ratios({ report }: { report: Report }) {
       </table>
       <div className="mt-2"><StatusLegend /></div>
       <p className="mt-2 text-xs text-neutral-500">
-        Averages use opening and closing balances. Capital adequacy is on the bank-only basis NMB reports to the Bank of Tanzania.
+        Averages use opening and closing balances. Capital adequacy is on the{" "}
+        {report.capital_basis === "bank" ? "bank-only" : "group (consolidated)"} basis {report.security.name} reports to the Bank of Tanzania.
         Hover a value to see its inputs.
       </p>
     </div>

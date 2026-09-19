@@ -42,7 +42,7 @@ from packages.database.models import (
     SourceDocument,
     ValidationCheck,
 )
-from pipelines.nmb.items import ALL_ITEMS, SECTIONS, NOTE_SECTIONS
+from pipelines.banks.profiles import profile_for
 
 DISCLAIMER = ("For research and education only. This is not investment advice, an offer, or a solicitation to "
               "buy or sell any security. Figures are extracted from the sources cited; check the source before "
@@ -101,7 +101,8 @@ def _doc_ref(doc: SourceDocument, page: int | None) -> dict:
 
 def build_report(session: Session, security_id: str) -> dict | None:
     sec = session.get(Security, security_id)
-    if sec is None:
+    profile = profile_for(security_id)
+    if sec is None or profile is None:
         return None
     val_cfg = _config("valuation.json")
     rec_cfg = _config("recommendation.json")
@@ -128,7 +129,7 @@ def build_report(session: Session, security_id: str) -> dict | None:
 
     # ------------------------------------------------------------ statements
     statements = {}
-    order = [(s.statement, s, i) for s in SECTIONS + NOTE_SECTIONS for i in s.items]
+    order = [(s.statement, s, i) for s in profile.all_sections for i in s.items]
     order.append(("NOTE", None, None))  # dps
     for statement, section, spec in order:
         code = spec.code if spec else "dps"
@@ -235,7 +236,7 @@ def build_report(session: Session, security_id: str) -> dict | None:
         zero = beta_mod.zero_volume_share(vols, sorted(index))
         selected = beta_mod.select_beta(estimates, zero, rule)
     else:
-        reason = "Needs licensed DSE daily prices for NMB and the DSE All Share Index (DSEI)."
+        reason = f"Needs licensed DSE daily prices for {sec.local_ticker} and the DSE All Share Index (DSEI)."
         estimates = {m: Unavailable(reason, BLOCKED).to_dict() for m in
                      ("raw_daily", "weekly", "monthly", "dimson", "scholes_williams")}
         estimates["bottom_up"] = Unavailable(
@@ -296,7 +297,7 @@ def build_report(session: Session, security_id: str) -> dict | None:
 
     # ------------------------------------------------------------ recommendation
     recommendation = recommend(price, valuation, coe, rec_cfg, settings.SHOW_TRADE_LABELS)
-    required = [code for code in ALL_ITEMS] + ["dps"]
+    required = [code for code in profile.all_items] + ["dps"]
     have = sum(1 for code in required for y in report_years if (code, y) in fact_ref)
     optional_absent = sum(1 for y in report_years if ("inv_securities_fvpl", y) not in fact_ref)
     completeness = have / max(1, len(required) * len(report_years) - optional_absent)
@@ -352,6 +353,7 @@ def build_report(session: Session, security_id: str) -> dict | None:
         "data_as_of": data_as_of,
         "status_counts": counts,
         "trade_labels_enabled": settings.SHOW_TRADE_LABELS,
+        "capital_basis": next((s.basis for s in profile.note_sections if s.code == "CAPITAL"), None),
         "security": {"id": sec.id, "name": sec.name, "exchange": sec.exchange, "ticker": sec.local_ticker,
                      "isin": sec.isin, "sector": sec.sector, "currency": sec.currency, "is_bank": sec.is_bank,
                      "industry_template": sec.industry_template, "listing_status": sec.listing_status,

@@ -71,8 +71,9 @@ def test_production_hides_unreviewed_reports(monkeypatch):
     assert client.get("/api/v1/reports/DSE:NMB/pdf").status_code == 403
 
 
-def test_no_trade_labels_by_default_and_no_view_without_prices(report):
-    assert report["trade_labels_enabled"] is False
+def test_no_view_and_no_trade_label_without_prices(report):
+    # Labels are switched on (owner decision 2026-09-19), but there is nothing to label without a price.
+    assert report["trade_labels_enabled"] is True
     keys = set(_keys(report))
     assert "trade_label" not in keys and "rating" not in keys
     rec = report["header"]["recommendation"]
@@ -154,5 +155,5 @@ def test_markets_and_portfolios_do_not_invent_numbers():
 
 def test_unknown_or_uncovered_security():
     assert client.get("/api/v1/reports/DSE:NOPE").status_code == 404
-    r = client.get("/api/v1/reports/DSE:CRDB")
+    r = client.get("/api/v1/reports/NSE:SCOM")  # in the security master, no reports ingested
     assert r.status_code == 404 and "No research report" in r.json()["detail"]

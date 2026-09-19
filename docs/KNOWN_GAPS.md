@@ -3,20 +3,25 @@
 Last updated: 2026-09-19. Anything fake, partial, blocked or untested is listed here (ROADMAP rule 4).
 Full detail and evidence: `docs/MY_AFRIANALYZE_MASTER_AUDIT.md`.
 
-## Decisions needed from the owner
+## Owner decisions (2026-09-19)
 
-| # | Decision | Why it matters | Options |
-|---|---|---|---|
-| 1 | **DSE price data** | Without licensed prices there is no share price, beta, cost of equity, valuation, target price, fair value range, model view, peer multiples or portfolio sizing | (a) DSE data licence (Data Vending Policy cl. 16.3.3, 23.1); (b) academic route (cl. 17.1, 17.7), if this project qualifies; (c) a commercial African market-data vendor. `pipelines/dse/import_prices.py` is ready for a licensed file |
-| 2 | **Terms of use** for NMB investor relations, Bank of Tanzania, NBS and Damodaran data in a paid product; hosting copies of annual reports | Section 73. Not reviewed yet | Lawyer review (questions in `COMPLIANCE_NOTES.md`) |
-| 3 | **Trade labels** (BUY/HOLD/SELL) and publishing target prices | May need a CMSA investment adviser licence (section 71) | `SHOW_TRADE_LABELS` stays off until you confirm |
-| 4 | **Terminal growth 5%** in `config/valuation.json` | Material to valuation. It is a placeholder analyst assumption, not sourced | Use the rate from the team's CFA Research Challenge model, or approve a documented method |
-| 5 | Scenario shocks and probabilities (25/50/25), method weights (RI 50%, P/B 30%, DDM 20%), model-view margins (±2%) | Analyst assumptions shown on the page | Approve or replace |
-| 6 | **A named reviewer** for publishing research runs | Section 72. Nothing is shown in production until someone approves it | Name the person(s) |
-| 7 | **Mock auth** (`apps/web/src/pages/api/auth/[...nextauth].ts` accepts any password) | Security. Auth changes were out of scope | Remove now, or replace in Milestone 6 |
-| 8 | **Legacy code** with invented data (`connectors/`, `packages/asset_universe`, `agents/`, `apps/api/routers|tasks|core`, `models/`) | Risk of someone wiring fake data back in | Delete (git history keeps it) or keep quarantined |
-| 9 | **Install Docker Desktop** | Needed to test the Postgres/Docker stack | Install, or accept SQLite for local work |
-| 10 | Pause at each milestone (ROADMAP rule 5) or keep going (section 82) | The two documents disagree | I have been following section 82 (PRODUCT_CONTEXT wins) |
+| Question | Decision | What was done |
+|---|---|---|
+| DSE price data | Academic route | Draft request in `DSE_ACADEMIC_DATA_REQUEST.md`. **The owner sends it.** Prices stay BLOCKED until a file arrives |
+| Licence for target prices and BUY/HOLD/SELL | Owner: no licence needed | `SHOW_TRADE_LABELS` on by default; recorded in `COMPLIANCE_NOTES.md` as the owner's position, not legal advice |
+| Terminal growth | 6%, the growth rate of the economy | `config/valuation.json`, marked as the owner's assumption |
+| Reviewer | The owner, for now. Target flow: user requests a report, system prepares it, owner reviews, user sees it | Review command exists; the request queue is MISSING (below) |
+| Legacy code | Delete only what is no longer useful | Deleted the Uganda connector and DSE price provider (invented values only), their two tests, and the mock sign-in (and the unused `next-auth` package). Kept the agents, the other connectors (they contain real fetch code) and the old engines |
+| Push | Yes | Branch pushed to GitHub |
+
+## Still open
+
+| # | Question | Why it matters |
+|---|---|---|
+| 1 | Terms of use of NMB, CRDB, BoT, NBS and Damodaran data in a paid product, and hosting copies of annual reports | Section 73. Questions in `COMPLIANCE_NOTES.md` |
+| 2 | Scenario shocks and probabilities (25/50/25), method weights (RI 50%, P/B 30%, DDM 20%), model-view margins (±2%) | Analyst assumptions shown on the page; approve or replace |
+| 3 | Install Docker Desktop | Needed to test the Postgres/Docker stack |
+| 4 | Confirm the two source inconsistencies noted below | `config/source_issues.json` has `confirmed_by: null` |
 
 ## Blocked
 
@@ -54,6 +59,8 @@ Full detail and evidence: `docs/MY_AFRIANALYZE_MASTER_AUDIT.md`.
 - Admin console: review queue, conflict queue, overrides with a logged reason and source, freshness dashboard.
 - Cash-flow tie check (cash movement) and full subtotal checks.
 - Report history and the public track record (section 76).
+- Report request queue: a user asks for a report, the system prepares it, the owner reviews it, the user
+  sees it. Needs accounts (a request is tied to a person).
 - Accounts, roles, plans and gating. Payments wait for the owner.
 - Grounded copilot. `/research-chat` is switched off because the old version showed invented figures.
 - Methodology page, legal pages (drafts FOR LAWYER REVIEW), cookie consent.
@@ -70,13 +77,12 @@ Full detail and evidence: `docs/MY_AFRIANALYZE_MASTER_AUDIT.md`.
 
 - `tests/test_adversarial.py`, `tests/test_adversarial_multimarket.py`: need `litellm` for the legacy agent
   layer, which is off in v1.
-- `tests/test_connectors.py`: the connectors return invented sample data and are unused in v1.
-- `tests/test_document_ingestion.py`, `tests/test_live_e2e.py`: skip themselves outside their environments
-  (legacy).
+- `tests/test_document_ingestion.py`: skips itself in the test environment (legacy).
+- `tests/test_connectors.py` and `tests/test_live_e2e.py` were deleted with the invented-data connectors they
+  tested.
 - `tests/test_integration.py` was removed. It tested the old Celery research endpoints and a `/health` that
   always said "ok". It is replaced by `tests/v1/test_api.py`.
 
 ## Lint
 
-- `npx eslint src` reports 3 errors, all in the mock auth file (`no-explicit-any`). They are left alone until
-  decision 7.
+- `npx eslint src` reports no problems (the mock auth file was deleted).

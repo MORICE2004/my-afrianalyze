@@ -19,7 +19,7 @@ Never trust an earlier "complete", "live" or "production ready" claim. Verify.
 4. **Money:** `Decimal` in Python, `NUMERIC` in Postgres. No floats for money. FX conversion is explicit (rate, timestamp, source).
 5. **Time:** store observation date, publication date and availability date. No look-ahead.
 6. **Thin markets:** zero-volume days are recorded. Beta and technical indicators follow section 74.
-7. **Recommendations:** trade labels sit behind `SHOW_TRADE_LABELS` (default off). Every view is traceable and shows uncertainty. Disclaimers everywhere (section 71).
+7. **Recommendations:** trade labels sit behind `SHOW_TRADE_LABELS` (on since the owner's decision of 2026-09-19 that no licence is needed; can be switched off). Every view is traceable and shows uncertainty. Disclaimers everywhere (section 71).
 8. **Human review** before anything is published (section 72).
 9. **Data rights:** respect source terms. Never bypass logins, paywalls, CAPTCHAs or robots rules (section 73).
 10. **Secrets** live in environment variables or Secret Manager. Never in git. No PII or raw documents in PostHog, Sentry or logs.
@@ -62,10 +62,11 @@ Current truth: `docs/MY_AFRIANALYZE_MASTER_AUDIT.md`. Proof of each step: `docs/
 | `packages/analysis/` | Deterministic engines: ratios, line items, beta (5 methods + rule), cost of equity, bank valuation, model view, notes |
 | `packages/report/` | `builder.py` assembles the report payload with statuses; `pdf.py` renders the PDF |
 | `packages/core/config.py` | Settings (env vars below) |
-| `pipelines/` | Data jobs run as commands: security master, macro (BoT, NBS, Damodaran), NMB reports, review, licensed price import |
+| `pipelines/` | Data jobs run as commands: security master, macro (BoT, NBS, Damodaran), bank reports, review, licensed price import |
+| `pipelines/banks/` | Shared bank pipeline (download, dual extraction, resolve, load). `profiles.py` holds one profile per bank (NMB, CRDB): report links, label wording, column layout, tie checks, cited risks |
 | `config/*.json` | Securities, valuation assumptions, model-view rule, known source inconsistencies |
 | `alembic/` | Database migrations |
-| `tests/v1/` | v1 tests (hand-checked values, API contract, NMB end to end) |
+| `tests/v1/` | v1 tests (hand-checked values, API contract, NMB and CRDB end to end) |
 | `apps/web/e2e/` | Playwright browser checks at 1440px and 375px, plus the backend-stopped checks |
 | `data/` (git-ignored) | `raw/` downloaded sources with SHA-256 manifests, `processed/` extraction output, `afrianalyze.db` (SQLite) |
 
@@ -86,11 +87,16 @@ cd apps\web; npm ci; cd ..\..
 ```powershell
 .venv\Scripts\python -m pipelines.load_security_master   # config/securities.json -> securities
 .venv\Scripts\python -m pipelines.macro                  # BoT bonds + CBR, NBS CPI, Damodaran CRP
-.venv\Scripts\python -m pipelines.nmb.download_reports   # NMB annual reports 2021-2025 + SHA-256 manifest
-.venv\Scripts\python -m pipelines.nmb.extract            # Camelot + Docling, ~5 min per report (years optional: 2024 2025)
-.venv\Scripts\python -m pipelines.nmb.resolve            # agreement, conflicts, tie checks (exit 1 on a critical failure)
-.venv\Scripts\python -m pipelines.nmb.load               # facts, documents, risks; opens a draft research run
+# For each bank (--bank=nmb or --bank=crdb):
+.venv\Scripts\python -m pipelines.banks.download_reports --bank=crdb   # annual reports 2021-2025 + SHA-256 manifest
+.venv\Scripts\python -m pipelines.banks.extract --bank=crdb            # Camelot + Docling, ~5 min per report (years optional)
+.venv\Scripts\python -m pipelines.banks.resolve --bank=crdb            # agreement, conflicts, tie checks (exit 1 on a critical failure)
+.venv\Scripts\python -m pipelines.banks.load --bank=crdb               # facts, documents, risks; opens a draft research run
 ```
+
+`pipelines.nmb.*` still works for NMB (it calls the shared pipeline with `--bank=nmb`).
+To add a bank: add a profile in `pipelines/banks/profiles.py`, run the four commands, and write
+`tests/v1/test_<bank>_integration.py` with figures checked by hand against the PDF pages.
 
 Review and publish (section 72): `.venv\Scripts\python -m pipelines.review list`, then `submit`, `approve` or
 `reject` with `--by "Full Name" --note "..."`. Licensed prices, when a licence exists:
@@ -124,7 +130,7 @@ Playwright uses the installed Google Chrome (`PW_CHANNEL`, default `chrome`). Sc
 | `APP_ENV` | `DEVELOPMENT` | `PRODUCTION` hides reports that are not published by a reviewer (403); tests set `TEST` |
 | `DATABASE_URL` | SQLite at `data/afrianalyze.db` | PostgreSQL URL in Docker |
 | `CORS_ORIGINS` | ports 3000 and 3001 on localhost and 127.0.0.1 | Allowed browser origins |
-| `SHOW_TRADE_LABELS` | `false` | BUY/HOLD/SELL labels (section 71). Keep off until the owner confirms the legal position |
+| `SHOW_TRADE_LABELS` | `true` | BUY/HOLD/SELL labels next to the model view (section 71). On by the owner's decision of 2026-09-19 |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | API address the browser uses |
 | `API_URL_INTERNAL` | same as above | API address for server-side rendering (Docker: `http://api:8000`) |
 | `HF_HUB_DISABLE_SYMLINKS` | set to `1` by the extractor | Lets Docling download its models on Windows without symlink rights |

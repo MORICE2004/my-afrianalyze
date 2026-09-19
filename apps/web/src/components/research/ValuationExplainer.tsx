@@ -66,7 +66,7 @@ export default function ValuationExplainer({ report }: { report: Report }) {
       </section>
 
       <section>
-        <h3 className="font-semibold text-neutral-900 mb-2">2. Base-case drivers from NMB&apos;s own history</h3>
+        <h3 className="font-semibold text-neutral-900 mb-2">2. Base-case drivers from {report.security.name}&apos;s own history</h3>
         <div className="overflow-x-auto border border-neutral-200 bg-white">
           <table className="w-full text-sm">
             <thead className="bg-neutral-50 text-xs uppercase tracking-wider text-neutral-500">

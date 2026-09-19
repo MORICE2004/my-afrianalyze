@@ -196,12 +196,13 @@ export interface Report {
   data_as_of: { fiscal_year_end: string | null; latest_report: string | null; published_on: string | null; retrieved_at: string | null };
   status_counts: { verified: number; partially_verified: number; conflicting_source: number; insufficient_data: number };
   trade_labels_enabled: boolean;
+  capital_basis: "bank" | "consolidated" | null;
   security: Security;
   header: {
     price: Maybe<{ value: number; trade_date: string; currency: string; source: DocRef }>;
     recommendation: Maybe<{
       model_view: "Undervalued" | "Fairly valued" | "Overvalued";
-      // Only present when the SHOW_TRADE_LABELS setting is on (off by default, section 71).
+      // Only present when the SHOW_TRADE_LABELS setting is on (section 71).
       trade_label?: "BUY" | "HOLD" | "SELL";
       expected_total_return: number;
       price_upside: number;

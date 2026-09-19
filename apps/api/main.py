@@ -126,7 +126,7 @@ def get_report(security_id: str, session: Session = Depends(get_session)) -> dic
         raise HTTPException(404, f"Unknown security {security_id}")
     has_docs = session.query(SourceDocument).filter_by(security_id=sec.id, kind="annual_report").first()
     if has_docs is None:
-        raise HTTPException(404, f"No research report for {sec.id} yet. Only DSE:NMB has sourced data.")
+        raise HTTPException(404, f"No research report for {sec.id} yet. Its annual reports have not been ingested.")
     report = build_report(session, sec.id)
     # Section 72: in production nothing reaches users before a named reviewer publishes it.
     if settings.APP_ENV == AppEnvironment.PRODUCTION and report["review"]["status"] != "published":
