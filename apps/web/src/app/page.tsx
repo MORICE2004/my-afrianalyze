@@ -1,38 +1,56 @@
-import React from 'react';
-import Link from 'next/link';
+import type { Metadata } from "next";
+import Link from "next/link";
+import React from "react";
+import { SecuritySearch } from "@/components/SecuritySearch";
+import { ErrorState } from "@/components/ui/NotAvailable";
+import { apiGet, type Security } from "@/lib/api";
 
-export default function HomePage() {
+export const metadata: Metadata = {
+  title: "Search listed companies",
+  description: "Search DSE, NSE and USE companies by ticker or name and open the sourced research report.",
+};
+
+export default async function HomePage() {
+  const res = await apiGet<{ results: Security[] }>("/api/v1/securities");
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-[75vh]">
+    <div className="flex flex-col items-center pt-10 sm:pt-20">
       <div className="w-full max-w-3xl">
-        <h1 className="text-4xl font-light tracking-tight text-neutral-900 mb-10 text-center">
-          African Equity <span className="font-semibold font-serif italic">Intelligence</span>
+        <h1 className="text-3xl sm:text-4xl font-light tracking-tight text-neutral-900 mb-3 text-center">
+          African equity research, <span className="font-semibold">sourced line by line</span>
         </h1>
-        <div className="relative group">
-          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-            <svg className="h-5 w-5 text-neutral-400 group-focus-within:text-black transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-          </div>
-          <input
-            type="text"
-            className="block w-full pl-12 pr-4 py-5 border border-neutral-300 bg-white text-xl shadow-sm focus:ring-1 focus:ring-black focus:border-black font-mono placeholder-neutral-400 rounded-none transition-shadow hover:shadow-md outline-none"
-            placeholder="Search companies, symbols, or macro themes..."
-            autoFocus
-          />
-          <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
-             <kbd className="hidden sm:inline-flex items-center gap-1 border border-neutral-200 px-2 py-1 text-xs font-sans font-medium text-neutral-400 bg-neutral-50 rounded-sm">
-                <span className="text-[10px]">Press</span> ↵
-             </kbd>
-          </div>
-        </div>
-        <div className="mt-8 flex justify-center items-center gap-6 text-sm font-mono text-neutral-500">
-          <span className="uppercase text-[10px] tracking-widest text-neutral-400 font-bold bg-neutral-100 px-2 py-1">Trending</span>
-          <Link href="/report/SFA" className="text-neutral-700 hover:text-black hover:underline underline-offset-4 decoration-neutral-300 transition-all">SFA.KE</Link>
-          <Link href="/report/EQTY" className="text-neutral-700 hover:text-black hover:underline underline-offset-4 decoration-neutral-300 transition-all">EQTY.KE</Link>
-          <Link href="/report/MTNN" className="text-neutral-700 hover:text-black hover:underline underline-offset-4 decoration-neutral-300 transition-all">MTNN.NG</Link>
-          <Link href="/report/CRDB" className="text-neutral-700 hover:text-black hover:underline underline-offset-4 decoration-neutral-300 transition-all">CRDB.TZ</Link>
-        </div>
+        <p className="text-center text-sm text-neutral-600 mb-8">
+          Every figure links to the page of the document it came from. If a figure cannot be sourced, the page says so.
+        </p>
+        <SecuritySearch />
+
+        <section className="mt-12" aria-labelledby="coverage">
+          <h2 id="coverage" className="text-xs font-bold uppercase tracking-widest text-neutral-500 mb-3">
+            Security master
+          </h2>
+          {!res.ok ? (
+            <ErrorState message={res.error} />
+          ) : (
+            <ul className="divide-y divide-neutral-200 border border-neutral-200 bg-white">
+              {res.data.results.map((s) => (
+                <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
+                  <span>
+                    <span className="font-mono font-semibold">{s.id}</span>
+                    <span className="ml-3 text-neutral-700">{s.name}</span>
+                    <span className="ml-3 text-xs text-neutral-500">{s.currency}</span>
+                  </span>
+                  {s.has_report ? (
+                    <Link href={`/report/${encodeURIComponent(s.id)}`} className="text-xs font-semibold underline underline-offset-4">
+                      Open report
+                    </Link>
+                  ) : (
+                    <span className="text-xs text-neutral-500">No report yet</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </div>
     </div>
   );

@@ -1,221 +1,153 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, ArrowLeft, Check, DollarSign, Globe, Shield, Clock, Target, Droplet, AlertCircle } from 'lucide-react';
-import PortfolioDashboard from '@/components/PortfolioDashboard';
+import React, { useState } from "react";
+import { EmptyState, ErrorState, NotAvailable } from "@/components/ui/NotAvailable";
+import { apiPost } from "@/lib/api";
 
-const WIZARD_STEPS = [
-  { id: 'capital', title: 'Capital', icon: DollarSign, question: 'How much are you looking to invest?', type: 'number', prefix: '$' },
-  { id: 'market', title: 'Market', icon: Globe, question: 'Which markets interest you?', type: 'select', options: [{val: 'TZ', label: 'Tanzania (DSE)'}, {val: 'KE', label: 'Kenya (NSE)'}, {val: 'UG', label: 'Uganda (USE)'}, {val: 'EAC', label: 'Pan-EAC Region'}] },
-  { id: 'risk', title: 'Risk', icon: Shield, question: 'What is your risk tolerance?', type: 'cards', options: [{val: 'Conservative', desc: 'Focus on capital preservation'}, {val: 'Moderate', desc: 'Balance of growth and stability'}, {val: 'Aggressive', desc: 'Maximize long-term growth'}] },
-  { id: 'horizon', title: 'Horizon', icon: Clock, question: 'How long do you plan to invest?', type: 'slider', min: 1, max: 30, suffix: 'Years' },
-  { id: 'objective', title: 'Objective', icon: Target, question: 'What is your primary goal?', type: 'cards', options: [{val: 'Income', desc: 'Regular dividend payouts'}, {val: 'Growth', desc: 'Capital appreciation'}, {val: 'Balanced', desc: 'Mix of income & growth'}] },
-  { id: 'liquidity', title: 'Liquidity', icon: Droplet, question: 'How quickly might you need cash?', type: 'cards', options: [{val: 'Low', desc: 'Funds can be locked up'}, {val: 'Medium', desc: 'Need occasional access'}, {val: 'High', desc: 'Must be easily accessible'}] },
-  { id: 'constraints', title: 'Constraints', icon: AlertCircle, question: 'Any specific constraints?', type: 'textarea', placeholder: 'e.g., ESG only, Shariah compliant, No mining stocks...' },
-];
+const MARKETS = [
+  { code: "TZ", label: "Tanzania (DSE)", currency: "TZS" },
+  { code: "KE", label: "Kenya (NSE)", currency: "KES" },
+  { code: "UG", label: "Uganda (USE)", currency: "UGX" },
+] as const;
+const RISK = [
+  { val: "Conservative", desc: "Capital preservation first" },
+  { val: "Moderate", desc: "Balance of growth and stability" },
+  { val: "Aggressive", desc: "Long-term growth, higher volatility" },
+] as const;
 
-export default function PortfolioWizard() {
-  const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [completed, setCompleted] = useState(false);
-  
-  const [formData, setFormData] = useState({
-    capital: '100000',
-    market: 'TZ',
-    risk: 'Moderate',
-    horizon: '5',
-    objective: 'Growth',
-    liquidity: 'Medium',
-    constraints: '',
-  });
+type Proposal = {
+  available: boolean;
+  reason?: string;
+  universe?: { id: string; name: string; has_licensed_price: boolean }[];
+  checks_that_will_apply?: string[];
+};
 
-  const step = WIZARD_STEPS[currentStepIndex];
-  
-  const handleNext = () => {
-    if (currentStepIndex < WIZARD_STEPS.length - 1) {
-      setCurrentStepIndex(currentStepIndex + 1);
-    } else {
-      setCompleted(true);
-    }
+export default function PortfolioBuilderPage() {
+  const [step, setStep] = useState(0);
+  const [market, setMarket] = useState<(typeof MARKETS)[number]["code"] | "">("");
+  const [capital, setCapital] = useState("");
+  const [risk, setRisk] = useState<(typeof RISK)[number]["val"] | "">("");
+  const [horizon, setHorizon] = useState(5);
+  const [result, setResult] = useState<Proposal | null>(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const m = MARKETS.find((x) => x.code === market);
+  const capitalValue = Number(capital.replace(/,/g, ""));
+  const canNext = [market !== "", capitalValue > 0, risk !== "", horizon >= 1][step];
+
+  const submit = async () => {
+    if (!m || !risk) return;
+    setBusy(true);
+    setError("");
+    const res = await apiPost<Proposal>("/api/v1/portfolio/proposals", {
+      market: m.code, capital: capitalValue, currency: m.currency, risk_profile: risk, horizon_years: horizon,
+    });
+    setBusy(false);
+    if (res.ok) setResult(res.data);
+    else setError(res.error);
   };
 
-  const handleBack = () => {
-    if (currentStepIndex > 0) setCurrentStepIndex(currentStepIndex - 1);
-  };
-
-  if (completed) {
+  if (result) {
     return (
-      <div className="min-h-screen bg-[#FAFAFA] p-8 font-sans">
-        <div className="max-w-[1400px] mx-auto">
-          <div className="flex justify-between items-end mb-8 border-b border-gray-200 pb-4">
-            <div>
-              <h1 className="text-4xl font-light text-gray-900 tracking-tight">Portfolio Optimization</h1>
-              <p className="text-gray-500 mt-2">Generated for {formData.risk} risk profile, {formData.horizon} year horizon.</p>
-            </div>
-            <button
-              onClick={() => setCompleted(false)}
-              className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-black border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              Adjust Parameters
-            </button>
-          </div>
-          <PortfolioDashboard formData={formData} />
-        </div>
+      <div className="space-y-6" data-testid="proposal-result">
+        <h1 className="text-2xl font-bold">Portfolio proposal</h1>
+        <p className="text-sm text-neutral-600">
+          {m?.label} · {m?.currency} {capitalValue.toLocaleString()} · {risk} · {horizon} years
+        </p>
+        {result.available ? (
+          <p>Proposal ready.</p>
+        ) : (
+          <>
+            <NotAvailable reason={result.reason ?? ""} />
+            {result.universe && (
+              <div className="border border-neutral-200 bg-white p-4 text-sm">
+                <h2 className="font-semibold mb-2">Securities in this market (security master)</h2>
+                <ul className="space-y-1">
+                  {result.universe.map((u) => (
+                    <li key={u.id}><span className="font-mono">{u.id}</span> {u.name} — {u.has_licensed_price ? "priced" : "no licensed price"}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {result.checks_that_will_apply && (
+              <div className="text-sm">
+                <h2 className="font-semibold mb-1">Checks a proposal will pass once prices are available</h2>
+                <ul className="list-disc pl-5">{result.checks_that_will_apply.map((c) => <li key={c}>{c}</li>)}</ul>
+              </div>
+            )}
+          </>
+        )}
+        <button type="button" className="border border-neutral-300 px-4 py-2 text-sm" onClick={() => { setResult(null); setStep(0); }}>
+          Start again
+        </button>
       </div>
     );
   }
 
-  const StepIcon = step.icon;
-
   return (
-    <div className="min-h-screen bg-black flex flex-col items-center justify-center p-4 selection:bg-white selection:text-black">
-      <div className="w-full max-w-3xl">
-        {/* Progress bar */}
-        <div className="mb-12">
-          <div className="flex justify-between mb-4">
-            {WIZARD_STEPS.map((s, idx) => (
-              <div
-                key={s.id}
-                className={`flex flex-col items-center gap-2 transition-colors duration-500 ${
-                  idx <= currentStepIndex ? 'text-white' : 'text-zinc-700'
-                }`}
-              >
-                <div className={`w-2 h-2 rounded-full ${idx <= currentStepIndex ? 'bg-white' : 'bg-zinc-800'}`} />
-                <span className="text-[10px] uppercase tracking-widest font-medium hidden md:block">
-                  {s.title}
-                </span>
-              </div>
-            ))}
+    <div className="max-w-2xl mx-auto space-y-6">
+      <h1 className="text-2xl font-bold">Portfolio builder</h1>
+      <ol className="flex gap-2 text-xs uppercase tracking-wider text-neutral-500">
+        {["Market", "Capital", "Risk", "Horizon"].map((s, i) => (
+          <li key={s} className={i === step ? "font-bold text-black" : ""}>{i + 1}. {s}</li>
+        ))}
+      </ol>
+
+      {step === 0 && (
+        <fieldset className="space-y-2">
+          <legend className="text-lg font-medium mb-2">Which market will you invest in?</legend>
+          {MARKETS.map((x) => (
+            <label key={x.code} className={`flex items-center gap-3 border px-4 py-3 cursor-pointer ${market === x.code ? "border-black bg-white" : "border-neutral-300"}`}>
+              <input type="radio" name="market" value={x.code} checked={market === x.code} onChange={() => setMarket(x.code)} />
+              {x.label} <span className="text-xs text-neutral-500">capital in {x.currency}</span>
+            </label>
+          ))}
+        </fieldset>
+      )}
+
+      {step === 1 && m && (
+        <div>
+          <label htmlFor="capital" className="text-lg font-medium block mb-2">How much will you invest, in {m.currency}?</label>
+          <div className="flex items-center border border-neutral-300 bg-white">
+            <span className="px-3 text-neutral-500 font-mono" data-testid="capital-currency">{m.currency}</span>
+            <input id="capital" inputMode="numeric" value={capital} onChange={(e) => setCapital(e.target.value)}
+              className="flex-1 px-3 py-3 font-mono text-lg outline-none" placeholder="Amount" />
           </div>
-          <div className="w-full h-[1px] bg-zinc-800 relative">
-            <motion.div 
-              className="absolute left-0 top-0 h-full bg-white"
-              initial={{ width: 0 }}
-              animate={{ width: `${(currentStepIndex / (WIZARD_STEPS.length - 1)) * 100}%` }}
-              transition={{ duration: 0.5, ease: "easeInOut" }}
-            />
-          </div>
         </div>
+      )}
 
-        {/* Content Area */}
-        <div className="min-h-[400px] relative">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={currentStepIndex}
-              initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
-              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-              exit={{ opacity: 0, y: -20, filter: 'blur(10px)' }}
-              transition={{ duration: 0.4 }}
-              className="absolute inset-0 flex flex-col justify-center"
-            >
-              <div className="flex items-center gap-4 text-zinc-400 mb-6">
-                <StepIcon size={24} />
-                <span className="text-sm uppercase tracking-widest font-semibold">{step.title}</span>
-              </div>
-              <h2 className="text-4xl md:text-5xl font-light text-white mb-12 tracking-tight">
-                {step.question}
-              </h2>
+      {step === 2 && (
+        <fieldset className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <legend className="text-lg font-medium mb-2">Risk profile</legend>
+          {RISK.map((r) => (
+            <button key={r.val} type="button" onClick={() => setRisk(r.val)} aria-pressed={risk === r.val}
+              className={`border p-4 text-left ${risk === r.val ? "border-black bg-black text-white" : "border-neutral-300 bg-white"}`}>
+              <div className="font-medium">{r.val}</div>
+              <div className="text-xs opacity-80">{r.desc}</div>
+            </button>
+          ))}
+        </fieldset>
+      )}
 
-              <div className="w-full max-w-xl">
-                {step.type === 'number' && (
-                  <div className="relative">
-                    <span className="absolute left-0 top-1/2 -translate-y-1/2 text-4xl text-zinc-500 border-r border-zinc-800 pr-4">{step.prefix}</span>
-                    <input
-                      type="number"
-                      autoFocus
-                      value={formData[step.id as keyof typeof formData]}
-                      onChange={(e) => setFormData({ ...formData, [step.id]: e.target.value })}
-                      className="w-full bg-transparent border-b border-zinc-800 text-5xl text-white py-4 pl-16 focus:outline-none focus:border-white transition-colors"
-                      placeholder="0"
-                    />
-                  </div>
-                )}
-
-                {step.type === 'select' && (
-                  <select
-                    value={formData[step.id as keyof typeof formData]}
-                    onChange={(e) => setFormData({ ...formData, [step.id]: e.target.value })}
-                    className="w-full bg-transparent border-b border-zinc-800 text-3xl text-white py-4 focus:outline-none focus:border-white transition-colors appearance-none cursor-pointer"
-                  >
-                    {step.options?.map((opt: any) => (
-                      <option key={opt.val} value={opt.val} className="bg-zinc-900">
-                        {opt.label || opt.val}
-                      </option>
-                    ))}
-                  </select>
-                )}
-
-                {step.type === 'cards' && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {step.options?.map((opt: any) => (
-                      <button
-                        key={opt.val}
-                        onClick={() => setFormData({ ...formData, [step.id]: opt.val })}
-                        className={`p-6 rounded-xl border text-left transition-all duration-300 ${
-                          formData[step.id as keyof typeof formData] === opt.val 
-                            ? 'border-white bg-white text-black' 
-                            : 'border-zinc-800 bg-zinc-900 text-white hover:border-zinc-600'
-                        }`}
-                      >
-                        <div className="font-medium text-lg mb-2">{opt.val}</div>
-                        <div className={`text-sm ${formData[step.id as keyof typeof formData] === opt.val ? 'text-zinc-600' : 'text-zinc-400'}`}>
-                          {opt.desc}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {step.type === 'slider' && (
-                  <div className="space-y-8">
-                    <div className="text-7xl font-light text-white text-center">
-                      {formData[step.id as keyof typeof formData]} <span className="text-3xl text-zinc-500">{step.suffix}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={step.min}
-                      max={step.max}
-                      value={formData[step.id as keyof typeof formData]}
-                      onChange={(e) => setFormData({ ...formData, [step.id]: e.target.value })}
-                      className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-white"
-                    />
-                  </div>
-                )}
-
-                {step.type === 'textarea' && (
-                  <textarea
-                    value={formData[step.id as keyof typeof formData]}
-                    onChange={(e) => setFormData({ ...formData, [step.id]: e.target.value })}
-                    rows={4}
-                    placeholder={step.placeholder}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl text-xl text-white p-6 focus:outline-none focus:border-white transition-colors resize-none"
-                  />
-                )}
-              </div>
-            </motion.div>
-          </AnimatePresence>
+      {step === 3 && (
+        <div>
+          <label htmlFor="horizon" className="text-lg font-medium block mb-2">Horizon: {horizon} years</label>
+          <input id="horizon" type="range" min={1} max={30} value={horizon} onChange={(e) => setHorizon(Number(e.target.value))} className="w-full" />
         </div>
+      )}
 
-        {/* Navigation */}
-        <div className="mt-12 flex justify-between items-center border-t border-zinc-900 pt-8">
-          <button
-            onClick={handleBack}
-            className={`flex items-center gap-2 px-6 py-3 text-sm font-medium tracking-wide rounded-full transition-all duration-300 ${
-              currentStepIndex === 0 ? 'opacity-0 pointer-events-none' : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
-            }`}
-          >
-            <ArrowLeft size={16} /> Back
-          </button>
-          
-          <button
-            onClick={handleNext}
-            className="flex items-center gap-2 px-8 py-4 bg-white text-black text-sm font-bold tracking-widest uppercase rounded-full hover:bg-zinc-200 transition-all duration-300 transform hover:scale-105"
-          >
-            {currentStepIndex === WIZARD_STEPS.length - 1 ? 'Analyze' : 'Continue'} 
-            {currentStepIndex === WIZARD_STEPS.length - 1 ? <Check size={18} /> : <ArrowRight size={18} />}
-          </button>
-        </div>
+      {error && <ErrorState message={error} />}
+
+      <div className="flex justify-between">
+        <button type="button" disabled={step === 0} onClick={() => setStep((s) => s - 1)} className="px-4 py-2 text-sm border border-neutral-300 disabled:opacity-30">Back</button>
+        {step < 3 ? (
+          <button type="button" disabled={!canNext} onClick={() => setStep((s) => s + 1)} className="px-4 py-2 text-sm bg-black text-white disabled:opacity-30">Continue</button>
+        ) : (
+          <button type="button" disabled={busy} onClick={submit} className="px-4 py-2 text-sm bg-black text-white disabled:opacity-30">{busy ? "Checking…" : "Build proposal"}</button>
+        )}
       </div>
+      {step === 0 && !market && <EmptyState title="Start with the market">The currency and the list of eligible securities depend on it.</EmptyState>}
     </div>
   );
 }

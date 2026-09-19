@@ -1,32 +1,86 @@
-import React from 'react';
-import Link from 'next/link';
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import React, { useState } from "react";
+import { SystemStatus } from "./SystemStatus";
+
+export const NAV = [
+  { href: "/", label: "Equities" },
+  { href: "/markets", label: "Markets" },
+  { href: "/fixed-income", label: "Fixed income" },
+  { href: "/portfolio", label: "Portfolio builder" },
+  { href: "/dashboard", label: "My portfolios" },
+  { href: "/health", label: "Data health" },
+];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname() ?? "/";
+  const [open, setOpen] = useState(false);
+  // Close the mobile menu whenever the route changes (adjusting state during render, as React recommends).
+  const [menuPath, setMenuPath] = useState(pathname);
+  if (menuPath !== pathname) {
+    setMenuPath(pathname);
+    setOpen(false);
+  }
+
+  const isActive = (href: string) =>
+    href === "/" ? pathname === "/" || pathname.startsWith("/report") : pathname.startsWith(href);
+
   return (
-    <div className="min-h-screen bg-[#F9F9F9] text-neutral-900 font-sans selection:bg-blue-200">
-      <header className="sticky top-0 z-50 flex items-center justify-between px-6 py-3 bg-white border-b border-neutral-200 shadow-sm text-sm">
-        <div className="flex items-center gap-8">
-          <Link href="/" className="font-bold tracking-tight text-neutral-900 uppercase flex items-center gap-2">
-            <div className="w-3 h-3 bg-black"></div>
-            AfriAnalyze <span className="font-light text-neutral-500">Terminal</span>
-          </Link>
-          <nav className="hidden md:flex items-center gap-6 text-neutral-600 font-medium text-xs tracking-wide uppercase">
-            <Link href="/" className="text-black transition-colors border-b-2 border-black pb-1">Equities</Link>
-            <Link href="/macro" className="hover:text-black transition-colors pb-1">Macro</Link>
-            <Link href="/fixed-income" className="hover:text-black transition-colors pb-1">Fixed Income</Link>
-          </nav>
-        </div>
-        <div className="flex items-center gap-5">
-          <div className="hidden sm:flex items-center gap-2 text-xs text-neutral-500 font-mono tracking-widest">
-            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-            SYS: ONLINE
+    <div className="min-h-screen bg-[#F9F9F9] text-neutral-900 font-sans">
+      <header className="sticky top-0 z-50 bg-white border-b border-neutral-200 shadow-sm text-sm">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 gap-4">
+          <div className="flex items-center gap-8 min-w-0">
+            <Link href="/" className="font-bold tracking-tight uppercase flex items-center gap-2 shrink-0">
+              <span className="w-3 h-3 bg-black" aria-hidden />
+              AfriAnalyze
+            </Link>
+            <nav aria-label="Main" className="hidden lg:flex items-center gap-5 text-neutral-600 font-medium text-xs tracking-wide uppercase">
+              {NAV.map((n) => (
+                <Link
+                  key={n.href}
+                  href={n.href}
+                  aria-current={isActive(n.href) ? "page" : undefined}
+                  className={`pb-1 border-b-2 transition-colors ${isActive(n.href) ? "text-black border-black" : "border-transparent hover:text-black"}`}
+                >
+                  {n.label}
+                </Link>
+              ))}
+            </nav>
           </div>
-          <div className="w-7 h-7 bg-neutral-900 rounded-full text-white flex items-center justify-center font-bold text-xs">MR</div>
+          <div className="flex items-center gap-4">
+            <SystemStatus />
+            <button
+              type="button"
+              className="lg:hidden border border-neutral-300 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide"
+              aria-expanded={open}
+              aria-controls="mobile-nav"
+              onClick={() => setOpen((o) => !o)}
+            >
+              {open ? "Close" : "Menu"}
+            </button>
+          </div>
         </div>
+        {open && (
+          <nav id="mobile-nav" aria-label="Main" className="lg:hidden border-t border-neutral-200 bg-white">
+            {NAV.map((n) => (
+              <Link
+                key={n.href}
+                href={n.href}
+                aria-current={isActive(n.href) ? "page" : undefined}
+                className={`block px-6 py-3 text-sm border-b border-neutral-100 ${isActive(n.href) ? "font-semibold text-black" : "text-neutral-700"}`}
+              >
+                {n.label}
+              </Link>
+            ))}
+          </nav>
+        )}
       </header>
-      <main className="mx-auto max-w-[1400px] px-6 py-8">
-        {children}
-      </main>
+      <main className="mx-auto max-w-[1400px] px-4 sm:px-6 py-8">{children}</main>
+      <footer className="border-t border-neutral-200 px-6 py-4 text-xs text-neutral-500">
+        Research and education only. Not investment advice. Every figure links to its source; missing figures say why.
+      </footer>
     </div>
   );
 }
