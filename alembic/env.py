@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
 from packages.core.config import settings
 from packages.database.base import Base
-from packages.database.models import *
+import packages.database.models  # noqa: F401  (registers tables on Base)
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)

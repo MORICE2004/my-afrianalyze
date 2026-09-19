@@ -9,6 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+import packages.database.types  # noqa: F401  (ExactDecimal)
 ${imports if imports else ""}
 
 # revision identifiers, used by Alembic.

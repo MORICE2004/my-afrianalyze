@@ -12,3 +12,7 @@ data/processed/*
 data/normalized/*
 data/evidence/*
 !data/*/.gitkeep
+
+# Local SQLite database (rebuilt by the pipelines)
+data/*.db
+data/*.db-journal
