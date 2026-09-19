@@ -1,0 +1,16 @@
+{
+  "_comment": "Figures that were extracted correctly but do not add up inside the source document itself. Each entry names the failed tie check it explains, the page, and the arithmetic. Listed figures are shown as CONFLICTING_SOURCE and are left out of every calculation. The loader stops if an entry no longer matches the data (for example the check now passes), so stale entries cannot hide good data. A person must confirm each entry; 'confirmed_by' stays null until then.",
+  "issues": [
+    {
+      "security_id": "DSE:NMB",
+      "fiscal_year": 2020,
+      "items": ["gross_loans", "ecl_loans"],
+      "report_year": 2021,
+      "page": 324,
+      "check_name": "net loans = gross loans + ECL allowance",
+      "evidence": "NMB Annual Report 2021, note 20(a), 2020 comparative column: gross loans 4,308,206 less allowance for impairment 204,809 gives 4,103,397, but the note states net loans of 4,108,891 (difference 5,494). The six loan categories listed above add up to 4,313,598, not the stated gross 4,308,206 (difference 5,392). The net figure 4,108,891 matches the balance sheet (p.226) and the maturity analysis on the same page, so net loans are kept and gross loans and the allowance are not used. The 2021 column on the same page adds up exactly.",
+      "found_by": "automated tie check, figures confirmed against the page text on 2026-09-18",
+      "confirmed_by": null
+    }
+  ]
+}

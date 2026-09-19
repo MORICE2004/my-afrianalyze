@@ -1,0 +1,80 @@
+{
+  "_comment": "Security master. Each entry was checked against the exchange's own listing page on verified_at. ISIN is null unless the exchange page showed it. industry_template picks the analysis template (bank, insurer, non_financial, fund). v1 scope is Tanzania (PRODUCT_CONTEXT.md section 77); NSE and USE rows are reference only.",
+  "securities": [
+    {
+      "id": "DSE:NMB",
+      "exchange": "DSE",
+      "local_ticker": "NMB",
+      "isin": null,
+      "name": "NMB Bank Plc",
+      "sector": "Banking",
+      "currency": "TZS",
+      "is_bank": true,
+      "listing_url": "https://dse.co.tz/listed/company/list",
+      "verified_at": "2026-09-17",
+      "verification_note": "Symbol NMB listed on the DSE listed-company page (profile link https://dse.co.tz/listed/company/profile?id=10). ISIN not shown on the DSE page.",
+      "industry_template": "bank",
+      "listing_status": "listed"
+    },
+    {
+      "id": "DSE:CRDB",
+      "exchange": "DSE",
+      "local_ticker": "CRDB",
+      "isin": null,
+      "name": "CRDB Bank Plc",
+      "sector": "Banking",
+      "currency": "TZS",
+      "is_bank": true,
+      "listing_url": "https://dse.co.tz/listed/company/profile?id=2",
+      "verified_at": "2026-09-17",
+      "verification_note": "DSE profile page shows CRDB Bank PLC, symbol CRDB, listed 17 June 2009. ISIN not shown.",
+      "industry_template": "bank",
+      "listing_status": "listed"
+    },
+    {
+      "id": "NSE:SCOM",
+      "exchange": "NSE",
+      "local_ticker": "SCOM",
+      "isin": "KE1000001402",
+      "name": "Safaricom PLC",
+      "sector": "Telecommunication and Technology",
+      "currency": "KES",
+      "is_bank": false,
+      "listing_url": "https://www.nse.co.ke/listed-companies/",
+      "verified_at": "2026-09-17",
+      "verification_note": "NSE listed-companies page: Safaricom PLC Ord 0.05, Trading Symbol SCOM, ISIN KE1000001402.",
+      "industry_template": "non_financial",
+      "listing_status": "listed"
+    },
+    {
+      "id": "NSE:EQTY",
+      "exchange": "NSE",
+      "local_ticker": "EQTY",
+      "isin": "KE0000000554",
+      "name": "Equity Group Holdings PLC",
+      "sector": "Banking",
+      "currency": "KES",
+      "is_bank": true,
+      "listing_url": "https://www.nse.co.ke/listed-companies/",
+      "verified_at": "2026-09-17",
+      "verification_note": "NSE listed-companies page: Equity Group Holdings Ord 0.50, Trading Symbol EQTY, ISIN KE0000000554.",
+      "industry_template": "bank",
+      "listing_status": "listed"
+    },
+    {
+      "id": "USE:MTNU",
+      "exchange": "USE",
+      "local_ticker": "MTNU",
+      "isin": null,
+      "name": "MTN Uganda Limited",
+      "sector": "Telecommunications",
+      "currency": "UGX",
+      "is_bank": false,
+      "listing_url": "https://www.use.or.ug/listed/mtnu",
+      "verified_at": "2026-09-17",
+      "verification_note": "USE listing page for MTNU (MTN UGANDA LIMITED). ISIN not captured.",
+      "industry_template": "non_financial",
+      "listing_status": "listed"
+    }
+  ]
+}

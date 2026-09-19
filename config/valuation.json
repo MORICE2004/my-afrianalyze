@@ -1,0 +1,92 @@
+{
+  "_comment": "Valuation settings for bank reports. Base-case drivers come from extracted history; everything here is an explicit, displayed assumption.",
+  "history_window_years": 3,
+  "horizon_years": 5,
+  "terminal_growth": {
+    "value": 0.05,
+    "kind": "analyst_assumption",
+    "note": "Long-run nominal growth of book value in TZS. Analyst assumption, not sourced data. Replace with the rate used in the team's CFA Research Challenge model."
+  },
+  "method_weights": {
+    "residual_income": 0.5,
+    "justified_pb": 0.3,
+    "ddm": 0.2
+  },
+  "scenarios": {
+    "bear": {
+      "probability": 0.25,
+      "shocks": {
+        "loan_growth": -0.05,
+        "nim": -0.01,
+        "cost_of_risk": 0.01,
+        "cost_to_income": 0.05,
+        "payout": 0.0
+      },
+      "narrative_rule": "Slower credit growth, margin compression, higher credit losses, cost overrun."
+    },
+    "base": {
+      "probability": 0.5,
+      "shocks": {
+        "loan_growth": 0.0,
+        "nim": 0.0,
+        "cost_of_risk": 0.0,
+        "cost_to_income": 0.0,
+        "payout": 0.0
+      },
+      "narrative_rule": "Drivers held at their recent historical level."
+    },
+    "bull": {
+      "probability": 0.25,
+      "shocks": {
+        "loan_growth": 0.03,
+        "nim": 0.005,
+        "cost_of_risk": -0.003,
+        "cost_to_income": -0.03,
+        "payout": 0.0
+      },
+      "narrative_rule": "Faster credit growth, wider margin, lower credit losses, efficiency gains."
+    }
+  },
+  "cost_of_equity": {
+    "risk_free_series": "BOT_TBOND_10Y_WAYTM",
+    "subtract_default_spread": true,
+    "crp_scaling": "beta",
+    "sensitivity_betas": [
+      0.6,
+      0.8,
+      1.0,
+      1.2
+    ]
+  },
+  "beta_selection": {
+    "thin_trading_threshold": 0.1,
+    "min_observations": {
+      "raw_daily": 250,
+      "weekly": 104,
+      "monthly": 36,
+      "dimson": 250,
+      "scholes_williams": 250,
+      "bottom_up": 3
+    },
+    "order_thin": [
+      "dimson",
+      "scholes_williams",
+      "weekly",
+      "monthly",
+      "bottom_up"
+    ],
+    "order_liquid": [
+      "weekly",
+      "monthly",
+      "raw_daily",
+      "bottom_up"
+    ],
+    "blume_adjust": true,
+    "dimson_lags": 1
+  },
+  "input_max_age_days": {
+    "risk_free": 60,
+    "reference": 200,
+    "_note": "Inputs older than this are flagged STALE and lower the confidence score."
+  }
+}

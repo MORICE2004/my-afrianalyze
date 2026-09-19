@@ -1,0 +1,17 @@
+{
+  "_comment": "Model view rule. ETR = (target - price) / price + expected DPS / price. Undervalued if ETR > CoE + buy_margin; Overvalued if ETR < CoE - sell_margin; otherwise Fairly valued. BUY/HOLD/SELL labels are only shown when the SHOW_TRADE_LABELS setting is on (default off, PRODUCT_CONTEXT.md section 71).",
+  "buy_margin": 0.02,
+  "sell_margin": 0.02,
+  "confidence": {
+    "penalty_per_missing_pct": 0.8,
+    "penalty_per_open_conflict": 3,
+    "max_conflict_penalty": 30,
+    "penalty_beta_unavailable": 40,
+    "low_r_squared": 0.05,
+    "penalty_low_r_squared": 15,
+    "high_at": 75,
+    "medium_at": 50,
+    "penalty_per_stale_input": 5,
+    "max_stale_penalty": 15
+  }
+}
