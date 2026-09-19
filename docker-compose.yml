@@ -1,14 +1,19 @@
-version: '3.8'
+# Local stack. UNTESTED: Docker is not installed on the dev machine (docs/KNOWN_GAPS.md).
+# Credentials below are local-development defaults only; set POSTGRES_PASSWORD in a .env file to override.
+# After the first start, load data with the pipeline commands in CLAUDE.md ("Project map and commands"),
+# run inside the api container, e.g.  docker compose exec api python -m pipelines.load_security_master
 
 services:
   web:
     build:
-      context: ./frontend
+      context: ./apps/web
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000   # what the browser calls
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - API_URL_INTERNAL=http://api:8000            # what server-side rendering calls inside Docker
     depends_on:
       - api
     restart: unless-stopped
@@ -20,25 +25,27 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://afrianalyze:afrianalyze_pass@db:5432/afrianalyze
-      - REDIS_URL=redis://redis:6379/0
-      - ENVIRONMENT=development
+      - APP_ENV=DEVELOPMENT
+      - DATABASE_URL=postgresql://afrianalyze:${POSTGRES_PASSWORD:-afrianalyze_dev}@db:5432/afrianalyze
+      - CORS_ORIGINS=http://localhost:3000
+      - SHOW_TRADE_LABELS=false
+    volumes:
+      - ./data:/app/data   # downloaded reports and processed extraction files
     depends_on:
       db:
         condition: service_healthy
-      redis:
-        condition: service_healthy
     restart: unless-stopped
 
+  # Legacy Celery worker for the old agent research task (apps/api/tasks). The v1 pipelines run as
+  # commands instead (see CLAUDE.md). Kept so the stack matches the documented architecture.
   worker:
     build:
       context: .
       dockerfile: Dockerfile.api
-    command: celery -A core.tasks worker --loglevel=info
+    command: celery -A apps.api.core.celery_app worker --loglevel=info
     environment:
-      - DATABASE_URL=postgresql://afrianalyze:afrianalyze_pass@db:5432/afrianalyze
+      - DATABASE_URL=postgresql://afrianalyze:${POSTGRES_PASSWORD:-afrianalyze_dev}@db:5432/afrianalyze
       - REDIS_URL=redis://redis:6379/0
-      - ENVIRONMENT=development
     depends_on:
       db:
         condition: service_healthy
@@ -50,7 +57,7 @@ services:
     image: postgres:15-alpine
     environment:
       - POSTGRES_USER=afrianalyze
-      - POSTGRES_PASSWORD=afrianalyze_pass
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-afrianalyze_dev}
       - POSTGRES_DB=afrianalyze
     ports:
       - "5432:5432"

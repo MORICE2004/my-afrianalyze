@@ -1,4 +1,6 @@
-FROM node:18-alpine AS base
+# UNTESTED: Docker is not installed on the dev machine (docs/KNOWN_GAPS.md).
+# Next.js 16 needs Node 20.9 or later.
+FROM node:22-alpine AS base
 
 # Install dependencies only when needed
 FROM base AS deps
@@ -23,6 +25,10 @@ COPY . .
 
 # Next.js telemetry is disabled
 ENV NEXT_TELEMETRY_DISABLED 1
+
+# Public API URL is inlined into the browser bundle at build time.
+ARG NEXT_PUBLIC_API_URL=http://localhost:8000
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
 RUN npm run build
 

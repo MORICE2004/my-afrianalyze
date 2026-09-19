@@ -1,8 +1,30 @@
-docling
-pydantic
-pytest
-pandas
-litellm
-tenacity
+# Python dependencies. Versions are the ones the v1 tests pass with on the dev machine (Python 3.12).
+
+# --- v1: API, pipelines, analysis, PDF export
+fastapi==0.141.1
+uvicorn==0.53.0
+pydantic==2.13.5
+pydantic-settings==2.15.0
+SQLAlchemy==2.0.54
+alembic==1.20.0
+psycopg2-binary          # PostgreSQL driver (docker-compose); SQLite needs nothing
+numpy==2.5.3
+pandas==3.0.5
+requests==2.34.2
+httpx==0.28.1
+reportlab==5.0.1
+pdfplumber==0.11.10
+pypdfium2==5.13.0
+camelot-py==2.0.0
+opencv-python-headless==5.0.0.93
+docling==2.128.0
+
+# --- tests
+pytest==9.1.1
+
+# --- legacy modules (agents/, apps/api/tasks, apps/api/core/celery_app.py). Not used by the v1 API.
+# litellm is not installed on the dev machine; tests that need it are skipped with a reason.
 celery
 redis
+tenacity
+litellm
