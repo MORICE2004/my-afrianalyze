@@ -1,4 +1,7 @@
 import pytest
+
+pytest.importorskip("litellm", reason="legacy LLM agent layer (agents/) needs litellm, which is not installed; the AI layer is off for v1 (docs/KNOWN_GAPS.md)")
+
 from agents.auditor import AuditorAgent
 from agents.base import ResearchContext, AgentResult, AgentRole
 
