@@ -50,4 +50,81 @@ Version 1 is Tanzania only: DSE equities (NMB and CRDB first), Bank of Tanzania 
 
 ## Project map and commands
 
-(Fill this in during the audit and keep it current: folder layout, how to start each service, how to run each test suite, env variables needed, where each engine lives.)
+Current truth: `docs/MY_AFRIANALYZE_MASTER_AUDIT.md`. Proof of each step: `docs/PROGRESS.md`.
+
+### Where things live (v1 code path)
+
+| Path | What it is |
+|---|---|
+| `apps/api/main.py` | FastAPI app: `/health`, securities, reports (+ `/pdf`), source files, markets, fixed income, portfolio proposal |
+| `apps/web/` | Next.js 16 App Router frontend (`src/app/*` routes, `src/lib/api.ts` client, `src/components/report/*`) |
+| `packages/database/` | SQLAlchemy models (`models.py`), `ExactDecimal` type (`types.py`), session (`session.py`) |
+| `packages/analysis/` | Deterministic engines: ratios, line items, beta (5 methods + rule), cost of equity, bank valuation, model view, notes |
+| `packages/report/` | `builder.py` assembles the report payload with statuses; `pdf.py` renders the PDF |
+| `packages/core/config.py` | Settings (env vars below) |
+| `pipelines/` | Data jobs run as commands: security master, macro (BoT, NBS, Damodaran), NMB reports, review, licensed price import |
+| `config/*.json` | Securities, valuation assumptions, model-view rule, known source inconsistencies |
+| `alembic/` | Database migrations |
+| `tests/v1/` | v1 tests (hand-checked values, API contract, NMB end to end) |
+| `apps/web/e2e/` | Playwright browser checks at 1440px and 375px, plus the backend-stopped checks |
+| `data/` (git-ignored) | `raw/` downloaded sources with SHA-256 manifests, `processed/` extraction output, `afrianalyze.db` (SQLite) |
+
+Legacy code that the v1 API does not use (status in the master audit): `agents/`, `connectors/`, `models/`,
+`apps/api/routers`, `apps/api/tasks`, `apps/api/core`, most of `packages/*` other than the four above, `run_*_acceptance.py`.
+
+### Setup (PowerShell, from the repo root)
+
+```powershell
+python -m venv .venv
+.venv\Scripts\python -m pip install -r requirements.txt
+.venv\Scripts\python -m alembic upgrade head
+cd apps\web; npm ci; cd ..\..
+```
+
+### Load the data (in this order)
+
+```powershell
+.venv\Scripts\python -m pipelines.load_security_master   # config/securities.json -> securities
+.venv\Scripts\python -m pipelines.macro                  # BoT bonds + CBR, NBS CPI, Damodaran CRP
+.venv\Scripts\python -m pipelines.nmb.download_reports   # NMB annual reports 2021-2025 + SHA-256 manifest
+.venv\Scripts\python -m pipelines.nmb.extract            # Camelot + Docling, ~5 min per report (years optional: 2024 2025)
+.venv\Scripts\python -m pipelines.nmb.resolve            # agreement, conflicts, tie checks (exit 1 on a critical failure)
+.venv\Scripts\python -m pipelines.nmb.load               # facts, documents, risks; opens a draft research run
+```
+
+Review and publish (section 72): `.venv\Scripts\python -m pipelines.review list`, then `submit`, `approve` or
+`reject` with `--by "Full Name" --note "..."`. Licensed prices, when a licence exists:
+`.venv\Scripts\python -m pipelines.dse.import_prices --instrument DSE:NMB --file ... --licence "..."`.
+
+### Run
+
+```powershell
+.venv\Scripts\python -m uvicorn apps.api.main:app --port 8000      # API
+cd apps\web; npm run dev -- --port 3000                              # web, http://localhost:3000
+```
+
+`docker compose up` is written for the same stack with PostgreSQL but is UNTESTED (Docker is not installed).
+
+### Test
+
+```powershell
+.venv\Scripts\python -m pytest -q tests                  # all Python tests; tests/v1 is the v1 suite
+cd apps\web; npx tsc --noEmit; npx eslint src           # types and lint
+cd apps\web; npx playwright test                         # browser checks, API and web must be running
+# Backend-stopped check: stop the API, then
+cd apps\web; $env:OFFLINE = "1"; npx playwright test; Remove-Item Env:OFFLINE
+```
+
+Playwright uses the installed Google Chrome (`PW_CHANNEL`, default `chrome`). Screenshots go to `docs/screenshots/`.
+
+### Environment variables
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `APP_ENV` | `DEVELOPMENT` | `PRODUCTION` hides reports that are not published by a reviewer (403); tests set `TEST` |
+| `DATABASE_URL` | SQLite at `data/afrianalyze.db` | PostgreSQL URL in Docker |
+| `CORS_ORIGINS` | ports 3000 and 3001 on localhost and 127.0.0.1 | Allowed browser origins |
+| `SHOW_TRADE_LABELS` | `false` | BUY/HOLD/SELL labels (section 71). Keep off until the owner confirms the legal position |
+| `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | API address the browser uses |
+| `API_URL_INTERNAL` | same as above | API address for server-side rendering (Docker: `http://api:8000`) |
+| `HF_HUB_DISABLE_SYMLINKS` | set to `1` by the extractor | Lets Docling download its models on Windows without symlink rights |
