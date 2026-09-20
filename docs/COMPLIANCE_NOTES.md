@@ -3,14 +3,15 @@
 FOR LAWYER REVIEW. This file lists questions only. It contains no legal conclusions, and nothing here should
 be read as legal advice (PRODUCT_CONTEXT.md section 71, ROADMAP Milestone 7).
 
-Last updated: 2026-09-19.
+Last updated: 2026-09-20.
 
 ## Owner decisions recorded (not legal advice)
 
 | Date | Decision | Effect in the product |
 |---|---|---|
 | 2026-09-19 | The owner's position is that showing target prices and BUY / HOLD / SELL labels does not need a licence | `SHOW_TRADE_LABELS` is now on by default. The disclaimer still appears on every report and PDF. The setting can be switched off |
-| 2026-09-19 | Use the DSE academic route for price data | A draft request is in `DSE_ACADEMIC_DATA_REQUEST.md`. The owner sends it |
+| 2026-09-19 | Use the DSE academic route for price data | A draft request is in `DSE_ACADEMIC_DATA_REQUEST.md`. The owner sends it. It is still unsent |
+| 2026-09-19 | Use the prices the DSE serves publicly on its own website rather than waiting for a licence, accepting the terms-of-use risk. The owner's words: the data are available online and the product needs to be built | Daily prices and index levels for NMB and CRDB are loaded from `dse.co.tz`, whose `robots.txt` disallows nothing. No login, paywall or CAPTCHA is involved. **The DSE Data Vending Policy (cl. 16.3.3, 23.1) restricts reuse of DSE market data, so this is a known, accepted risk, not a cleared one.** Each price carries the web address, download time and file hash, so the series can be withdrawn if the DSE objects. The files are never served on (HTTP 403): the product calculates from the data and does not republish it |
 | 2026-09-19 | The owner reviews and approves research runs for now. Target flow: a user requests a report, the system prepares it, the owner reviews it, then users can see it | Only runs approved with `pipelines.review approve` are shown in production. The request queue is not built yet |
 
 The questions below remain open. A written confirmation from the CMSA, or a lawyer's opinion, would document the
@@ -21,12 +22,14 @@ licensing position if it is ever questioned.
 - It publishes research reports on listed Tanzanian companies (first: NMB Bank Plc). The reports contain
   figures extracted from the company's annual reports, ratios, cost-of-equity inputs, and cited risk
   statements.
-- When licensed share prices are available, it will also show:
+- It shows the last traded share price from the DSE's public data, with the address it came from and the time
+  it was downloaded. The price file itself is not served to users.
+- Once beta can be measured from that price history, it also shows:
   - a fair value range and a 12-month target price;
   - a "model view": Undervalued, Fairly valued or Overvalued, from a fixed rule comparing expected total
     return with the cost of equity.
 - BUY / HOLD / SELL labels sit behind a setting (`SHOW_TRADE_LABELS`). It is on since the owner's decision of
-  2026-09-19. The labels appear next to the model view once prices exist.
+  2026-09-19. A label is only shown when there is a target price behind it.
 - Every report and PDF carries this disclaimer: "For research and education only. This is not investment
   advice, an offer, or a solicitation to buy or sell any security."
 - A named person must approve each research run before it is shown in production. The run is logged with

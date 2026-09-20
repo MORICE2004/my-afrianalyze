@@ -1,13 +1,13 @@
 # Known gaps
 
-Last updated: 2026-09-19. Anything fake, partial, blocked or untested is listed here (ROADMAP rule 4).
+Last updated: 2026-09-20. Anything fake, partial, blocked or untested is listed here (ROADMAP rule 4).
 Full detail and evidence: `docs/MY_AFRIANALYZE_MASTER_AUDIT.md`.
 
 ## Owner decisions (2026-09-19)
 
 | Question | Decision | What was done |
 |---|---|---|
-| DSE price data | Academic route | Draft request in `DSE_ACADEMIC_DATA_REQUEST.md`. **The owner sends it.** Prices stay BLOCKED until a file arrives |
+| DSE price data | Academic route, and (2026-09-19) use the prices the DSE publishes on its own site | NMB and CRDB daily prices are loaded, 2016-09-22 to 2026-09-18 (2,473 days each). The academic request in `DSE_ACADEMIC_DATA_REQUEST.md` is still unsent and would give a licensed series |
 | Licence for target prices and BUY/HOLD/SELL | Owner: no licence needed | `SHOW_TRADE_LABELS` on by default; recorded in `COMPLIANCE_NOTES.md` as the owner's position, not legal advice |
 | Terminal growth | 6%, the growth rate of the economy | `config/valuation.json`, marked as the owner's assumption |
 | Reviewer | The owner, for now. Target flow: user requests a report, system prepares it, owner reviews, user sees it | Review command exists; the request queue is MISSING (below) |
@@ -22,20 +22,26 @@ Full detail and evidence: `docs/MY_AFRIANALYZE_MASTER_AUDIT.md`.
 | 2 | Scenario shocks and probabilities (25/50/25), method weights (RI 50%, P/B 30%, DDM 20%), model-view margins (±2%) | Analyst assumptions shown on the page; approve or replace |
 | 3 | Install Docker Desktop | Needed to test the Postgres/Docker stack |
 | 4 | Confirm the two source inconsistencies noted below, and CRDB's NPL basis | `config/source_issues.json` has `confirmed_by: null` |
-| 5 | Allow downloading from dse.co.tz in Claude Code's settings (see `HANDOFF.md`) | Claude Code's permission check blocked the price download |
+| 5 | The DSE Data Vending Policy restricts reuse of DSE market data. The owner decided to use the published prices and accepted that risk | If the DSE objects, the price series and everything built on it must come out. Every price carries its web address, download time and file hash, so it can be removed cleanly |
 
 ## Blocked
 
-- DSE end-of-day prices, history, indices and volumes (zero-volume days). They are licensed (decision 1).
-  - Affects: price, market cap, all beta methods, cost of equity, valuation, target price, fair value range,
-    model view, peer P/E and P/B, markets page index and movers, and portfolio sizing.
-  - These are shown as `BLOCKED` with the reason. A beta sensitivity grid (0.6 to 1.2) is shown and labelled
-    as a sensitivity, not a forecast.
-- Bottom-up beta also needs sourced prices for regional listed banks (NSE, USE). Kenya and Uganda are outside
-  the v1 scope anyway.
+- **Peer P/E and P/B** need prices for regional listed banks (NSE, USE). Kenya and Uganda are outside the v1
+  scope, so bottom-up beta stays BLOCKED too.
+- **Market movers and commentary** on the markets page: they would need the whole DSE board, not two banks.
+- **Portfolio sizing**: prices exist now, but the weighting rules, board lots and minimum trade sizes are not
+  in the system, so a proposal says so and shows no weights or amounts.
 
 ## Data gaps
 
+- **The DSE's own `shares_in_issue` field is wrong for NMB in recent rows**: 25 rows from 2026-06-02 onwards
+  say 5,000,000,000 shares, ten times the real 500,000,000 (share capital TZS 20,000m ÷ TZS 40 par). The
+  field is never used: the share count is derived from the audited profit ÷ EPS, which gives exactly
+  500,000,000 for NMB and 2,611,999,857 for CRDB (the DSE says 2,611,838,584, 0.006% apart, EPS rounding).
+- **Index levels are collected one date at a time** from `get/last/traded/indices?from=<date>`, which returns
+  the last traded level and gives no date of its own. Each level is checked against the change the DSE
+  publishes with it; levels that do not reconcile are not loaded. NMB did not trade on 35.6% of days and
+  CRDB on 2.1%, which the beta rule weighs (section 74).
 - **NMB FY2020 loans.** The 2021 report (p.324) does not add up for the 2020 column, so gross loans and the
   allowance are `CONFLICTING_SOURCE`. Cost of risk for FY2021 is therefore not shown. Needs a person to
   confirm (`config/source_issues.json`, `confirmed_by: null`).
@@ -50,8 +56,7 @@ Full detail and evidence: `docs/MY_AFRIANALYZE_MASTER_AUDIT.md`.
   (section 79). This gives 500,000,000 shares for FY2025, which matches the shareholder table (Arise B.V.
   174,500,000 shares = 34.90%, 2025 report p.113).
 - Large cash-flow restatements for FY2021 and FY2022 (restated comparatives are marked).
-- CRDB is in the security master, but no reports have been ingested. The other DSE companies are not in the
-  master.
+- Only NMB and CRDB have reports ingested. The other DSE companies are not in the security master.
 - **CRDB loan impairment FY2022 and FY2023**: the credit loss note is laid out differently in those reports
   and the readers disagree, so cost of risk and dividend payout are not shown for those years.
 - **CRDB EPS and interest detail for FY2020-2021**: only one reader found them, so they are not used.

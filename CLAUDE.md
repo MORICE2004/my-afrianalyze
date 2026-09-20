@@ -99,7 +99,24 @@ To add a bank: add a profile in `pipelines/banks/profiles.py`, run the four comm
 `tests/v1/test_<bank>_integration.py` with figures checked by hand against the PDF pages.
 
 Review and publish (section 72): `.venv\Scripts\python -m pipelines.review list`, then `submit`, `approve` or
-`reject` with `--by "Full Name" --note "..."`. Licensed prices, when a licence exists:
+`reject` with `--by "Full Name" --note "..."`.
+
+Share prices and the index (the DSE's public data; the owner's decision of 2026-09-19, see
+`docs/COMPLIANCE_NOTES.md`):
+
+```powershell
+# Prices, one file per security. Download first, then import.
+Invoke-WebRequest -UserAgent "Mozilla/5.0" -OutFile nmb_prices.json `
+  "https://dse.co.tz/api/get/market/prices/for/range/duration?security_code=NMB&days=3650&class=EQUITY"
+.venv\Scripts\python -m pipelines.dse.import_public_prices --instrument DSE:NMB --file nmb_prices.json
+
+# The index. The endpoint serves one date per request, so this takes about 35 minutes for ten years.
+# It is resumable: run it again and it only asks for the dates it is missing.
+.venv\Scripts\python -m pipelines.dse.fetch_public_index --from 2016-09-22 --to 2026-09-18
+.venv\Scripts\python -m pipelines.dse.import_public_index --code DSEI --instrument DSE:DSEI
+```
+
+If a licensed file is ever obtained instead:
 `.venv\Scripts\python -m pipelines.dse.import_prices --instrument DSE:NMB --file ... --licence "..."`.
 
 ### Run
