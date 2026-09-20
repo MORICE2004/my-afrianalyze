@@ -7,8 +7,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-50 flex items-center justify-between px-6 py-3 bg-white border-b border-neutral-200 shadow-sm text-sm">
         <div className="flex items-center gap-8">
           <Link href="/" className="font-bold tracking-tight text-neutral-900 uppercase flex items-center gap-2">
-            <div className="w-3 h-3 bg-black"></div>
-            AfriAnalyze <span className="font-light text-neutral-500">Terminal</span>
+            <img src="/logo.png" alt="AfriEdge Logo" className="h-6 w-auto" />
+            AfriEdge <span className="font-light text-neutral-500">Terminal</span>
           </Link>
           <nav className="hidden md:flex items-center gap-6 text-neutral-600 font-medium text-xs tracking-wide uppercase">
             <Link href="/" className="text-black transition-colors border-b-2 border-black pb-1">Equities</Link>

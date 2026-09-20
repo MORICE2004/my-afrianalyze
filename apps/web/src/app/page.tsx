@@ -4,7 +4,8 @@ import Link from 'next/link';
 export default function HomePage() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[75vh]">
-      <div className="w-full max-w-3xl">
+      <div className="w-full max-w-3xl flex flex-col items-center">
+        <img src="/logo.png" alt="AfriEdge Logo" className="h-32 w-auto mb-6 drop-shadow-sm" />
         <h1 className="text-4xl font-light tracking-tight text-neutral-900 mb-10 text-center">
           African Equity <span className="font-semibold font-serif italic">Intelligence</span>
         </h1>

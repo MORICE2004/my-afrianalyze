@@ -1,8 +1,9 @@
 import React from 'react';
 
-export default function ReportPage({ params }: { params: { symbol: string } }) {
+export default async function ReportPage({ params }: { params: Promise<{ symbol: string }> }) {
   // Mock data
-  const symbol = params.symbol.toUpperCase();
+  const { symbol: rawSymbol } = await params;
+  const symbol = rawSymbol.toUpperCase();
   const companyName = "Safaricom Plc";
   
   return (
