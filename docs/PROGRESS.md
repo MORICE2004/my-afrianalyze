@@ -4,6 +4,58 @@ Proof for each step (ROADMAP rule 3). Newest first. Plain-language summary at th
 
 ---
 
+## 2026-09-20: share prices, the market index, and a beta that can be defended
+
+**In plain words:** both banks now show a real share price, and the valuation runs end to end. Getting
+there turned up two things that would each have produced a confident, wrong answer.
+
+**What was loaded**
+
+| | NMB | CRDB |
+|---|---|---|
+| Daily prices | 2,473 days, 2016-09-22 to 2026-09-18, 35.6% with no trade | 2,473 days, 2.1% with no trade |
+| Last close | TZS 2,070.00 | TZS 2,810.00 |
+
+The DSE All Share Index: 2,460 days. The endpoint serves one date per request and gives no date of its
+own, so the history was collected date by date over about 35 minutes. Each level was checked against the
+change the DSE publishes with it; 13 that did not reconcile (all the first reading after a market
+holiday) and 268 no-data dates were not loaded.
+
+**Two traps, both caught**
+
+1. **NMB split its shares 1:10 on 2026-08-24.** The published price falls from TZS 17,700 to TZS 1,850
+   overnight, which is not a loss. Spotted because the resulting multiples were absurd: price/earnings
+   1.4 and price/book 0.33 for a bank earning about 30% on equity. Confirmed against press coverage
+   (CMSA approval 2026-07-24, post-split trading from 24 August) and against the data itself: exactly one
+   tenth, no trading on the two days between, shares in issue 500m to 5,000m. Untreated it would have fed
+   every beta method a fabricated 90% one-day fall and priced a 500-million-share company against a
+   5-billion-share price. After the fix: NMB P/E 13.6 and P/B 3.34, CRDB 10.0 and 2.67.
+   The importer now refuses any unexplained one-day move above 30%.
+2. **A beta regressed on these banks' own prices is not one number.** From the same ten years: NMB 0.017
+   daily (R² 0.008), 0.066 Dimson, 0.224 weekly, 0.786 monthly; CRDB 0.008 to 1.077. That rise with the
+   measurement interval is what thin trading does. The owner chose the industry-average basis on
+   2026-09-20: Damodaran's emerging-market "Banks (Regional)", 0.604 across 104 firms, loaded with its
+   URL, hash and date. The five regressions stay on the report as a cross-check.
+
+**Honest note on my own working:** an earlier reading of this session claimed local betas of about 2.3
+and called them insane. That was wrong. It was measured against a half-finished index download, where a
+two-year gap created one enormous fake return. The conclusion that a local beta is unusable still holds,
+but for the opposite reason: thin trading pulls it toward zero, not above two.
+
+**Where the valuation lands:** cost of equity 12.94%. NMB target TZS 2,597 against a price of 2,070
+(+25%, Undervalued, BUY). CRDB TZS 5,566 against 2,810 (+98%). The report now flags its own fair value
+when it sits more than 50% from the traded price and asks for a review first; CRDB trips it. On the
+monthly regression beta NMB would be Overvalued/SELL instead, so the open questions at the top of
+`docs/KNOWN_GAPS.md` decide what these reports say. Both runs remain drafts.
+
+**Proof:** 210 Python tests pass, 3 skipped. 28 browser checks pass at 1440px and 375px. Types and lint
+clean. New tests: 13 on the price and index importers, 9 on share splits, 8 on the industry beta.
+
+**Still not run:** GitHub Actions. The workflow only triggers on pushes to `master` or pull requests into
+it, and this work is on `m3-crdb-report` with no pull request open, so CI has never executed.
+
+---
+
 ## 2026-09-20: CRDB Bank report, and one pipeline for every bank
 
 **In plain words:** CRDB Bank now has a report built the same way as NMB, from CRDB's own annual reports.
@@ -292,12 +344,12 @@ Confidence: 45 of 100 (Low). The deductions are:
 | M2 | Dual extraction; conflicts recorded; validation blocks publication | Done for NMB. The review gate blocks production display; the admin queue is MISSING |
 | M2 | NMB and CRDB, 5 years each | Done (see the 2026-09-20 entry) |
 | M3 | Line items, ratios, notes | Done |
-| M3 | Beta, cost of equity, valuation, scenarios, model view | Engines done and tested; output BLOCKED (DSE prices) |
+| M3 | Beta, cost of equity, valuation, scenarios, model view | Done and producing figures (see the prices entry of 2026-09-20). The beta basis is the owner's decision of 2026-09-20; the cost of equity treatment is still open |
 | M3 | Risks cited | Done (9) |
 | M3 | Every number traces to a source | Done (295 of 295 checked against pages) |
 | M3 | PDF export | Done (draft) |
 | M3 | Unit tests and NMB integration test (10+ figures vs PDF pages) | Done (18 hand-checked, 295 automated) |
-| M3 | Figures that could not be sourced | Price, beta, CoE result, valuation, target, peers (all BLOCKED by the DSE licence); FY2021 cost of risk (source inconsistency) |
+| M3 | Figures that could not be sourced | Peer P/E and P/B, and the peer-by-peer bottom-up beta (need prices for individual regional banks, outside v1 scope); FY2021 cost of risk (source inconsistency); CRDB loan impairment FY2022-23 |
 
 ---
 
