@@ -28,8 +28,12 @@ def base_drivers(facts: Facts, years: list[int], window: int) -> dict:
     return out
 
 
-def base_year_structure(facts: Facts, year: int) -> dict | Unavailable:
-    """Ratios held constant in the projection, all from the base year's statements."""
+def base_year_structure(facts: Facts, year: int, share_factor: Decimal | int = 1) -> dict | Unavailable:
+    """Ratios held constant in the projection, all from the base year's statements.
+
+    `share_factor` is how many of today's shares one share of the base year has become, from
+    `packages.analysis.corporate_actions`. It is 1 when there has been no split.
+    """
     need = {k: get(facts, k, year) for k in (
         "loans_advances_net", "gross_loans", "placements_banks", "inv_securities_amortised_cost",
         "inv_securities_fvoci", "net_interest_income", "operating_income_pre_impairment",
@@ -46,8 +50,11 @@ def base_year_structure(facts: Facts, year: int) -> dict | Unavailable:
         "non_interest_to_nii": (need["operating_income_pre_impairment"] - need["net_interest_income"])
         / need["net_interest_income"],
         "effective_tax_rate": abs(need["income_tax"]) / need["profit_before_tax"],
-        # Shares implied by profit / EPS (facts are TZS millions, EPS is TZS per share).
-        "shares": need["profit_attributable_owners"] * MILLION / need["eps"],
+        # Shares implied by profit / EPS (facts are TZS millions, EPS is TZS per share). The result is on
+        # that year's share basis, so a split since then is applied to bring it onto today's basis;
+        # otherwise a per-share fair value would be compared with a price that is not on the same footing.
+        "shares": need["profit_attributable_owners"] * MILLION / need["eps"] * to_dec(share_factor),
+        "share_factor": to_dec(share_factor),
         "loans": need["loans_advances_net"],
         "earning_assets": ea,
         "gross_loans": need["gross_loans"],
@@ -127,14 +134,18 @@ def ddm(rows: list[dict], coe: Decimal, g: Decimal) -> dict:
             "formula": f"sum PV(DPS_t) over {len(rows)} years + PV(DPS_N x (1+g) / (CoE - g))"}
 
 
-def run_scenarios(facts: Facts, years: list[int], coe: Decimal, cfg: dict) -> dict:
-    """Bear/base/bull valuation and the probability-weighted 12-month target."""
+def run_scenarios(facts: Facts, years: list[int], coe: Decimal, cfg: dict,
+                  share_factor: Decimal | int = 1) -> dict:
+    """Bear/base/bull valuation and the probability-weighted 12-month target.
+
+    `share_factor` puts the base year's per-share figures on today's share basis after a split.
+    """
     base = base_drivers(facts, years, cfg["history_window_years"])
     missing = [k for k in DRIVERS if not base[k]["available"]]
     if missing:
         return Unavailable("Base-case driver(s) not available: " + "; ".join(
             f"{k} ({base[k]['reason']})" for k in missing)).to_dict()
-    structure = base_year_structure(facts, max(years))
+    structure = base_year_structure(facts, max(years), share_factor)
     if isinstance(structure, Unavailable):
         return structure.to_dict()
 
@@ -178,11 +189,12 @@ def run_scenarios(facts: Facts, years: list[int], coe: Decimal, cfg: dict) -> di
             "target_formula": "sum over scenarios of p x (blended fair value x (1 + CoE) - next-year DPS)"}
 
 
-def valuation_sensitivity(facts: Facts, years: list[int], coe_grid: list[dict], cfg: dict) -> dict:
+def valuation_sensitivity(facts: Facts, years: list[int], coe_grid: list[dict], cfg: dict,
+                          share_factor: Decimal | int = 1) -> dict:
     """Probability-weighted fair value for each cost of equity in the grid."""
     rows = []
     for point in coe_grid:
-        res = run_scenarios(facts, years, to_dec(point["cost_of_equity"]), cfg)
+        res = run_scenarios(facts, years, to_dec(point["cost_of_equity"]), cfg, share_factor)
         if not res["available"]:
             return res
         rows.append({**point, "fair_value": res["fair_value"],

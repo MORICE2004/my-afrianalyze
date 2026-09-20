@@ -13,6 +13,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from packages.analysis import beta as beta_mod
+from packages.analysis import corporate_actions
 from packages.analysis.bank_ratios import RATIO_LABELS, add_derived, compute_ratios
 from packages.analysis.bank_valuation import base_drivers, run_scenarios, valuation_sensitivity
 from packages.analysis.common import (
@@ -222,12 +223,20 @@ def build_report(session: Session, security_id: str) -> dict | None:
                             BLOCKED).to_dict()
         gaps.append("Share price: no DSE end-of-day data has been loaded for this security.")
 
+    # --------------------------------------------------- splits (before anything per-share is compared)
+    # The DSE publishes prices as they traded, so a split looks like a collapse. Returns and per-share
+    # figures are both put on today's share basis, and the adjustment is shown on the page.
+    splits = corporate_actions.load_actions(security_id)
+    split_notes = corporate_actions.describe(splits)
+    base_year_end = date(max(years), 12, 31) if years else date.today()
+    share_factor = corporate_actions.per_share_factor(splits, base_year_end)
+
     # ------------------------------------------------------------ beta
     rule = val_cfg["beta_selection"]
     index_id = "DSE:DSEI"
     index_bars = session.query(PriceBar).filter_by(instrument_id=index_id).order_by(PriceBar.trade_date).all()
     if price_bars and index_bars:
-        stock = {b.trade_date: b.close for b in price_bars}
+        stock = corporate_actions.adjust_prices({b.trade_date: b.close for b in price_bars}, splits)
         index = {b.trade_date: b.close for b in index_bars}
         vols = {b.trade_date: b.volume for b in price_bars}
         estimates = {
@@ -251,7 +260,7 @@ def build_report(session: Session, security_id: str) -> dict | None:
         selected = Unavailable(reason, BLOCKED).to_dict()
         gaps.append("Beta: all five methods need both the share price series and the index series.")
     beta_block = {"benchmark": index_id, "estimates": estimates, "zero_volume": zero,
-                  "selected": selected, "rule": rule}
+                  "selected": selected, "rule": rule, "adjustments": split_notes}
 
     # ------------------------------------------------------------ cost of equity
     coe_cfg = val_cfg["cost_of_equity"]
@@ -291,12 +300,12 @@ def build_report(session: Session, security_id: str) -> dict | None:
     # ------------------------------------------------------------ valuation
     fact_years = sorted({y for series in facts.values() for y in series})
     if coe["available"]:
-        valuation = run_scenarios(facts, fact_years, coe["value"], val_cfg)
+        valuation = run_scenarios(facts, fact_years, coe["value"], val_cfg, share_factor)
     else:
         valuation = Unavailable("Cost of equity not available: " + coe["reason"],
                                 coe.get("status", INSUFFICIENT_DATA)).to_dict()
         gaps.append("Valuation and target price: need a measured cost of equity (needs beta).")
-    sensitivity = (valuation_sensitivity(facts, fact_years, coe_grid["rows"], val_cfg)
+    sensitivity = (valuation_sensitivity(facts, fact_years, coe_grid["rows"], val_cfg, share_factor)
                    if coe_grid.get("available") else coe_grid)
     # The base-case drivers do not depend on the cost of equity, so show them regardless.
     drivers = base_drivers(facts, fact_years, val_cfg["history_window_years"])

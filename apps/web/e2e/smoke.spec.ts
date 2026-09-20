@@ -52,7 +52,7 @@ test("report shows the review state, statuses and a model view, never a trade ca
   await expect(page.getByTestId("review-banner")).toContainText("Draft, not reviewed");
   await expect(page.getByTestId("data-as-of")).toContainText("31 Dec 2025");
   await expect(page.getByTestId("model-view")).toContainText("Model view");
-  await expect(page.getByTestId("model-view")).toContainText("BLOCKED");
+  await expect(page.getByTestId("price")).toContainText("TZS 2,070.00");   // the DSE's last trade
   await expect(page.getByTestId("status-counts")).toContainText("VERIFIED");
   const body = await page.locator("body").innerText();
   expect(body).not.toMatch(/\b(BUY|SELL|HOLD)\b/);
@@ -82,7 +82,7 @@ test("statement values link to their source page", async ({ page }) => {
   await expect(link).toHaveAttribute("href", /#page=\d+$/);
 });
 
-test("portfolio builder refuses to size positions without prices", async ({ page }) => {
+test("portfolio builder refuses to size positions it cannot size", async ({ page }) => {
   await page.goto("/portfolio", { waitUntil: "networkidle" });
   await page.getByLabel(/Tanzania \(DSE\)/).check();
   await page.getByRole("button", { name: "Continue" }).click();
@@ -93,6 +93,7 @@ test("portfolio builder refuses to size positions without prices", async ({ page
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Build proposal" }).click();
   const main = page.locator("main");
-  await expect(main).toContainText(/No licensed DSE prices are loaded/);
+  // Prices exist now, but the weighting rules and board lots do not, so it must still show no numbers.
+  await expect(main).toContainText(/not implemented yet/);
   expect(await main.innerText()).not.toMatch(/\d+(\.\d+)?%\s+(weight|allocation)/i);
 });
