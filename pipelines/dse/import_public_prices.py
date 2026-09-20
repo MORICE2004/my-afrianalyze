@@ -26,12 +26,13 @@ import hashlib
 import json
 import shutil
 import sys
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 
 from sqlalchemy import func
 
+from packages.analysis import corporate_actions
 from packages.database.models import DataSourceStatus, PriceBar, Security, SourceDocument
 from packages.database.session import SessionLocal
 
@@ -44,12 +45,40 @@ TERMS_NOTE = ("Downloaded from the Dar es Salaam Stock Exchange's public website
               "(docs/COMPLIANCE_NOTES.md).")
 
 
+JUMP = Decimal("0.30")      # a one-day move bigger than this is treated as suspicious, not as a return
+
+
+def unexplained_jumps(bars: dict, instrument: str) -> list[tuple]:
+    """One-day moves too large to be a real return, unless a recorded split explains them.
+
+    NMB's 1:10 split published as a 90% fall is the reason this exists: a split read as a return would
+    poison every beta method. A move within a few days of a recorded split is accepted, because the
+    exchange suspends trading around the record date.
+    """
+    actions = corporate_actions.load_actions(instrument)
+    split_dates = [date.fromisoformat(a["effective_date"]) for a in actions]
+    out = []
+    days = sorted(bars)
+    for previous, day in zip(days, days[1:]):
+        before, after = bars[previous][0], bars[day][0]
+        if not before:
+            continue
+        if abs(after - before) / before <= JUMP:
+            continue
+        if any(abs((day - d).days) <= 5 for d in split_dates):
+            continue                        # the recorded split accounts for it
+        out.append((day, before, after))
+    return out
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--instrument", required=True, help="DSE:NMB, DSE:CRDB, DSE:DSEI ...")
     ap.add_argument("--file", required=True, help="JSON file downloaded from the DSE website")
     ap.add_argument("--class", dest="klass", default="EQUITY", help="EQUITY (default) or INDEX")
     ap.add_argument("--days", default="3650", help="The days= value used when downloading (for the record)")
+    ap.add_argument("--allow-unexplained-jumps", action="store_true",
+                    help="Import even if a one-day move of more than 30% has no recorded corporate action")
     args = ap.parse_args(argv)
 
     src = Path(args.file)
@@ -79,6 +108,17 @@ def main(argv: list[str]) -> int:
         bars[day] = (Decimal(str(close)), None if volume is None else Decimal(str(volume)))
     if not bars:
         print("No rows carried a closing price; nothing imported.")
+        return 1
+
+    unexplained = unexplained_jumps(bars, args.instrument)
+    if unexplained and not args.allow_unexplained_jumps:
+        print(f"Refusing to import {args.instrument}: {len(unexplained)} one-day move(s) of more than "
+              f"{int(JUMP * 100)}% that no recorded corporate action explains.\n")
+        for day, before, after in unexplained[:10]:
+            print(f"  {day}: {before} -> {after} (x{after / before:.3f})")
+        print("\nA move like this is usually a share split, a consolidation or a bad row, not a real return."
+              "\nCheck it, then either add it to config/corporate_actions.json with its evidence, or re-run"
+              "\nwith --allow-unexplained-jumps if the move is genuine.")
         return 1
 
     sha = hashlib.sha256(content).hexdigest()

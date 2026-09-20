@@ -81,6 +81,33 @@ def test_prices_are_stored_as_exact_decimals_never_floats(tmp_path, db):
     assert "owner decided" in doc.terms_note, "the file must record whose decision this was"
 
 
+def test_an_unexplained_tenfold_fall_stops_the_import(tmp_path, db, capsys):
+    """The NMB split arrived as a 90% one-day fall. The next one must not slip through silently."""
+    f = _price_file(tmp_path, [row("2026-08-19", 17700, company="ZZZZ"),
+                               row("2026-08-24", 1850, company="ZZZZ")])
+    assert prices.main(["--instrument", "DSE:ZZZZ", "--file", str(f)]) == 1
+    out = capsys.readouterr().out
+    assert "no recorded corporate action explains" in out and "17700" in out
+    with db() as s:
+        assert s.query(PriceBar).count() == 0, "nothing may be stored when the series is not understood"
+
+
+def test_a_recorded_split_explains_the_fall(tmp_path, db):
+    """NMB's own split is recorded, so its series imports without complaint."""
+    f = _price_file(tmp_path, [row("2026-08-19", 17700), row("2026-08-24", 1850)])
+    assert prices.main(["--instrument", "DSE:NMB", "--file", str(f)]) == 0
+    with db() as s:
+        assert s.query(PriceBar).count() == 2
+
+
+def test_the_guard_can_be_overridden_deliberately(tmp_path, db):
+    f = _price_file(tmp_path, [row("2026-08-19", 17700, company="ZZZZ"),
+                               row("2026-08-24", 1850, company="ZZZZ")])
+    assert prices.main(["--instrument", "DSE:ZZZZ", "--file", str(f), "--allow-unexplained-jumps"]) == 0
+    with db() as s:
+        assert s.query(PriceBar).count() == 2
+
+
 # ------------------------------------------------------------------ the index
 
 
