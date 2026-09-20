@@ -16,3 +16,6 @@ data/evidence/*
 # Local SQLite database (rebuilt by the pipelines)
 data/*.db
 data/*.db-journal
+
+.vercel
+.env*
