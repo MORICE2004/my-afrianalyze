@@ -13,5 +13,7 @@
     "medium_at": 50,
     "penalty_per_stale_input": 5,
     "max_stale_penalty": 15
-  }
+  },
+  "model_vs_market_review_threshold": 0.5,
+  "_model_vs_market_note": "If the model fair value differs from the traded price by more than this, the report says so and asks the reviewer to check the drivers and the cost of equity before approving. It does not change any number."
 }

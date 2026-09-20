@@ -177,7 +177,7 @@ def markets_overview(session: Session = Depends(get_session)) -> dict:
                      "change": (last.close - prev.close) / prev.close}
         else:
             index = {"available": False, "id": m["index"],
-                     "reason": "No licensed index data loaded"
+                     "reason": "No index data loaded for this exchange"
                      + (f" ({status.detail})" if status and m["exchange"] == "DSE" else "")}
         count = session.query(func.count()).select_from(Security).filter(Security.exchange == m["exchange"]).scalar()
         out.append({"market": code, "name": m["name"], "exchange": m["exchange"], "currency": m["currency"],
@@ -186,7 +186,9 @@ def markets_overview(session: Session = Depends(get_session)) -> dict:
             "commentary": {"available": False,
                            "reason": "Market commentary is only published when it can be generated from stored, "
                                      "sourced market data. None is loaded."},
-            "movers": {"available": False, "reason": "Needs licensed end-of-day prices for listed securities."}}
+            "movers": {"available": False,
+                       "reason": "Needs end-of-day prices for the whole board. Only the securities with "
+                                 "research reports have prices loaded."}}
 
 
 # ------------------------------------------------------------------ fixed income

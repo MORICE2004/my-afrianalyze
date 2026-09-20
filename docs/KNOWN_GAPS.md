@@ -10,14 +10,34 @@ Full detail and evidence: `docs/MY_AFRIANALYZE_MASTER_AUDIT.md`.
 | DSE price data | Academic route, and (2026-09-19) use the prices the DSE publishes on its own site | NMB and CRDB daily prices are loaded, 2016-09-22 to 2026-09-18 (2,473 days each). The academic request in `DSE_ACADEMIC_DATA_REQUEST.md` is still unsent and would give a licensed series |
 | Licence for target prices and BUY/HOLD/SELL | Owner: no licence needed | `SHOW_TRADE_LABELS` on by default; recorded in `COMPLIANCE_NOTES.md` as the owner's position, not legal advice |
 | Terminal growth | 6%, the growth rate of the economy | `config/valuation.json`, marked as the owner's assumption |
+| Beta basis (2026-09-20) | Use the average beta of comparable listed banks, not a regression on the bank's own price | `config/valuation.json` puts `industry` first in both selection orders. The figure is Damodaran's emerging-market "Banks (Regional)" levered beta, 0.604 across 104 firms, as of 2026-01-05, loaded by `pipelines.macro`. The five local regressions are still computed and shown as a cross-check |
 | Reviewer | The owner, for now. Target flow: user requests a report, system prepares it, owner reviews, user sees it | Review command exists; the request queue is MISSING (below) |
 | Legacy code | Delete only what is no longer useful | Deleted the Uganda connector and DSE price provider (invented values only), their two tests, and the mock sign-in (and the unused `next-auth` package). Kept the agents, the other connectors (they contain real fetch code) and the old engines |
 | Push | Yes | Branch pushed to GitHub |
+
+## The one to look at first
+
+**The model says both banks are worth more than the market says.** NMB's fair value is 14% above the
+traded price; CRDB's is 79% above it, and the report now says so on the page and asks the reviewer to
+check before approving. When a model disagrees this strongly with a traded price, the model is usually
+the one that is wrong. Two things to weigh:
+
+- The projection extrapolates the last three years. CRDB's net loans grew 25.9% a year over 2022-2025,
+  and the base case carries that forward. A bank cannot compound loans at 26% indefinitely.
+- The cost of equity is 12.94%, which is only about 2.2 points above what the Tanzanian government pays
+  on a 10-year bond (10.69%). That is a thin premium for bank equity in a frontier market. It comes
+  from the risk-free rate having the sovereign default spread removed (`subtract_default_spread` in
+  `config/valuation.json`) before the equity risk premium is added. Worth confirming that treatment.
+
+Note how much turns on the beta: on the monthly regression (0.786, Blume-adjusted to 0.857) NMB is
+**Overvalued / SELL**; on the industry beta (0.604) it is **Undervalued / BUY**. Same accounts, same
+price, opposite answer.
 
 ## Still open
 
 | # | Question | Why it matters |
 |---|---|---|
+| 0 | Confirm the beta basis and the cost of equity treatment above, and the split in `config/corporate_actions.json` (`verified_by: null`) | They decide whether the reports say BUY or SELL |
 | 1 | Terms of use of NMB, CRDB, BoT, NBS and Damodaran data in a paid product, and hosting copies of annual reports | Section 73. Questions in `COMPLIANCE_NOTES.md` |
 | 2 | Scenario shocks and probabilities (25/50/25), method weights (RI 50%, P/B 30%, DDM 20%), model-view margins (±2%) | Analyst assumptions shown on the page; approve or replace |
 | 3 | Install Docker Desktop | Needed to test the Postgres/Docker stack |
@@ -26,8 +46,9 @@ Full detail and evidence: `docs/MY_AFRIANALYZE_MASTER_AUDIT.md`.
 
 ## Blocked
 
-- **Peer P/E and P/B** need prices for regional listed banks (NSE, USE). Kenya and Uganda are outside the v1
-  scope, so bottom-up beta stays BLOCKED too.
+- **Peer P/E and P/B** need prices for individual regional listed banks (NSE, USE), which are outside the v1
+  scope. The `bottom_up` beta method (peer-by-peer, unlevered and relevered) stays BLOCKED for the same
+  reason. The valuation does not depend on it: it uses the published industry average instead.
 - **Market movers and commentary** on the markets page: they would need the whole DSE board, not two banks.
 - **Portfolio sizing**: prices exist now, but the weighting rules, board lots and minimum trade sizes are not
   in the system, so a proposal says so and shows no weights or amounts.
@@ -38,6 +59,14 @@ Full detail and evidence: `docs/MY_AFRIANALYZE_MASTER_AUDIT.md`.
   say 5,000,000,000 shares, ten times the real 500,000,000 (share capital TZS 20,000m ÷ TZS 40 par). The
   field is never used: the share count is derived from the audited profit ÷ EPS, which gives exactly
   500,000,000 for NMB and 2,611,999,857 for CRDB (the DSE says 2,611,838,584, 0.006% apart, EPS rounding).
+- **A local beta is not usable for these banks.** From the same ten years of prices against the DSE All
+  Share Index, NMB's beta is 0.017 daily (R² 0.008), 0.066 Dimson, 0.224 weekly and 0.786 monthly (R²
+  0.266); CRDB's is 0.008 daily to 1.077 monthly. Beta rising steadily with the measurement interval is
+  the signature of thin trading, which pulls a daily regression toward zero. Hence the owner's decision
+  above. The regressions stay on the report so the reader can see the spread.
+- **The index has 268 dates with no data** (the DSE answers "No data available" for market holidays) and
+  13 levels that did not reconcile against the change published with them, all of them the first reading
+  after a no-data date. Neither group is loaded: 2,460 days are.
 - **Index levels are collected one date at a time** from `get/last/traded/indices?from=<date>`, which returns
   the last traded level and gives no date of its own. Each level is checked against the change the DSE
   publishes with it; levels that do not reconcile are not loaded. NMB did not trade on 35.6% of days and

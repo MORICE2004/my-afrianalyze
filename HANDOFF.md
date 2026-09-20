@@ -1,6 +1,20 @@
 # Handoff
 
-Written 2026-09-20. Branch `m3-crdb-report` (off `truth-pass/nmb-vertical-slice`).
+Updated 2026-09-20, after prices were loaded. Branch `m3-crdb-report` (off `truth-pass/nmb-vertical-slice`).
+
+## Read this first
+
+Share prices, the market index and the valuation now work end to end for both banks. Three things to
+weigh before you approve either run:
+
+1. **The model says both banks are cheap.** NMB's fair value is 14% above the traded price, CRDB's is
+   79% above. The report says so itself and asks for a review. A gap that wide usually means the
+   projection is too generous or the cost of equity is too low, not that the market is wrong.
+2. **The answer turns on one choice.** With the monthly regression beta, NMB is Overvalued / SELL. With
+   the industry beta you chose, it is Undervalued / BUY. Same accounts, same price.
+3. **Nothing is published.** Both runs are drafts, and production hides drafts.
+
+Details and the two open questions are at the top of `docs/KNOWN_GAPS.md`.
 Read this with `CLAUDE.md` (rules and commands), `docs/MY_AFRIANALYZE_MASTER_AUDIT.md` (what is real),
 `docs/KNOWN_GAPS.md` (what is missing) and `docs/PROGRESS.md` (proof).
 
@@ -17,35 +31,41 @@ Two Tanzanian bank reports are built end to end from the banks' own annual repor
 | Tie checks | 41 of 42 pass | 42 of 42 pass |
 | Statements | Income statement, balance sheet, cash flow, key notes | same |
 | Ratios | 10, all years except cost of risk FY2021 | 10, all years except cost of risk and payout FY2022-23 |
-| Price, beta, valuation, model view | BLOCKED (no licensed prices) | BLOCKED |
+| Share price | TZS 2,070.00 (18 Sep 2026) | TZS 2,810.00 (18 Sep 2026) |
+| Price history | 2,473 days, 35.6% with no trade | 2,473 days, 2.1% with no trade |
+| Beta | industry 0.604 (104 banks) | industry 0.604 |
+| Cost of equity | 12.94% | 12.94% |
+| 12-month target | TZS 2,597 (+25%) | TZS 5,566 (+98%, flagged for review) |
+| Model view | Undervalued (BUY) | Undervalued (BUY) |
+| Confidence | 85/100 | 54/100 |
 
 Everything else on the site (search, markets, fixed income, portfolio wizard, health) shows only sourced data
 or says why a figure is missing.
 
-## The one thing blocking the most value
+## Where the prices come from
 
-No share prices. Without them there is no price, beta, cost of equity, valuation, target price or model view
-for either bank. Three ways forward:
+Your decision of 2026-09-19: use the prices the DSE publishes on its own website, whose robots file allows
+automated access, rather than waiting for a licence. The DSE Data Vending Policy restricts reuse of its
+market data and you accepted that risk; it is written down in `docs/COMPLIANCE_NOTES.md`.
 
-1. **DSE academic route** (your decision of 2026-09-19). Draft request: `docs/DSE_ACADEMIC_DATA_REQUEST.md`.
-   You send it; I have not contacted the DSE.
-2. **Download the prices the DSE publishes** (your decision of 2026-09-19). The DSE website serves daily
-   prices through the address its own chart uses:
-   `https://dse.co.tz/api/get/market/prices/for/range/duration?security_code=NMB&days=3650&class=EQUITY`
-   Its robots file allows automated access. **Claude Code's own permission check blocked me from downloading
-   it.** To let a future session do it, add to `C:\Users\Morice RUGEMARILA\.claude\settings.json`:
+- Daily prices come one file per company from the address the DSE's own chart uses.
+- Index levels come one date at a time, because that is all the endpoint serves. Ten years takes about
+  35 minutes, and the job can be stopped and restarted.
+- Every price carries the web address, the download time and the file's fingerprint. The files themselves
+  are never served on to users: the product calculates from the data and does not republish it.
+- Commands are in `CLAUDE.md`. The academic request in `docs/DSE_ACADEMIC_DATA_REQUEST.md` is still unsent
+  and would give a licensed series if you want one.
 
-   ```json
-   { "permissions": { "allow": ["Bash(curl:*dse.co.tz*)"] } }
-   ```
+**Two traps that are now handled, and would have been expensive:**
 
-   Then the next step is an importer (`pipelines/dse/import_public_prices.py`) that downloads slowly, stores
-   each price with its web address and download time, and records that this was your decision. Note the DSE
-   Data Vending Policy restricts reuse of its prices; you accepted that risk.
-3. **A commercial data vendor.**
-
-Once prices exist, nothing else needs building: the beta, cost of equity and valuation engines are written and
-tested, and they switch from BLOCKED to real numbers.
+- **NMB split its shares 1:10 on 24 August 2026.** The DSE publishes prices as they traded, so the price
+  falls from TZS 17,700 to TZS 1,850 overnight. That is not a loss. Untreated it would have fed every beta
+  a fake 90% crash and priced a 500-million-share company against a 5-billion-share price. Splits now live
+  in `config/corporate_actions.json` with their evidence, and the importer refuses any unexplained one-day
+  move above 30%.
+- **A beta regressed on these banks' own prices is not usable.** NMB does not trade on 35.6% of days, so
+  its beta comes out anywhere from 0.02 (daily) to 0.79 (monthly). You chose the industry-average basis on
+  2026-09-20.
 
 ## How to run it
 
@@ -78,10 +98,11 @@ To add another bank: write a profile in `pipelines/banks/profiles.py`, run the f
 7. **Review**: every run starts as a draft. In production only a run you approved is visible
    (`pipelines.review approve --by "Your Name" --note "..."`).
 
-## Decisions you made (2026-09-19)
+## Decisions you made
 
 | Decision | Where it lives |
 |---|---|
+| **2026-09-20:** the valuation beta is the average of comparable listed banks, not a regression on the bank's own price | `config/valuation.json` (`industry` first in both orders); the figure is loaded by `pipelines.macro` from Damodaran |
 | Terminal growth 6% | `config/valuation.json` |
 | Buy/Hold/Sell labels need no licence, so they are on | `packages/core/config.py`, `docs/COMPLIANCE_NOTES.md` |
 | You review reports; target flow is request → prepare → review → publish | review commands exist; the request queue is not built |
@@ -90,7 +111,10 @@ To add another bank: write a profile in `pipelines/banks/profiles.py`, run the f
 
 ## What I would do next, in order
 
-1. **Prices** (see above). Unblocks valuation for both banks.
+1. **Settle the cost of equity**, and with it whether these reports say BUY or SELL. It is 12.94% today,
+   only about 2.2 points more than the Tanzanian government pays on a 10-year bond, because the sovereign
+   default spread is removed from the risk-free rate before the equity premium is added. Then look at
+   CRDB's 25.9% loan growth being carried forward. See the top of `docs/KNOWN_GAPS.md`.
 2. **CRDB loan impairment for FY2022 and FY2023.** The credit-loss note is laid out differently in those
    years and the readers disagree, so cost of risk is missing for them. It needs the note read by page
    position rather than row order.

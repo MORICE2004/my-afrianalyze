@@ -36,6 +36,10 @@ BOT_TBOND_SUMMARY = "https://www.bot.go.tz/TBonds/AuctionSummaries"
 BOT_MPC_STATEMENT = "https://www.bot.go.tz/Adverts/PressRelease/en/2026040215591446.pdf"
 NBS_CPI_PAGE = "https://www.nbs.go.tz/statistics/topic/consumer-price-index-2026"
 DAMODARAN_CRP = "https://pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/ctryprem.html"
+DAMODARAN_BETAS = "https://pages.stern.nyu.edu/~adamodar/pc/datasets/betaemerg.xls"
+# The industry whose average beta stands in for a Tanzanian bank. NMB and CRDB are deposit-taking
+# commercial banks serving one country, which is what "Banks (Regional)" covers in this dataset.
+DAMODARAN_BANK_INDUSTRY = "Banks (Regional)"
 
 
 def now() -> datetime:
@@ -231,10 +235,108 @@ def damodaran(session) -> str:
     return f"Damodaran: Tanzania {tz[0]} spread {tz[1]}% CRP {tz[2]}% ERP {tz[3]}%, mature {mature_tz:.2f}% ({as_of})"
 
 
+def damodaran_industry_beta(session) -> str:
+    """The average beta of emerging-market banks, used where a local regression cannot be trusted.
+
+    A DSE bank does not trade every day, so a beta regressed on its own price history is pulled toward
+    zero and swings with the measurement interval (NMB: 0.02 daily, 0.79 monthly). An average across
+    many listed banks does not have that problem. The owner chose this basis on 2026-09-20.
+
+    Damodaran's levered industry beta is stored and used as published. His unlevered figures are stored
+    too, but unlevering and relevering a bank is not reliable: for a bank, deposits are not debt in the
+    way the Hamada formula assumes, and he says so himself. The relevered figure is shown on the report
+    as a cross-check, never as the valuation input.
+    """
+    import xlrd                                  # only this job needs it
+
+    r = requests.get(DAMODARAN_BETAS, headers=UA, timeout=120)
+    r.raise_for_status()
+    sha = save(RAW / "reference" / "damodaran_betaemerg.xls", r.content)
+    book = xlrd.open_workbook(file_contents=r.content)
+    if "Industry Averages" not in book.sheet_names():
+        status(session, "damodaran_industry_beta", False, 24 * 200, "Sheet 'Industry Averages' not found")
+        return "Damodaran betas: layout changed, nothing loaded"
+    sheet = book.sheet_by_name("Industry Averages")
+
+    header_row = next((i for i in range(sheet.nrows)
+                       if str(sheet.cell_value(i, 0)).strip() == "Industry Name"), None)
+    if header_row is None:
+        status(session, "damodaran_industry_beta", False, 24 * 200, "Header row not found")
+        return "Damodaran betas: layout changed, nothing loaded"
+    columns = {str(sheet.cell_value(header_row, j)).strip().rstrip(":").lower(): j
+               for j in range(sheet.ncols)}
+
+    def column(*names: str) -> int | None:
+        for wanted in names:
+            for label, j in columns.items():
+                if label.startswith(wanted.lower()):
+                    return j
+        return None
+
+    wanted = {"beta": column("beta"), "firms": column("number of firms"), "de": column("d/e ratio"),
+              "tax": column("effective tax rate"), "unlevered": column("unlevered beta"),
+              "unlevered_cash": column("unlevered beta corrected for c")}
+    if any(v is None for v in wanted.values()):
+        missing = [k for k, v in wanted.items() if v is None]
+        status(session, "damodaran_industry_beta", False, 24 * 200, f"Columns not found: {missing}")
+        return f"Damodaran betas: columns {missing} not found, nothing loaded"
+
+    row_index = next((i for i in range(sheet.nrows)
+                      if str(sheet.cell_value(i, 0)).strip() == DAMODARAN_BANK_INDUSTRY), None)
+    if row_index is None:
+        status(session, "damodaran_industry_beta", False, 24 * 200,
+               f"Industry '{DAMODARAN_BANK_INDUSTRY}' not found")
+        return f"Damodaran betas: '{DAMODARAN_BANK_INDUSTRY}' not found, nothing loaded"
+
+    def cell(key: str) -> Decimal:
+        return Decimal(str(sheet.cell_value(row_index, wanted[key])))
+
+    as_of = None
+    for i in range(min(8, sheet.nrows)):
+        if "date updated" in str(sheet.cell_value(i, 0)).strip().lower():
+            as_of = xlrd.xldate_as_datetime(float(sheet.cell_value(i, 1)), book.datemode).date()
+            break
+    if as_of is None:
+        status(session, "damodaran_industry_beta", False, 24 * 200, "Update date not found")
+        return "Damodaran betas: update date not found, nothing loaded"
+
+    beta = round(cell("beta"), 4)
+    firms = int(cell("firms"))
+    if not (Decimal("0.1") < beta < Decimal("3")) or firms < 20:
+        status(session, "damodaran_industry_beta", False, 24 * 200,
+               f"Implausible: beta {beta} across {firms} firms")
+        return f"Damodaran betas: beta {beta} across {firms} firms is not usable, nothing loaded"
+
+    base = dict(source_name=f"Aswath Damodaran, Betas by Sector, Emerging Markets, "
+                            f"{DAMODARAN_BANK_INDUSTRY} ({firms} firms, updated {as_of:%d %B %Y})",
+                source_url=DAMODARAN_BETAS, as_of=as_of, retrieved_at=now(),
+                file_path="data/raw/reference/damodaran_betaemerg.xls", sha256=sha)
+    rows = [
+        ("EM_BANK_INDUSTRY_BETA", beta, "decimal",
+         f"Average levered beta of {firms} emerging-market regional banks"),
+        ("EM_BANK_INDUSTRY_FIRMS", Decimal(firms), "count",
+         f"Firms behind the {DAMODARAN_BANK_INDUSTRY} average"),
+        ("EM_BANK_INDUSTRY_DE_RATIO", round(cell("de"), 4), "ratio",
+         f"Average debt to equity of the {DAMODARAN_BANK_INDUSTRY} group"),
+        ("EM_BANK_INDUSTRY_TAX_RATE", round(cell("tax"), 4), "decimal",
+         f"Average effective tax rate of the {DAMODARAN_BANK_INDUSTRY} group"),
+        ("EM_BANK_INDUSTRY_UNLEVERED_BETA", round(cell("unlevered"), 4), "decimal",
+         "Unlevered beta of the group (cross-check only; unlevering a bank is unreliable)"),
+        ("EM_BANK_INDUSTRY_UNLEVERED_BETA_CASH_ADJ", round(cell("unlevered_cash"), 4), "decimal",
+         "Unlevered beta corrected for cash (cross-check only)"),
+    ]
+    for key, value, unit, label in rows:
+        session.merge(ReferenceInput(key=key, value=value, unit=unit, label=label, **base))
+    status(session, "damodaran_industry_beta", True, 24 * 200,
+           f"{DAMODARAN_BANK_INDUSTRY}: levered beta {beta} across {firms} firms, as of {as_of}")
+    return (f"Damodaran betas: {DAMODARAN_BANK_INDUSTRY} levered beta {beta} "
+            f"({firms} firms, D/E {cell('de'):.2f}, as of {as_of})")
+
+
 def main() -> int:
     failures = 0
     with SessionLocal() as session:
-        for job in (bot_bonds, bot_cbr, nbs_inflation, damodaran):
+        for job in (bot_bonds, bot_cbr, nbs_inflation, damodaran, damodaran_industry_beta):
             try:
                 print(job(session))
             except Exception as exc:  # record and continue; /health will show it

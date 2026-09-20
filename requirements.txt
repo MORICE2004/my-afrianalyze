@@ -11,6 +11,7 @@ psycopg2-binary          # PostgreSQL driver (docker-compose); SQLite needs noth
 numpy==2.5.3
 pandas==3.0.5
 requests==2.34.2
+xlrd==2.0.2              # reads Damodaran's industry data, which he publishes as legacy .xls
 httpx==0.28.1
 reportlab==5.0.1
 pdfplumber==0.11.10

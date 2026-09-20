@@ -233,6 +233,24 @@ def build_report(session: Session, security_id: str) -> dict | None:
 
     # ------------------------------------------------------------ beta
     rule = val_cfg["beta_selection"]
+    # The industry average does not need price history, so it is available even when the regressions
+    # are not. Its cross-check needs the bank's own leverage, from its own balance sheet.
+    refs_for_beta = {r.key: r for r in session.query(ReferenceInput)}
+
+    def ref_value(key: str):
+        row = refs_for_beta.get(key)
+        return None if row is None else row.value
+
+    latest_year = max(years) if years else None
+    equity = facts.get("equity_owners", {}).get(latest_year)
+    assets = facts.get("total_assets", {}).get(latest_year)
+    target_de = (assets - equity) / equity if equity and assets else None
+    industry_estimate = beta_mod.industry(
+        ref_value("EM_BANK_INDUSTRY_BETA"), ref_value("EM_BANK_INDUSTRY_FIRMS"),
+        (refs_for_beta["EM_BANK_INDUSTRY_BETA"].source_name
+         if "EM_BANK_INDUSTRY_BETA" in refs_for_beta else None),
+        ref_value("EM_BANK_INDUSTRY_DE_RATIO"), ref_value("EM_BANK_INDUSTRY_TAX_RATE"),
+        target_de, ref_value("TZ_CORPORATE_TAX_RATE"))
     index_id = "DSE:DSEI"
     index_bars = session.query(PriceBar).filter_by(instrument_id=index_id).order_by(PriceBar.trade_date).all()
     if price_bars and index_bars:
@@ -246,6 +264,7 @@ def build_report(session: Session, security_id: str) -> dict | None:
             "dimson": beta_mod.dimson(stock, index, rule.get("dimson_lags", 1)),
             "scholes_williams": beta_mod.scholes_williams(stock, index),
             "bottom_up": beta_mod.bottom_up([], None, None),
+            "industry": industry_estimate,
         }
         zero = beta_mod.zero_volume_share(vols, sorted(index))
         selected = beta_mod.select_beta(estimates, zero, rule)
@@ -255,10 +274,12 @@ def build_report(session: Session, security_id: str) -> dict | None:
         estimates = {m: Unavailable(reason, BLOCKED).to_dict() for m in
                      ("raw_daily", "weekly", "monthly", "dimson", "scholes_williams")}
         estimates["bottom_up"] = Unavailable(
-            "Needs sourced prices for East African listed bank peers (also licensed data).", BLOCKED).to_dict()
+            "Needs sourced prices for individual East African listed bank peers.", BLOCKED).to_dict()
+        estimates["industry"] = industry_estimate      # an average of listed banks needs no local prices
         zero = Unavailable(reason, BLOCKED).to_dict()
-        selected = Unavailable(reason, BLOCKED).to_dict()
-        gaps.append("Beta: all five methods need both the share price series and the index series.")
+        selected = beta_mod.select_beta(estimates, zero, rule)
+        if not selected.get("available"):
+            gaps.append("Beta: the five regressions need both the share price series and the index series.")
     beta_block = {"benchmark": index_id, "estimates": estimates, "zero_volume": zero,
                   "selected": selected, "rule": rule, "adjustments": split_notes}
 
@@ -312,6 +333,19 @@ def build_report(session: Session, security_id: str) -> dict | None:
 
     # ------------------------------------------------------------ recommendation
     recommendation = recommend(price, valuation, coe, rec_cfg, settings.SHOW_TRADE_LABELS)
+    # When the model lands a long way from the traded price, the model is the more likely to be wrong:
+    # it extrapolates a few years of growth, while the price is what buyers and sellers actually agreed.
+    # Say so on the report rather than letting a large upside stand as though it were a finding.
+    if price.get("available") and valuation.get("available"):
+        gap_to_market = valuation["fair_value"] / price["value"] - 1
+        limit = Decimal(str(rec_cfg.get("model_vs_market_review_threshold", "0.5")))
+        if abs(gap_to_market) > limit:
+            gaps.append(
+                f"The model's fair value is {gap_to_market:+.0%} away from the traded price of "
+                f"{price['value']} on {price['trade_date']}. A gap this wide usually means the "
+                f"projection is too kind to the bank, or the cost of equity is too low, rather than "
+                f"that the market is wrong. Review the drivers and the cost of equity before "
+                f"approving this run.")
     required = [code for code in profile.all_items] + ["dps"]
     have = sum(1 for code in required for y in report_years if (code, y) in fact_ref)
     optional_absent = sum(1 for y in report_years if ("inv_securities_fvpl", y) not in fact_ref)

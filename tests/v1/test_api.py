@@ -94,7 +94,11 @@ def test_a_trade_label_appears_only_when_there_is_a_valuation_behind_it(report):
     if rec["available"]:
         assert report["header"]["target_price"]["available"] is True
         assert report["header"]["fair_value_range"]["available"] is True
-        assert rec["value"] in {"BUY", "HOLD", "SELL"}
+        assert rec["model_view"] in {"Undervalued", "Fairly valued", "Overvalued"}
+        assert rec["trade_label"] in {"BUY", "HOLD", "SELL"}
+        # The label must follow the model view, never contradict it.
+        assert (rec["trade_label"] == "BUY") == (rec["model_view"] == "Undervalued")
+        assert (rec["trade_label"] == "SELL") == (rec["model_view"] == "Overvalued")
     else:
         assert rec["status"] == "BLOCKED" and rec["reason"]
         assert "trade_label" not in set(_keys(report))
@@ -135,16 +139,20 @@ def test_stale_inputs_are_flagged(report):
         assert inp["status"] in {"VERIFIED", "STALE"} and inp["age_days"] >= 0 and inp["source_url"]
 
 
-def test_pdf_says_draft_and_model_view_not_buy_sell():
+def test_pdf_says_draft_and_carries_the_disclaimer():
     r = client.get("/api/v1/reports/DSE:NMB/pdf")
     assert r.status_code == 200 and r.headers["content-type"] == "application/pdf"
     pdf = pdfium.PdfDocument(r.content)
     first = pdf[0].get_textpage().get_text_range()
     assert "DRAFT, NOT REVIEWED" in first
-    assert "Model view" in first and "Not available (BLOCKED)" in first
+    assert "Model view" in first
     whole = " ".join(pdf[i].get_textpage().get_text_range() for i in range(len(pdf)))
-    for word in (" BUY", " SELL", "HOLD"):
-        assert word not in whole
+    assert "not investment advice" in whole.lower()
+    # A trade word may only appear where the model view stands behind it (owner's decision 2026-09-19).
+    report = client.get("/api/v1/reports/DSE:NMB").json()
+    if not report["header"]["recommendation"].get("available"):
+        for word in (" BUY", " SELL", "HOLD"):
+            assert word not in whole, "no trade call without a valuation behind it"
 
 
 def test_source_files_are_served_and_paths_are_checked(report):

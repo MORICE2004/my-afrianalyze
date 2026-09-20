@@ -179,6 +179,39 @@ def bottom_up(peers: list[dict], target_debt_to_equity: float | None, target_tax
             "target_debt_to_equity": target_debt_to_equity, "target_tax_rate": target_tax_rate}
 
 
+def industry(levered_beta: float | None, firms: int | None, source: str | None,
+             industry_de: float | None = None, industry_tax: float | None = None,
+             target_de: float | None = None, target_tax: float | None = None) -> dict:
+    """The average beta of comparable listed banks, used as published.
+
+    Why this rather than a regression on the bank's own price: a DSE bank does not trade every day, so
+    its own regression is pulled toward zero and moves with the measurement interval. An average over
+    many banks does not have that problem.
+
+    Why the levered figure is used unchanged: the Hamada formula that unlevers and relevers a beta
+    treats debt as borrowing that adds risk to equity. A bank's liabilities are mostly deposits, which
+    are its raw material rather than gearing in that sense, so unlevering a bank and relevering it on
+    another bank's balance sheet is not a reliable step. Damodaran, whose data this is, says the same.
+    The relevered figure is returned as `relevered_cross_check` so a reader can see it, and it is
+    never the valuation input.
+    """
+    if levered_beta is None or firms is None:
+        return Unavailable("No industry beta loaded. Run pipelines.macro to fetch it.").to_dict()
+    out = {"available": True, "beta": float(levered_beta), "std_error": None, "r_squared": None,
+           "observations": int(firms), "source": source,
+           "basis": f"Average levered beta of {int(firms)} comparable listed banks, used as published.",
+           "relevered_cross_check": None}
+    if None not in (industry_de, industry_tax, target_de, target_tax):
+        unlevered = float(levered_beta) / (1 + (1 - float(industry_tax)) * float(industry_de))
+        out["relevered_cross_check"] = {
+            "unlevered_beta": unlevered,
+            "beta": unlevered * (1 + (1 - float(target_tax)) * float(target_de)),
+            "target_debt_to_equity": float(target_de), "target_tax_rate": float(target_tax),
+            "note": "Shown for comparison only. Deposits are not gearing, so this step is not used.",
+        }
+    return out
+
+
 def zero_volume_share(volumes: dict[date, float | None], index_days: list[date]) -> dict:
     """Share of index trading days on which the stock did not trade."""
     if not index_days:
@@ -192,6 +225,10 @@ def blume(beta: float) -> float:
     return (2.0 / 3.0) * beta + (1.0 / 3.0)
 
 
+NO_BLUME = {"industry", "bottom_up"}        # already averages across many firms
+NO_PRICE_NEEDED = {"industry", "bottom_up"}  # do not need the security's own price history
+
+
 def select_beta(estimates: dict[str, dict], zero_share: dict, rule: dict) -> dict:
     """Pick the valuation beta.
 
@@ -202,6 +239,16 @@ def select_beta(estimates: dict[str, dict], zero_share: dict, rule: dict) -> dic
       blume_adjust: apply Blume (2/3 * beta + 1/3)
     """
     if not zero_share.get("available"):
+        # No price history, so how often the share trades is unknown. The methods that do not need a
+        # price history can still be used; the regressions cannot.
+        usable = [m for m in rule["order_thin"] if m in NO_PRICE_NEEDED]
+        for method in usable:
+            est = estimates.get(method, {})
+            if est.get("available") and est["observations"] >= rule["min_observations"].get(method, 0):
+                return {"available": True, "method": method, "raw_beta": est["beta"], "beta": est["beta"],
+                        "reason": ("Trading frequency is unknown because no price history is loaded, so "
+                                   f"only a method that does not need one can be used. {est.get('basis', '')}"),
+                        "skipped": ["the regressions need a price history"]}
         return Unavailable("Cannot assess trading frequency: " + zero_share.get("reason", "")).to_dict()
     thin = zero_share["value"] > rule["thin_trading_threshold"]
     order = rule["order_thin"] if thin else rule["order_liquid"]
@@ -216,13 +263,21 @@ def select_beta(estimates: dict[str, dict], zero_share: dict, rule: dict) -> dic
             skipped.append(f"{method}: {est['observations']} observations < {min_obs}")
             continue
         beta = est["beta"]
-        final = blume(beta) if rule.get("blume_adjust") else beta
+        # Blume pulls a noisy single-stock regression toward the market. An average over many firms is
+        # already that kind of shrinkage, so applying it again would just bias the figure upward.
+        shrink = rule.get("blume_adjust") and method not in NO_BLUME
+        final = blume(beta) if shrink else beta
         reason = (f"Zero-volume share {zero_share['value']:.1%} is "
                   f"{'above' if thin else 'at or below'} the {rule['thin_trading_threshold']:.0%} threshold, "
                   f"so the {'thin' if thin else 'liquid'}-trading order applies: {', '.join(order)}. "
                   f"First method meeting its minimum observations: {method} (n={est['observations']}).")
-        if rule.get("blume_adjust"):
+        if shrink:
             reason += f" Blume adjustment: 2/3 x {beta:.3f} + 1/3 = {final:.3f}."
+        elif rule.get("blume_adjust"):
+            reason += (f" No Blume adjustment: {method} is already an average across "
+                       f"{est['observations']} firms, so shrinking it again would overstate it.")
+        if est.get("basis"):
+            reason += " " + est["basis"]
         return {"available": True, "method": method, "raw_beta": beta, "beta": final,
                 "reason": reason, "skipped": skipped}
     return Unavailable("No beta method met its requirements. " + "; ".join(skipped)).to_dict()

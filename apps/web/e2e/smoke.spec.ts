@@ -47,15 +47,20 @@ test("search finds NMB and opens its report", async ({ page }) => {
   await expect(page.getByTestId("review-banner")).toBeVisible();
 });
 
-test("report shows the review state, statuses and a model view, never a trade call", async ({ page }) => {
+test("report shows the review state, statuses, a model view and the disclaimer", async ({ page }) => {
   await page.goto("/report/DSE:NMB", { waitUntil: "networkidle" });
   await expect(page.getByTestId("review-banner")).toContainText("Draft, not reviewed");
   await expect(page.getByTestId("data-as-of")).toContainText("31 Dec 2025");
   await expect(page.getByTestId("model-view")).toContainText("Model view");
   await expect(page.getByTestId("price")).toContainText("TZS 2,070.00");   // the DSE's last trade
   await expect(page.getByTestId("status-counts")).toContainText("VERIFIED");
+  // A trade label is allowed (owner's decision 2026-09-19) but only beside the model view, and the
+  // disclaimer must always be on the page.
   const body = await page.locator("body").innerText();
-  expect(body).not.toMatch(/\b(BUY|SELL|HOLD)\b/);
+  expect(body).toMatch(/not investment advice/i);
+  if (/\b(BUY|SELL|HOLD)\b/.test(body)) {
+    await expect(page.getByTestId("model-view")).toContainText(/Undervalued|Fairly valued|Overvalued/);
+  }
 
   await page.getByRole("button", { name: "Ratios" }).click();
   const cor = page.getByTestId("ratios").locator("tr", { hasText: "Cost of risk" });

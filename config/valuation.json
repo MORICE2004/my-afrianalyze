@@ -67,23 +67,27 @@
       "monthly": 36,
       "dimson": 250,
       "scholes_williams": 250,
-      "bottom_up": 3
+      "bottom_up": 3,
+      "industry": 20
     },
     "order_thin": [
+      "industry",
+      "monthly",
+      "weekly",
       "dimson",
       "scholes_williams",
-      "weekly",
-      "monthly",
       "bottom_up"
     ],
     "order_liquid": [
-      "weekly",
+      "industry",
       "monthly",
+      "weekly",
       "raw_daily",
       "bottom_up"
     ],
     "blume_adjust": true,
-    "dimson_lags": 1
+    "dimson_lags": 1,
+    "_basis_note": "Owner's decision of 2026-09-20: the valuation beta comes from the average of comparable listed banks, not from a regression on the bank's own price. DSE banks do not trade every day, so their own regressions are pulled toward zero and swing with the measurement interval (NMB: 0.02 daily, 0.79 monthly). The local regressions are still computed and shown as a cross-check."
   },
   "input_max_age_days": {
     "risk_free": 60,
