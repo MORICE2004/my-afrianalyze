@@ -345,6 +345,14 @@ function Beta({ report }: { report: Report }) {
         DSE shares do not trade every day, which biases a plain daily beta toward zero. All methods are shown side by side
         against {b.benchmark}; the valuation uses the one chosen by the rule below.
       </p>
+      {b.adjustments?.length > 0 && (
+        <div className="border border-amber-200 bg-amber-50 px-3 py-2 text-sm" data-testid="price-adjustments">
+          <span className="font-medium">Price history adjusted.</span>
+          <ul className="list-disc pl-5 mt-1 space-y-1">
+            {b.adjustments.map((a) => <li key={a}>{a}</li>)}
+          </ul>
+        </div>
+      )}
       <div className="overflow-x-auto border border-neutral-200 bg-white">
         <table className="w-full text-sm" data-testid="beta-table">
           <thead className="bg-neutral-50 text-xs text-neutral-500">

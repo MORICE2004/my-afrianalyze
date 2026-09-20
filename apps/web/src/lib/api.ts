@@ -224,6 +224,7 @@ export interface Report {
     zero_volume: { available: boolean; value?: number; reason?: string; zero_volume_days?: number; index_trading_days?: number };
     selected: { available: boolean; method?: string; beta?: number; raw_beta?: number; reason?: string; skipped?: string[] };
     rule: Record<string, unknown>;
+    adjustments: string[];   // share splits applied to the price series, in words
   };
   cost_of_equity: {
     inputs: Record<string, CoeInput | null>;
