@@ -93,10 +93,15 @@ def _config(name: str) -> dict:
     return json.loads((settings.CONFIG_DIR / name).read_text(encoding="utf-8"))
 
 
+NOT_REDISTRIBUTED = {"licensed_price_file", "public_price_file", "public_index_file"}
+
+
 def _doc_ref(doc: SourceDocument, page: int | None) -> dict:
-    return {"document_id": doc.id, "title": doc.title, "page": page, "url": doc.url,
-            "file_url": f"/api/v1/sources/{doc.id}/file" + (f"#page={page}" if page else ""),
-            "sha256": doc.sha256, "retrieved_at": _iso(doc.retrieved_at)}
+    ref = {"document_id": doc.id, "title": doc.title, "page": page, "url": doc.url,
+           "sha256": doc.sha256, "retrieved_at": _iso(doc.retrieved_at)}
+    if doc.kind not in NOT_REDISTRIBUTED:   # exchange price files are not served on, so no link to one
+        ref["file_url"] = f"/api/v1/sources/{doc.id}/file" + (f"#page={page}" if page else "")
+    return ref
 
 
 def build_report(session: Session, security_id: str) -> dict | None:
@@ -213,9 +218,9 @@ def build_report(session: Session, security_id: str) -> dict | None:
                  "currency": sec.currency, "source": _doc_ref(pdoc, None)}
     else:
         status = session.get(DataSourceStatus, "dse_prices")
-        price = Unavailable("No licensed DSE price data loaded. " + (status.detail if status else ""),
+        price = Unavailable("No DSE price data loaded. " + (status.detail if status else ""),
                             BLOCKED).to_dict()
-        gaps.append("Share price: DSE end-of-day data is licensed and has not been supplied.")
+        gaps.append("Share price: no DSE end-of-day data has been loaded for this security.")
 
     # ------------------------------------------------------------ beta
     rule = val_cfg["beta_selection"]
@@ -236,14 +241,15 @@ def build_report(session: Session, security_id: str) -> dict | None:
         zero = beta_mod.zero_volume_share(vols, sorted(index))
         selected = beta_mod.select_beta(estimates, zero, rule)
     else:
-        reason = f"Needs licensed DSE daily prices for {sec.local_ticker} and the DSE All Share Index (DSEI)."
+        reason = (f"Needs loaded daily prices for {sec.local_ticker} and for the DSE All Share Index (DSEI); "
+                  f"{'the index series is missing' if price_bars else 'both are missing'}.")
         estimates = {m: Unavailable(reason, BLOCKED).to_dict() for m in
                      ("raw_daily", "weekly", "monthly", "dimson", "scholes_williams")}
         estimates["bottom_up"] = Unavailable(
             "Needs sourced prices for East African listed bank peers (also licensed data).", BLOCKED).to_dict()
         zero = Unavailable(reason, BLOCKED).to_dict()
         selected = Unavailable(reason, BLOCKED).to_dict()
-        gaps.append("Beta: all five methods need licensed price data.")
+        gaps.append("Beta: all five methods need both the share price series and the index series.")
     beta_block = {"benchmark": index_id, "estimates": estimates, "zero_volume": zero,
                   "selected": selected, "rule": rule}
 

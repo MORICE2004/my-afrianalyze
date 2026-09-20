@@ -18,7 +18,7 @@ const RISK = [
 type Proposal = {
   available: boolean;
   reason?: string;
-  universe?: { id: string; name: string; has_licensed_price: boolean }[];
+  universe?: { id: string; name: string; has_price: boolean }[];
   checks_that_will_apply?: string[];
 };
 
@@ -65,7 +65,7 @@ export default function PortfolioBuilderPage() {
                 <h2 className="font-semibold mb-2">Securities in this market (security master)</h2>
                 <ul className="space-y-1">
                   {result.universe.map((u) => (
-                    <li key={u.id}><span className="font-mono">{u.id}</span> {u.name} — {u.has_licensed_price ? "priced" : "no licensed price"}</li>
+                    <li key={u.id}><span className="font-mono">{u.id}</span> {u.name} — {u.has_price ? "priced" : "no price loaded"}</li>
                   ))}
                 </ul>
               </div>

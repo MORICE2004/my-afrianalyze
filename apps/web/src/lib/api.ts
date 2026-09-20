@@ -96,7 +96,7 @@ export interface DocRef {
   title: string;
   page: number | null;
   url: string;
-  file_url: string;
+  file_url?: string;   // absent for sources we do not serve on, such as exchange price files
   sha256: string | null;
   retrieved_at: string;
 }

@@ -43,12 +43,17 @@ def _keys(obj):
             yield from _keys(v)
 
 
-def test_health_reports_blocked_prices_honestly():
+def test_health_reports_every_source_with_its_own_freshness():
     h = client.get("/health").json()
     assert h["status"] in {"online", "degraded", "offline"}
     prices = next(s for s in h["sources"] if s["source"] == "dse_prices")
-    assert prices["status"] == "blocked" and prices["fresh"] is False
-    assert h["status"] == "degraded"  # never "online" while a source is blocked
+    assert prices["status"] == "ok" and prices["detail"], "DSE prices are loaded, so say so"
+    assert "DSE published prices" in prices["detail"], "the health page must name where prices came from"
+    # A source that is not ok must never be reported as fresh, and must drag the whole status down.
+    for s in h["sources"]:
+        if s["status"] != "ok":
+            assert s["fresh"] is False, s["source"]
+            assert h["status"] != "online"
 
 
 def test_search_ranks_exact_ticker_first():
@@ -71,16 +76,31 @@ def test_production_hides_unreviewed_reports(monkeypatch):
     assert client.get("/api/v1/reports/DSE:NMB/pdf").status_code == 403
 
 
-def test_no_view_and_no_trade_label_without_prices(report):
-    # Labels are switched on (owner decision 2026-09-19), but there is nothing to label without a price.
+def test_the_share_price_is_shown_only_with_the_source_it_came_from(report):
+    price = report["header"]["price"]
+    if not price["available"]:
+        assert price["status"] == "BLOCKED" and price["reason"]
+        return
+    assert price["currency"] == "TZS" and price["trade_date"]
+    src = price["source"]
+    assert "dse.co.tz" in src["url"] and len(src["sha256"]) == 64 and src["retrieved_at"]
+    assert "file_url" not in src, "exchange price files are not served on"
+
+
+def test_a_trade_label_appears_only_when_there_is_a_valuation_behind_it(report):
+    # Labels are switched on (owner decision 2026-09-19), but a label needs a target price behind it.
     assert report["trade_labels_enabled"] is True
-    keys = set(_keys(report))
-    assert "trade_label" not in keys and "rating" not in keys
     rec = report["header"]["recommendation"]
-    assert rec["available"] is False and rec["status"] == "BLOCKED"
-    for block in ("price", "target_price", "fair_value_range"):
-        assert report["header"][block]["available"] is False
-        assert report["header"][block]["status"] == "BLOCKED"
+    if rec["available"]:
+        assert report["header"]["target_price"]["available"] is True
+        assert report["header"]["fair_value_range"]["available"] is True
+        assert rec["value"] in {"BUY", "HOLD", "SELL"}
+    else:
+        assert rec["status"] == "BLOCKED" and rec["reason"]
+        assert "trade_label" not in set(_keys(report))
+        for block in ("target_price", "fair_value_range"):
+            assert report["header"][block]["available"] is False
+            assert report["header"][block]["status"] == "BLOCKED"
 
 
 def test_every_shown_figure_has_status_source_and_units(report):
@@ -143,12 +163,20 @@ def test_fixed_income_points_carry_sources():
 
 def test_markets_and_portfolios_do_not_invent_numbers():
     m = client.get("/api/v1/markets/overview").json()
-    assert all(x["index"]["available"] is False for x in m["markets"])
+    for x in m["markets"]:
+        if x["index"]["available"]:          # only the DSE index is collected; others must stay unavailable
+            assert x["index"]["id"] == "DSE:DSEI" and x["index"]["trade_date"] and "change" in x["index"]
+        else:
+            assert x["index"]["reason"]
+    # Commentary and movers are not built, so they must say so rather than show something invented.
     assert m["commentary"]["available"] is False and m["movers"]["available"] is False
     assert client.get("/api/v1/portfolios").status_code == 401
     ok = {"market": "TZ", "capital": 1_000_000, "currency": "TZS", "risk_profile": "Moderate", "horizon_years": 5}
-    r = client.post("/api/v1/portfolio/proposals", json=ok).json()
-    assert r["available"] is False and "prices" in r["reason"]
+    r = client.post("/api/v1/portfolio/proposals", json=ok)
+    assert r.status_code == 200, "the wizard must never crash, even once prices exist"
+    body = r.json()
+    assert body["available"] is False and "not implemented" in body["reason"]
+    assert "weights" not in body and "positions" not in body
     assert client.post("/api/v1/portfolio/proposals", json=ok | {"currency": "KES"}).status_code == 422
     assert client.post("/api/v1/portfolio/proposals", json=ok | {"capital": -5}).status_code == 422
 

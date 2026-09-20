@@ -140,7 +140,8 @@ def test_only_known_lines_are_unresolved(db):
 
 
 def test_documents_and_risks(db):
-    assert {d.fiscal_year for d in db["docs"].values()} == {2021, 2022, 2023, 2024, 2025}
+    assert {d.fiscal_year for d in db["docs"].values()
+            if d.kind == "annual_report"} == {2021, 2022, 2023, 2024, 2025}
     for d in db["docs"].values():
         assert hashlib.sha256(Path(REPO_ROOT / d.file_path).read_bytes()).hexdigest() == d.sha256
         assert d.terms_note

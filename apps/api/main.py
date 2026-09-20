@@ -153,8 +153,10 @@ def get_source_file(document_id: int, session: Session = Depends(get_session)) -
     path = (REPO_ROOT / doc.file_path).resolve()
     if not path.is_file() or REPO_ROOT.resolve() not in path.parents:
         raise HTTPException(404, "Source file missing on disk")
-    if doc.kind == "licensed_price_file":
-        raise HTTPException(403, "Licensed data files are not redistributed")
+    if doc.kind in {"licensed_price_file", "public_price_file", "public_index_file"}:
+        # Exchange price data is used to calculate, not republished: the DSE's own terms restrict
+        # redistribution, and the report already shows the address it came from.
+        raise HTTPException(403, "Exchange price data files are not redistributed")
     return FileResponse(path, media_type="application/pdf", filename=Path(doc.file_path).name,
                         content_disposition_type="inline")
 
@@ -243,17 +245,19 @@ def portfolio_proposal(req: ProposalRequest, session: Session = Depends(get_sess
         raise HTTPException(422, f"Capital for {m['name']} must be in {m['currency']}")
     secs = session.query(Security).filter_by(exchange=m["exchange"]).order_by(Security.local_ticker).all()
     priced = {s.id for s in secs if session.query(PriceBar).filter_by(instrument_id=s.id).first()}
-    universe = [{"id": s.id, "name": s.name, "has_licensed_price": s.id in priced} for s in secs]
+    universe = [{"id": s.id, "name": s.name, "has_price": s.id in priced} for s in secs]
     if not priced:
-        return {"available": False, "request": req.model_dump(), "universe": universe,
-                "reason": (f"A proposal needs current prices to size positions and check minimum trade sizes. "
-                           f"No licensed {m['exchange']} prices are loaded, so no securities, weights or amounts "
-                           f"are shown."),
-                "checks_that_will_apply": ["Position size in shares = amount / last price, rounded down to board lot",
-                                           "Every position meets the exchange minimum trade size",
-                                           f"Risk profile '{req.risk_profile}' caps equity weight (config)",
-                                           "Cash residual reported"]}
-    raise HTTPException(501, "Proposal construction with licensed prices is not implemented yet")
+        reason = (f"A proposal needs current prices to size positions and check minimum trade sizes. "
+                  f"No {m['exchange']} prices are loaded, so no securities, weights or amounts are shown.")
+    else:
+        reason = (f"Prices are loaded for {len(priced)} of {len(secs)} {m['exchange']} securities, but building a "
+                  f"proposal is not implemented yet: the weighting rules, board lots and minimum trade sizes for "
+                  f"{m['exchange']} are not in the system. No securities, weights or amounts are shown.")
+    return {"available": False, "request": req.model_dump(), "universe": universe, "reason": reason,
+            "checks_that_will_apply": ["Position size in shares = amount / last price, rounded down to board lot",
+                                       "Every position meets the exchange minimum trade size",
+                                       f"Risk profile '{req.risk_profile}' caps equity weight (config)",
+                                       "Cash residual reported"]}
 
 
 @app.get("/api/v1/portfolios")

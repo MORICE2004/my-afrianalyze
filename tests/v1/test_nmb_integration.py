@@ -111,6 +111,8 @@ def test_documents_have_hash_publication_date_and_terms_note(db):
     assert {d.fiscal_year for d in db["docs"].values() if d.kind == "annual_report"} == {2021, 2022, 2023, 2024, 2025}
     for d in db["docs"].values():
         assert len(d.sha256) == 64 and d.terms_note
+        if d.kind != "annual_report":       # price files carry a hash and terms, but no board approval date
+            continue
         assert d.published_on is not None and d.published_on.year == d.fiscal_year + 1, d.title
         assert d.published_on_evidence and "authori" in d.published_on_evidence.lower()
 

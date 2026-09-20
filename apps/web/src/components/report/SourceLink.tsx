@@ -12,9 +12,11 @@ export function SourceLink({
   method?: string;
 }) {
   const title = `${source.title}, page ${source.page ?? "n/a"}${method ? ` (extracted by ${method})` : ""}`;
+  // Exchange price data is not served on, so those sources carry no file. Link to the address it came from.
+  const href = source.file_url ? sourceFileUrl(source.file_url) : source.url;
   return (
     <a
-      href={sourceFileUrl(source.file_url)}
+      href={href}
       target="_blank"
       rel="noopener noreferrer"
       title={title}
