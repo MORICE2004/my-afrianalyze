@@ -7,7 +7,8 @@ import { fmtDate, fmtPct } from "@/lib/format";
 // Every source behind the report, the checks run on the data, and every open conflict.
 export default function EvidenceLineage({ report }: { report: Report }) {
   const failed = report.checks.filter((c) => !c.passed);
-  const open = report.conflicts.filter((c) => c.kind !== "RESTATEMENT" && c.kind !== "SOURCE_INCONSISTENCY");
+  const open = report.conflicts.filter((c) => !["RESTATEMENT", "SOURCE_INCONSISTENCY", "METHOD_OUTLIER"].includes(c.kind));
+  const outliers = report.conflicts.filter((c) => c.kind === "METHOD_OUTLIER");
   const restated = report.conflicts.filter((c) => c.kind === "RESTATEMENT");
   const sourceIssues = report.conflicts.filter((c) => c.kind === "SOURCE_INCONSISTENCY");
 
@@ -102,6 +103,18 @@ export default function EvidenceLineage({ report }: { report: Report }) {
               </li>
             ))}
           </ul>
+        )}
+        {outliers.length > 0 && (
+          <>
+            <h4 className="font-semibold mt-4 mb-1 text-sm">Outvoted readings ({outliers.length})</h4>
+            <p className="text-xs text-neutral-600 mb-1">
+              Three readers check each figure. Where two agreed and one read something else, the agreed value is used
+              and the other reading is listed here.
+            </p>
+            <ul className="text-xs space-y-1">
+              {outliers.map((c) => <li key={c.id}>FY{c.fiscal_year} {c.item_code}: {c.detail}</li>)}
+            </ul>
+          </>
         )}
         {restated.length > 0 && (
           <>

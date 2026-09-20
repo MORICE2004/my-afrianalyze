@@ -4,6 +4,76 @@ Proof for each step (ROADMAP rule 3). Newest first. Plain-language summary at th
 
 ---
 
+## 2026-09-20: CRDB Bank report, and one pipeline for every bank
+
+**In plain words:** CRDB Bank now has a report built the same way as NMB, from CRDB's own annual reports.
+The pipeline is shared, so adding the next bank means writing a short profile, not new code. A third
+independent reader was added, and a figure is stored only when at least two readers agree.
+
+### What changed
+
+- **Shared bank pipeline** (`pipelines/banks/`): download, extraction, resolve and load are one pipeline
+  driven by a per-bank profile. NMB's commands still work and were re-run from the PDFs to prove nothing
+  changed.
+- **CRDB profile**: GROUP columns of a GROUP/BANK layout, interest income split over two lines, loan
+  impairment from the credit loss note, and handling for problems in CRDB's own PDFs.
+- **Third reader**: the PDF's own text lines, alongside Camelot and Docling. A figure needs two readers to
+  agree; an outvoted reader is recorded and shown on the Sources tab instead of blocking the figure.
+- **Owners' equity for CRDB FY2020-2021** is derived from total equity, only because the report states its
+  subsidiaries are 100% owned. The quote is stored with the figure.
+- Deleted the modules that only served invented data (Uganda connector, fake DSE price provider, mock
+  sign-in). Lint is now clean.
+
+### Proof
+
+NMB regression after the refactor (rebuilt from the PDFs, compared with the previous run):
+
+```
+facts same 295 295 | conflicts same 10 10 | checks same 42 42
+```
+
+CRDB resolve (`python -m pipelines.banks.resolve --bank=crdb`):
+
+```
+facts=297 conflicts=34 {'MISSING_IN_METHOD': 10, 'METHOD_OUTLIER': 5, 'METHOD_DISAGREEMENT': 4, 'RESTATEMENT': 15}
+(42 of 42 checks pass, including assets = liabilities + equity for 2020 to 2025)
+```
+
+CRDB load: 5 documents (published 2022-02-18, 2023-02-17, 2024-03-15, 2025-03-14, 2026-03-13), 297 facts,
+42 checks, 9 cited risks, research run `RA-20260919-003` created as a draft.
+
+Tests: `179 passed, 3 skipped`. Browser checks: `28 passed` at 1440px and 375px (including one that proves the
+CRDB page shows the GROUP and not the BANK column), plus the 10 backend-stopped checks. The CRDB suite checks 21 figures typed in by hand from the PDF pages
+(2025 report p195, p196, p292, p301, p303, p327; 2024 report p169), that all 297 stored figures appear on the
+page they cite, that the GROUP and not the BANK column was read, that derived figures quote their reason, and
+that only the known lines are unresolved.
+
+### CRDB ratios as they appear in the report
+
+| Ratio | FY2021 | FY2022 | FY2023 | FY2024 | FY2025 |
+|---|---|---|---|---|---|
+| Net interest margin | 10.0% | 8.7% | 8.3% | 8.9% | 8.7% |
+| Cost-to-income | 55.6% | 49.8% | 50.7% | 45.8% | 41.9% |
+| Cost of risk | 0.5% | INSUFFICIENT_DATA | INSUFFICIENT_DATA | 0.9% | 1.2% |
+| NPL ratio (stage 3) | 3.0% | 2.7% | 2.6% | 2.6% | 2.7% |
+| NPL coverage | 86.0% | 86.7% | 56.2% | 51.9% | 65.7% |
+| Loan-to-deposit | 77.7% | 83.9% | 95.3% | 94.8% | 91.9% |
+| Return on equity | 24.0% | 26.0% | 26.4% | 28.6% | 30.0% |
+| Return on assets | 3.4% | 3.4% | 3.4% | 3.7% | 3.7% |
+| Capital adequacy (total capital) | 19.9% | 18.5% | 17.3% | 17.2% | 17.8% |
+| Dividend payout | 35.1% | INSUFFICIENT_DATA | INSUFFICIENT_DATA | 30.8% | 32.1% |
+
+Two useful cross-checks:
+- Our FY2025 capital adequacy of 17.8% equals the total capital ratio CRDB states on p327 and p101.
+- CRDB states an NPL ratio of 2.9% for 2025 (p20). Stage 3 over gross loans on the group basis gives 2.7%.
+  The difference is probably a different basis (bank only, or the Bank of Tanzania definition). Worth
+  confirming before publishing.
+
+Figure statuses in the CRDB statement tables: 263 VERIFIED, 3 PARTIALLY_VERIFIED, 2 CONFLICTING_SOURCE,
+2 INSUFFICIENT_DATA. Confidence 14 of 100 (no beta, 11 unresolved readings, stale reference inputs).
+
+---
+
 ## 2026-09-19: NMB vertical slice brought in line with the kit rules
 
 **In plain words:** the NMB Bank report now runs entirely on figures taken from NMB's own annual reports.
@@ -220,7 +290,7 @@ Confidence: 45 of 100 (Low). The deductions are:
 | M2 | Scheduled ingestion with retries and alerts | MISSING (commands only) |
 | M2 | Freshness shown and stale flagged | PARTIAL (as-of dates and STALE flags; no admin dashboard) |
 | M2 | Dual extraction; conflicts recorded; validation blocks publication | Done for NMB. The review gate blocks production display; the admin queue is MISSING |
-| M2 | NMB and CRDB, 5 years each | NMB done; CRDB MISSING |
+| M2 | NMB and CRDB, 5 years each | Done (see the 2026-09-20 entry) |
 | M3 | Line items, ratios, notes | Done |
 | M3 | Beta, cost of equity, valuation, scenarios, model view | Engines done and tested; output BLOCKED (DSE prices) |
 | M3 | Risks cited | Done (9) |

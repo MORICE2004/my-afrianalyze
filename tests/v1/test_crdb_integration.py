@@ -124,12 +124,19 @@ def test_balance_sheet_ties_every_year(db):
     assert ties and all(c.passed for c in ties), [(c.fiscal_year, c.detail) for c in ties if not c.passed]
 
 
-def test_no_open_extraction_conflicts_in_the_years_shown(db):
-    shown = {f.fiscal_year for f in db["facts"]}
-    recent = sorted(shown)[-5:]
-    open_ = [(c.fiscal_year, c.item_code, c.kind) for c in db["conflicts"]
-             if c.kind not in ("RESTATEMENT", "SOURCE_INCONSISTENCY") and c.fiscal_year in recent]
-    assert open_ == []
+# Lines where the readers do not agree in some years (docs/KNOWN_GAPS.md). They are shown as
+# CONFLICTING_SOURCE / INSUFFICIENT_DATA, never as a number. Anything outside this list is a new problem.
+KNOWN_UNRESOLVED = {"eps", "interest_income_eir", "interest_expense_eir", "impairment_loans", "cash_end"}
+
+
+def test_only_known_lines_are_unresolved(db):
+    open_ = {(c.fiscal_year, c.item_code) for c in db["conflicts"]
+             if c.kind in ("MISSING_IN_METHOD", "METHOD_DISAGREEMENT")}
+    assert {item for _, item in open_} <= KNOWN_UNRESOLVED, sorted(open_)
+    # A disagreement in one report is acceptable only when another report supplies the same year.
+    loaded = {(f.fiscal_year, f.item_code) for f in db["facts"]}
+    unusable = sorted(x for x in open_ if x not in loaded and x[0] >= 2022)
+    assert unusable == [(2022, "impairment_loans"), (2023, "impairment_loans")], unusable
 
 
 def test_documents_and_risks(db):

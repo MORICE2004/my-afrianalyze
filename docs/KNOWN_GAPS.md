@@ -21,7 +21,8 @@ Full detail and evidence: `docs/MY_AFRIANALYZE_MASTER_AUDIT.md`.
 | 1 | Terms of use of NMB, CRDB, BoT, NBS and Damodaran data in a paid product, and hosting copies of annual reports | Section 73. Questions in `COMPLIANCE_NOTES.md` |
 | 2 | Scenario shocks and probabilities (25/50/25), method weights (RI 50%, P/B 30%, DDM 20%), model-view margins (±2%) | Analyst assumptions shown on the page; approve or replace |
 | 3 | Install Docker Desktop | Needed to test the Postgres/Docker stack |
-| 4 | Confirm the two source inconsistencies noted below | `config/source_issues.json` has `confirmed_by: null` |
+| 4 | Confirm the two source inconsistencies noted below, and CRDB's NPL basis | `config/source_issues.json` has `confirmed_by: null` |
+| 5 | Allow downloading from dse.co.tz in Claude Code's settings (see `HANDOFF.md`) | Claude Code's permission check blocked the price download |
 
 ## Blocked
 
@@ -51,6 +52,13 @@ Full detail and evidence: `docs/MY_AFRIANALYZE_MASTER_AUDIT.md`.
 - Large cash-flow restatements for FY2021 and FY2022 (restated comparatives are marked).
 - CRDB is in the security master, but no reports have been ingested. The other DSE companies are not in the
   master.
+- **CRDB loan impairment FY2022 and FY2023**: the credit loss note is laid out differently in those reports
+  and the readers disagree, so cost of risk and dividend payout are not shown for those years.
+- **CRDB EPS and interest detail for FY2020-2021**: only one reader found them, so they are not used.
+- **CRDB NPL ratio**: CRDB states 2.9% for 2025 (p20); stage 3 over gross loans on the group basis gives 2.7%.
+  Confirm which basis to show before publishing.
+- CRDB owners' equity for FY2020-2021 is derived from total equity because the report states the subsidiaries
+  are 100% owned. The quote is stored with the figure.
 - T-bills and unit trust funds (v1 scope) are not ingested.
 
 ## Not built yet

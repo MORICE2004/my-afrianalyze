@@ -81,13 +81,41 @@ def method_values(extraction: dict, gross: dict[str, float | None]) -> dict:
 
 def agree(item: str, role: str, per_method: dict, methods: list[str], report_year: int,
           conflicts: list) -> dict | None:
+    """A value becomes a fact when at least two independent readers read it the same way.
+    With two readers that means both. With three, a single dissenting reader is recorded as
+    METHOD_OUTLIER (shown on the Sources tab) but does not block the value the other two agree on."""
     key = "current" if role == "current" else "comparative"
     fiscal = report_year if role == "current" else report_year - 1
-    vals = {m: per_method.get(m) for m in methods}
-    present = {m: c for m, c in vals.items() if c is not None}
+    present = {m: per_method[m] for m in methods if per_method.get(m) is not None}
     if not present:
         return None
-    if len(present) < len(methods):
+    groups: list[list[dict]] = []
+    for m in methods:
+        c = present.get(m)
+        if c is None:
+            continue
+        for g in groups:
+            if abs(g[0][key] - c[key]) <= _tol(item):
+                g.append(c)
+                break
+        else:
+            groups.append([c])
+    best = max(groups, key=len)
+    if len(best) >= 2:
+        a = best[0]
+        for o in (c for c in present.values() if not any(c is b for b in best)):
+            conflicts.append({
+                "fiscal_year": fiscal, "item_code": item, "kind": "METHOD_OUTLIER",
+                "value_a": a[key], "source_a": "+".join(c["method"] for c in best) + f" p{a['page']}",
+                "value_b": o[key], "source_b": f"{o['method']} p{o['page']}",
+                "report_year": report_year, "page": a["page"],
+                "detail": f"{report_year} report, {role} column: {o['method']} read {o[key]:,}; "
+                          f"{' and '.join(c['method'] for c in best)} both read {a[key]:,}, which is used."})
+        agreed = sorted(c["method"] for c in best)
+        return {"fiscal_year": fiscal, "item_code": item, "value": a[key], "report_year": report_year,
+                "page": a["page"], "column_role": role, "label": a["label"], "raw": a["raw"],
+                "agreed_by": agreed, "method": "+".join(agreed)}
+    if len(present) == 1:
         only = next(iter(present.values()))
         conflicts.append({
             "fiscal_year": fiscal, "item_code": item, "kind": "MISSING_IN_METHOD",
@@ -96,19 +124,16 @@ def agree(item: str, role: str, per_method: dict, methods: list[str], report_yea
             "report_year": report_year, "page": only["page"],
             "detail": f"Only {only['method']} read '{only['label']}' = {only[key]:,}. Not used until confirmed."})
         return None
-    a, b = present[methods[0]], present[methods[1]] if len(methods) > 1 else present[methods[0]]
-    if abs(a[key] - b[key]) > _tol(item):
-        conflicts.append({
-            "fiscal_year": fiscal, "item_code": item, "kind": "METHOD_DISAGREEMENT",
-            "value_a": a[key], "source_a": f"{a['method']} p{a['page']}",
-            "value_b": b[key], "source_b": f"{b['method']} p{b['page']}",
-            "report_year": report_year, "page": a["page"],
-            "detail": f"{report_year} report, {role} column: {a['method']} read {a[key]:,}, "
-                      f"{b['method']} read {b[key]:,}."})
-        return None
-    return {"fiscal_year": fiscal, "item_code": item, "value": a[key], "report_year": report_year,
-            "page": a["page"], "column_role": role, "label": a["label"], "raw": a["raw"],
-            "agreed_by": sorted(present), "method": "+".join(sorted(present))}
+    ordered = [present[m] for m in methods if m in present]
+    a, b = ordered[0], ordered[1]
+    conflicts.append({
+        "fiscal_year": fiscal, "item_code": item, "kind": "METHOD_DISAGREEMENT",
+        "value_a": a[key], "source_a": f"{a['method']} p{a['page']}",
+        "value_b": b[key], "source_b": f"{b['method']} p{b['page']}",
+        "report_year": report_year, "page": a["page"],
+        "detail": f"{report_year} report, {role} column: "
+                  + ", ".join(f"{c['method']} read {c[key]:,}" for c in ordered) + "."})
+    return None
 
 
 def extract_dps(profile: BankProfile, year: int) -> dict | None:
@@ -196,8 +221,13 @@ def main(argv: list[str]) -> int:
         return 2
     processed = profile.processed_dir
     years = profile.years
-    extractions = {y: _normalise(json.loads((processed / f"extraction_{y}.json").read_text(encoding="utf-8")))
-                   for y in years}
+    extractions = {}
+    for y in years:
+        ex = json.loads((processed / f"extraction_{y}.json").read_text(encoding="utf-8"))
+        extra = processed / f"extraction_{y}_text.json"  # optional third reader (PDF text lines)
+        if extra.exists():
+            ex["candidates"] += json.loads(extra.read_text(encoding="utf-8"))["candidates"]
+        extractions[y] = _normalise(ex)
     methods_used = sorted({c["method"] for e in extractions.values() for c in e["candidates"]})
     if len(methods_used) < 2:
         print(f"ERROR: only {methods_used} ran. Dual extraction needs camelot and docling.")

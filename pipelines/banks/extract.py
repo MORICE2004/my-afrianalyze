@@ -221,6 +221,35 @@ def camelot_rows(pdf_path: Path, regions: list[Region], page_heights: dict[int, 
     return rows
 
 
+def text_rows(pdf_path: Path, regions: list[Region], page_heights: dict[int, float]) -> list[Row]:
+    """Third reader: the PDF's own text lines inside each region (pdfplumber words grouped by
+    line). Trailing number tokens are the values; everything before them is the label. It is
+    independent of Camelot's column detection and Docling's layout model."""
+    rows: list[Row] = []
+    with pdfplumber.open(pdf_path) as pdf:
+        for r in regions:
+            page = pdf.pages[r.page - 1]
+            crop = page.within_bbox((r.x0, max(0.0, r.top), r.x1, min(page.height, r.bottom)))
+            words = crop.extract_words(keep_blank_chars=False, use_text_flow=False, x_tolerance=1.5)
+            words.sort(key=lambda w: (round(w["top"]), w["x0"]))
+            lines: list[list[dict]] = []
+            for w in words:
+                if lines and abs(w["top"] - lines[-1][-1]["top"]) <= 2.5:
+                    lines[-1].append(w)
+                else:
+                    lines.append([w])
+            for ws in lines:
+                ws.sort(key=lambda w: w["x0"])
+                tokens = [w["text"] for w in ws]
+                i = len(tokens)
+                while i > 0 and parse_number(tokens[i - 1]) is not None:
+                    i -= 1
+                numbers = [parse_number(x) for x in tokens[i:]]
+                rows.append(Row("text", r.section, r.page, _clean_label(" ".join(tokens[:i])), numbers,
+                                " | ".join(tokens)[:2000]))
+    return rows
+
+
 _DOCLING = None
 
 
@@ -303,7 +332,12 @@ def match(rows: list[Row], profile: BankProfile, year: int) -> list[Candidate]:
                 continue
             numbers = row.numbers
             # Label wrapped onto the next row: take that row's numbers.
-            if len(numbers) < 2 and i + 1 < len(rows) and rows[i + 1].section == row.section:
+            # Join a label wrapped onto the next row. In a GROUP/BANK layout only when this row has no
+            # figures except a note number; otherwise a split row would borrow the next line's values.
+            wrapped = len(numbers) < 2 if profile.columns != "group_first" else (
+                len(numbers) == 0 or (len(numbers) == 1 and numbers[0] == numbers[0].to_integral_value()
+                                      and 0 < numbers[0] < 100))
+            if wrapped and i + 1 < len(rows) and rows[i + 1].section == row.section:
                 nxt = rows[i + 1]
                 if len(nxt.numbers) >= 2 and len(nxt.label) < profile.wrap_label_max:
                     numbers, label = nxt.numbers, f"{label} {nxt.label}".strip()
@@ -359,7 +393,8 @@ def extract_year(profile: BankProfile, year: int, methods: tuple[str, ...] = ("c
     timings = {}
     for m in methods:
         t = time.time()
-        rows += camelot_rows(pdf_path, regions, heights) if m == "camelot" else docling_rows(pdf_path, regions, heights)
+        reader = {"camelot": camelot_rows, "docling": docling_rows, "text": text_rows}[m]
+        rows += reader(pdf_path, regions, heights)
         timings[m] = round(time.time() - t, 1)
     candidates = match(rows, profile, year)
     result = {

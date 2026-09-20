@@ -283,6 +283,8 @@ CRDB = BankProfile(
          ["interest_income_eir", "interest_income_other", "interest_expense_eir", "interest_expense_other"], False),
     ],
     dps_page_hint=r"dividend",
+    approval_re=(r"authori[sz]ed for issue by (?:the Board of Directors|those charged with governance).{0,200}?"
+                 r"(\d{1,2})(?:st|nd|rd|th)?\s+(January|February|March|April|May|June)\s+(\d{4})"),
     label_noise=(r"^group and bank annual report 20\d\d\s*", r"^sustainable value for growth\s*",
                  r"^financial statements for the year ended 31 december 20\d\d\s*"),
     # The 2022 and 2023 PDFs map some letters to the wrong glyphs ("proﬁt beǌore inƥoǽe taɫ").

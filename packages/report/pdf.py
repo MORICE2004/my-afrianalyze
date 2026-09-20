@@ -198,7 +198,7 @@ def render_pdf(report: dict) -> bytes:
     story.append(Paragraph("Data quality", H2))
     passed = sum(c["passed"] for c in report["checks"])
     story.append(Paragraph(f"{passed} of {len(report['checks'])} tie checks passed. "
-                           f"{sum(1 for c in report['conflicts'] if c['kind'] != 'RESTATEMENT')} open extraction "
+                           f"{sum(1 for c in report['conflicts'] if c['kind'] not in ('RESTATEMENT', 'METHOD_OUTLIER', 'SOURCE_INCONSISTENCY'))} open extraction "
                            f"conflicts; {sum(1 for c in report['conflicts'] if c['kind'] == 'RESTATEMENT')} restated "
                            f"comparatives.", BODY))
     for c in [c for c in report["checks"] if not c["passed"]][:15]:

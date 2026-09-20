@@ -1,6 +1,6 @@
 # My AfriAnalyze: Master Audit
 
-Last updated: 2026-09-19. Branch `truth-pass/nmb-vertical-slice`.
+Last updated: 2026-09-20. Branch `m3-crdb-report`.
 This file is the current truth about the repository (CLAUDE.md, PRODUCT_CONTEXT.md section 66).
 Status words: `REAL`, `MOCKED`, `PARTIAL`, `BLOCKED`, `UNTESTED`, `BROKEN`, `MISSING`.
 Proof for every claim below is in `docs/PROGRESS.md`. Open items are in `docs/KNOWN_GAPS.md`.
@@ -14,10 +14,12 @@ Nothing here is "production ready". The certification matrix at the end shows wh
   returned HTTP 500 for every ticker. Every number in the UI was hardcoded. `/health` always said "ok". The
   frontend source was never on GitHub (only a gitlink).
 - **What works now (REAL, tested, checked in the browser).**
-  - A Tanzania-first vertical slice for NMB Bank Plc (`/report/DSE:NMB`): 295 figures from 5 annual reports
-    (FY2020 to FY2025).
-  - Each figure was read by two independent extraction methods (Camelot and Docling), tie-checked, and linked
-    to its PDF page. The figures are stored as exact decimals.
+  - Reports for NMB Bank Plc (`/report/DSE:NMB`, 295 figures) and CRDB Bank Plc (`/report/DSE:CRDB`,
+    297 figures), each from that bank's five annual reports (FY2020 to FY2025), built by one shared pipeline
+    with a short profile per bank.
+  - Each figure was read by independent readers (Camelot, Docling and the PDF text lines) and is stored only
+    when at least two agree. Every figure is tie-checked and linked to its PDF page, and stored as an exact
+    decimal.
   - Bank ratios, line-item analysis, rule-based notes, TZS cost-of-equity inputs, cited risks, PDF export, and
     a draft/review lifecycle.
   - A verified security master and search, a real health status, Bank of Tanzania bond yields, CBR and NBS
@@ -25,11 +27,11 @@ Nothing here is "production ready". The certification matrix at the end shows wh
 - **What is blocked.** DSE share prices are licensed data, so price, beta, cost of equity, valuation, target
   price, fair value range and the model view are shown as `BLOCKED` with the reason. There are no numbers in
   their place.
-- **What is not built.** CRDB and the rest of the DSE, T-bills, unit trusts, scheduled ingestion, the admin
-  console, accounts, plans, Swahili and the copilot.
+- **What is not built.** The rest of the DSE, T-bills, unit trusts, scheduled ingestion, the admin console,
+  accounts, plans, Swahili and the copilot.
 - **Tests.**
-  - 152 Python tests pass, 8 are skipped (each with a stated reason), 0 fail. The v1 suite (`tests/v1`,
-    83 tests) is hand-checked.
+  - 179 Python tests pass, 3 are skipped (each with a stated reason), 0 fail. The v1 suite (`tests/v1`,
+    110 tests) is hand-checked.
   - Playwright: 24 checks pass at 1440px and 375px, and 10 backend-stopped checks pass.
 
 ## Real
@@ -39,11 +41,11 @@ Nothing here is "production ready". The certification matrix at the end shows wh
 | Security master (5 securities, each verified on its exchange listing page) | `config/securities.json`, `pipelines/load_security_master.py`, `/api/v1/securities` | `tests/v1/test_api.py::test_search_ranks_exact_ticker_first` |
 | Search with typeahead, keyboard support and a "no results" state | `apps/web/src/components/SecuritySearch.tsx` | Playwright "search finds NMB and opens its report" |
 | Health endpoint: online, degraded (stale or blocked sources listed) or offline | `apps/api/main.py:46`, `components/layout/SystemStatus.tsx` | `test_health_reports_blocked_prices_honestly`; offline screenshot `docs/screenshots/desktop-1440-offline-report.png` |
-| NMB annual reports 2021 to 2025, downloaded from NMB's investor relations page with SHA-256 | `pipelines/nmb/download_reports.py`, `data/raw/nmb/manifest.json` | `test_raw_files_match_their_recorded_hash` |
-| Dual extraction (Camelot + Docling). A value is stored only when both agree | `pipelines/nmb/extract.py`, `resolve.py` | resolve output: 295 facts, 0 method disagreements, 10 restatements |
-| Every stored figure appears on the page it cites | `tests/v1/test_nmb_integration.py` | `test_every_stored_figure_is_printed_on_its_cited_page` (295 of 295); 18 hand-checked figures |
-| Tie checks: balance sheet (every year), income statement arithmetic, net loans | `pipelines/nmb/resolve.py` | 41 of 42 pass. The one failure is inside NMB's own 2021 report (see Data issues) |
-| Publication date of each report (board approval date, with the quote) | `pipelines/nmb/load.py:80` | `test_documents_have_hash_publication_date_and_terms_note` |
+| NMB and CRDB annual reports 2021 to 2025, downloaded from each bank's investor relations page with SHA-256 | `pipelines/banks/download_reports.py`, `data/raw/<bank>/manifest.json` | `test_raw_files_match_their_recorded_hash`, `test_documents_and_risks` |
+| Independent readers (Camelot, Docling, PDF text lines). A value is stored only when at least two agree; an outvoted reader is recorded | `pipelines/banks/extract.py`, `resolve.py` | NMB: 295 facts, 0 disagreements. CRDB: 297 facts, 4 disagreements and 10 single-reader lines, none used |
+| Every stored figure appears on the page it cites | `tests/v1/test_nmb_integration.py`, `test_crdb_integration.py` | 295 of 295 (NMB) and 297 of 297 (CRDB); 18 and 21 figures hand-checked |
+| Tie checks: balance sheet (every year), income statement arithmetic, net loans | `pipelines/banks/resolve.py`, per-bank rules in `profiles.py` | NMB 41 of 42 (the failure is inside NMB's own 2021 report, see Data issues); CRDB 42 of 42 |
+| Publication date of each report (board approval date, with the quote) | `pipelines/banks/load.py` | `test_documents_have_hash_publication_date_and_terms_note` |
 | Exact money: `Decimal` in Python, `NUMERIC` on Postgres, text on SQLite; floats refused | `packages/database/types.py` | `tests/v1/test_exact_decimal.py` |
 | Bank ratios: NIM, C/I, CoR, NPL, coverage, LDR, ROE, ROA, CAR, payout | `packages/analysis/bank_ratios.py` | `tests/v1/test_bank_ratios.py` (hand-worked values) |
 | Line items: YoY, CAGR, common size, and rule-based notes that never contradict the numbers | `packages/analysis/line_items.py`, `notes.py` | `tests/v1/test_notes.py` |
@@ -52,9 +54,9 @@ Nothing here is "production ready". The certification matrix at the end shows wh
 | TZS cost-of-equity inputs: BoT 10Y bond, Damodaran default spread, mature ERP, CRP (each dated and sourced) | `pipelines/macro.py`, `packages/analysis/cost_of_equity.py` | `tests/v1/test_cost_of_equity.py`; `test_stale_inputs_are_flagged` |
 | Beta engine: raw daily, weekly, monthly, Dimson, Scholes-Williams, bottom-up, Blume, selection rule | `packages/analysis/beta.py` | `tests/v1/test_beta.py`. The engine is REAL; its output is BLOCKED (no prices) |
 | Valuation engine: residual income, justified P/B, multi-stage DDM, bear/base/bull, probability-weighted target | `packages/analysis/bank_valuation.py` | `tests/v1/test_valuation.py`; `test_valuation_runs_on_real_facts_with_a_given_cost_of_equity`. The engine is REAL; its output is BLOCKED |
-| Model view (Undervalued / Fairly valued / Overvalued); `SHOW_TRADE_LABELS` off by default | `packages/analysis/recommendation.py`, `packages/core/config.py:28` | `tests/v1/test_recommendation.py`; `test_no_trade_labels_by_default_and_no_view_without_prices` |
+| Model view (Undervalued / Fairly valued / Overvalued), with BUY/HOLD/SELL behind `SHOW_TRADE_LABELS` (on since the owner's decision of 2026-09-19) | `packages/analysis/recommendation.py`, `packages/core/config.py` | `tests/v1/test_recommendation.py`; `test_no_view_and_no_trade_label_without_prices` |
 | Confidence score (completeness, conflicts, beta quality, stale inputs) | `recommendation.py:confidence` | `test_confidence_score` |
-| Cited risks: 9 verbatim quotes, each found on its page, or the load stops | `pipelines/nmb/load.py:45` | Report "Risks" tab |
+| Cited risks: 9 verbatim quotes per bank, each found on its page, or the load stops | `pipelines/banks/profiles.py` | Report "Risks" tab; `test_documents_and_risks` |
 | PDF export: draft warning, model view, statements, ratios, CoE, risks, sources, disclaimer | `packages/report/pdf.py` | `test_pdf_says_draft_and_model_view_not_buy_sell` |
 | Review lifecycle: draft, in_review, published, superseded. Named reviewer; every action logged; production hides unpublished reports | `pipelines/review.py`, `apps/api/main.py:132` | `test_production_hides_unreviewed_reports`; run `RA-20260919-001` is `draft` |
 | Tanzania fixed income: BoT auction yields by tenor, CBR, NBS CPI, real yield, 2Y to 10Y spread | `/api/v1/fixed-income/TZ`, `apps/web/src/app/fixed-income/page.tsx` | `test_fixed_income_points_carry_sources`; screenshots |
@@ -70,11 +72,9 @@ decides (see `KNOWN_GAPS.md`).
 
 | Module | What is fake | Evidence |
 |---|---|---|
-| `connectors/dse`, `connectors/nse`, `connectors/use` | Hard-coded companies and prices (e.g. USE close 30.50 for any ticker) | `connectors/use/connector.py:14-60`; tests skipped in `tests/test_connectors.py` |
-| `connectors/dse/market_provider.py` | Fixed quote `4500.00` and one fake bar | baseline audit |
+| `connectors/dse`, `connectors/nse`, `connectors/cbk` | Hard-coded companies and prices in parts of each connector. Kept because they also contain real download code that Kenya and Uganda work may reuse | `connectors/dse/connector.py:60-142`, `connectors/nse/connector.py` |
 | `packages/asset_universe/engine.py` | `_mock_dse_adapter`, `_mock_cmsa_adapter`, `_mock_bot_adapter`, `_mock_use_adapter`, `_mock_bou_adapter` | `engine.py:8-160` |
 | `apps/api/tasks/research_tasks.py` | Celery task with `LLMClient(provider="dummy", api_key="dummy_key")` | `research_tasks.py:10-13`; not mounted |
-| `apps/web/src/pages/api/auth/[...nextauth].ts` | Credentials provider accepts any email and password and returns the fixed user "J Smith" | lines 17-29 (also listed under Security issues) |
 | `apps/api/core/telemetry.py` | "Dummy" Sentry/PostHog init | baseline audit |
 
 ## Partial
@@ -140,7 +140,7 @@ Nothing in the v1 code path is known to be broken (all checks above pass). Legac
 - About 15 legacy packages, `agents/`, `connectors/`, `models/`, `apps/api/routers|tasks|core` and three
   `run_*_acceptance.py` scripts are not used by v1. Several contain invented data (see Mocked). Deleting them
   needs the owner's approval.
-- 31 older docs in `docs/` (`PHASE*`, `PRODUCTION_READINESS_SCORECARD.md`, `MOCK_AUDIT.md`,
+- 30 older docs in `docs/` (`PHASE*`, `PRODUCTION_READINESS_SCORECARD.md`, `MOCK_AUDIT.md`,
   `UI_UX_*`) contain claims that were found false. `docs/README.md` marks them as historical.
 - SQLite stores exact decimals as text, so SQL-side numeric comparisons on those columns would be wrong. The
   code never does that. Postgres uses `NUMERIC`.
@@ -152,9 +152,9 @@ Nothing in the v1 code path is known to be broken (all checks above pass). Legac
 
 ## Security issues
 
-1. **Mock credentials auth.** `apps/web/src/pages/api/auth/[...nextauth].ts` accepts any email and password.
-   No page uses it. It must be removed or replaced before any deployment. Auth changes need the owner's
-   go-ahead.
+1. **Mock credentials auth: fixed.** The file that accepted any email and password was deleted on
+   2026-09-19 with the owner's approval, along with the unused `next-auth` package. There is no sign-in at
+   all now; real accounts come with Milestone 6.
 2. Serving source PDFs (`/api/v1/sources/{id}/file`) redistributes NMB's annual reports. The path is checked
    against the repo root, and licensed files return 403. Whether hosting (rather than linking) is allowed is
    a terms question (`COMPLIANCE_NOTES.md`).
@@ -216,7 +216,8 @@ Nothing in the v1 code path is known to be broken (all checks above pass). Legac
 | Capability | Implementation | Real / Mocked | Tested | Live | Evidence | Known limitations |
 |---|---|---|---|---|---|---|
 | Security master and search | `securities` table, `/api/v1/securities`, `SecuritySearch.tsx` | REAL | Yes | Local only | `test_api.py`, Playwright | 5 securities; full DSE list missing |
-| NMB statements | Camelot + Docling, resolve, load | REAL | Yes | Local only | `test_nmb_integration.py` | FY2020 loans CONFLICTING_SOURCE |
+| NMB statements | shared bank pipeline, 2 readers | REAL | Yes | Local only | `test_nmb_integration.py` | FY2020 loans CONFLICTING_SOURCE |
+| CRDB statements | shared bank pipeline, 3 readers | REAL | Yes | Local only | `test_crdb_integration.py` | Loan impairment FY2022-23 unresolved; NPL basis to confirm |
 | Bank ratios and notes | `bank_ratios.py`, `notes.py` | REAL | Yes | Local only | `test_bank_ratios.py`, `test_notes.py` | CoR FY2021 not shown |
 | Beta | `beta.py` | REAL engine, BLOCKED output | Yes | No | `test_beta.py` | Needs licensed prices |
 | Cost of equity | `cost_of_equity.py` | REAL inputs, BLOCKED output | Yes | No | `test_cost_of_equity.py` | Inputs partly STALE |
@@ -227,7 +228,7 @@ Nothing in the v1 code path is known to be broken (all checks above pass). Legac
 | Fixed income (TZ) | `pipelines/macro.py` | REAL | Yes | Local only | `test_api.py`, screenshots | CBR stale; no T-bills |
 | Markets | `/api/v1/markets/overview` | REAL (says what is missing) | Yes | Local only | `test_api.py` | Index data BLOCKED |
 | Portfolio wizard | `/portfolio`, proposals API | PARTIAL | Yes | No | Playwright | No sizing without prices |
-| Auth | NextAuth mock | MOCKED | No | No | this file | Accepts any password |
+| Auth | none (mock deleted) | MISSING | No | No | this file | Real accounts are Milestone 6 |
 | Copilot | switched off | MISSING | No | No | `/research-chat` | — |
 | Docker stack | compose files | UNTESTED | No | No | — | Docker not installed |
 | CI | `.github/workflows/ci.yml` | UNTESTED | No | No | — | Not yet run on GitHub |

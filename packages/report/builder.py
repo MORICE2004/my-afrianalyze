@@ -139,7 +139,7 @@ def build_report(session: Session, security_id: str) -> dict | None:
         cells = {}
         for y in report_years:
             ref = fact_ref.get((code, y))
-            open_conf = [c for c in conflict_map.get((code, y), []) if c.kind != "RESTATEMENT"]
+            open_conf = [c for c in conflict_map.get((code, y), []) if c.kind not in ("RESTATEMENT", "METHOD_OUTLIER")]
             restated = [c for c in conflict_map.get((code, y), []) if c.kind == "RESTATEMENT"]
             issue = source_issues.get((code, y))
             if issue is not None:
@@ -301,7 +301,8 @@ def build_report(session: Session, security_id: str) -> dict | None:
     have = sum(1 for code in required for y in report_years if (code, y) in fact_ref)
     optional_absent = sum(1 for y in report_years if ("inv_securities_fvpl", y) not in fact_ref)
     completeness = have / max(1, len(required) * len(report_years) - optional_absent)
-    open_conflicts = sum(1 for c in conflicts if c.status == "OPEN" and c.kind != "RESTATEMENT"
+    open_conflicts = sum(1 for c in conflicts if c.status == "OPEN"
+                         and c.kind not in ("RESTATEMENT", "METHOD_OUTLIER", "SOURCE_INCONSISTENCY")
                          and c.fiscal_year in report_years)
     conf = confidence(min(1.0, completeness), open_conflicts,
                       selected | ({"r_squared": estimates.get(selected.get("method"), {}).get("r_squared")}

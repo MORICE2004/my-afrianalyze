@@ -6,6 +6,7 @@ const SHOTS = path.resolve(__dirname, "../../../docs/screenshots");
 const ROUTES: { path: string; name: string; expectText: RegExp }[] = [
   { path: "/", name: "home", expectText: /Search/i },
   { path: "/report/DSE:NMB", name: "report-nmb", expectText: /NMB Bank Plc/ },
+  { path: "/report/DSE:CRDB", name: "report-crdb", expectText: /CRDB Bank Plc/ },
   { path: "/markets", name: "markets", expectText: /Not available/i },
   { path: "/fixed-income", name: "fixed-income", expectText: /Bank of Tanzania/i },
   { path: "/portfolio", name: "portfolio", expectText: /Portfolio/i },
@@ -63,6 +64,15 @@ test("report shows the review state, statuses and a model view, never a trade ca
 
   await page.getByRole("button", { name: "Sources" }).click();
   await expect(page.getByTestId("source-issues")).toContainText("gross loans");
+});
+
+test("CRDB report reads the group columns and shows its own publication date", async ({ page }) => {
+  await page.goto("/report/DSE:CRDB", { waitUntil: "networkidle" });
+  await expect(page.getByTestId("data-as-of")).toContainText("13 Mar 2026");
+  await page.getByRole("button", { name: "Financial statements" }).click();
+  const bs = page.getByTestId("statement-BS");
+  await expect(bs).toContainText("22,308,936");   // GROUP total assets 2025
+  await expect(bs).not.toContainText("20,763,416"); // BANK total assets 2025
 });
 
 test("statement values link to their source page", async ({ page }) => {

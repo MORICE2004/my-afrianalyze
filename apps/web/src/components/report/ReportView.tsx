@@ -159,7 +159,7 @@ function HeaderStat({ label, children, testId }: { label: string; children: Reac
 function Summary({ report }: { report: Report }) {
   const notes = report.statements.flatMap((s) => s.rows).filter((r) => r.note);
   const failed = report.checks.filter((c) => !c.passed).length;
-  const conflicts = report.conflicts.filter((c) => c.kind !== "RESTATEMENT" && c.kind !== "SOURCE_INCONSISTENCY").length;
+  const conflicts = report.conflicts.filter((c) => !["RESTATEMENT", "SOURCE_INCONSISTENCY", "METHOD_OUTLIER"].includes(c.kind)).length;
   const sourceIssues = report.conflicts.filter((c) => c.kind === "SOURCE_INCONSISTENCY");
   const counts = report.status_counts;
   return (
