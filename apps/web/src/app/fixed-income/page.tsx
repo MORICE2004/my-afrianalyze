@@ -2,7 +2,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { LineChart, BarChart } from '@tremor/react';
-import { ArrowLeft, TrendingUp, Calendar, DollarSign, Activity } from 'lucide-react';
+import { ArrowLeft, TrendingUp, Calendar, Activity } from 'lucide-react';
 
 export default function FixedIncomePage() {
   const yieldCurveData = [

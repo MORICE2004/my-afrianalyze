@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Search, Info, ExternalLink, FileText, TrendingUp, AlertCircle, ChevronRight, Bookmark } from 'lucide-react';
+import { Search, Info, FileText, TrendingUp, AlertCircle, ChevronRight, Bookmark } from 'lucide-react';
 import Link from 'next/link';
 
 export default function ResearchCopilot() {

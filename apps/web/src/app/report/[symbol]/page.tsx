@@ -1,10 +1,22 @@
 import React from 'react';
 
 export default async function ReportPage({ params }: { params: Promise<{ symbol: string }> }) {
-  // Mock data
   const { symbol: rawSymbol } = await params;
   const symbol = rawSymbol.toUpperCase();
-  const companyName = "Safaricom Plc";
+
+  // Company universe lookup — will be replaced by API call in production
+  const companyMap: Record<string, { name: string; sector: string; exchange: string; currency: string }> = {
+    SFA: { name: "Safaricom Plc", sector: "Telecom", exchange: "NSE", currency: "KES" },
+    EQTY: { name: "Equity Group Holdings", sector: "Banking", exchange: "NSE", currency: "KES" },
+    KCB: { name: "KCB Group Plc", sector: "Banking", exchange: "NSE", currency: "KES" },
+    CRDB: { name: "CRDB Bank Plc", sector: "Banking", exchange: "DSE", currency: "TZS" },
+    NMB: { name: "NMB Bank Plc", sector: "Banking", exchange: "DSE", currency: "TZS" },
+    TBL: { name: "Tanzania Breweries Ltd", sector: "Consumer", exchange: "DSE", currency: "TZS" },
+    MTNN: { name: "MTN Nigeria Communications", sector: "Telecom", exchange: "NGX", currency: "NGN" },
+    SBU: { name: "Stanbic Uganda Holdings", sector: "Banking", exchange: "USE", currency: "UGX" },
+    DFCU: { name: "DFCU Group", sector: "Banking", exchange: "USE", currency: "UGX" },
+  };
+  const company = companyMap[symbol] || { name: `${symbol} Corp`, sector: "Unknown", exchange: "—", currency: "—" };
   
   return (
     <div className="flex flex-col gap-10 pb-12 animate-in fade-in duration-500">
@@ -16,12 +28,12 @@ export default async function ReportPage({ params }: { params: Promise<{ symbol:
             <h1 className="text-5xl font-bold tracking-tighter text-black">
               {symbol}
             </h1>
-            <span className="text-2xl font-serif italic text-neutral-500 mt-1">{companyName}</span>
+            <span className="text-2xl font-serif italic text-neutral-500 mt-1">{company.name}</span>
           </div>
           <div className="flex gap-4 text-xs font-mono text-neutral-600 uppercase tracking-wider">
-            <span className="bg-neutral-100 px-2 py-1">Sector: Telecom</span>
-            <span className="bg-neutral-100 px-2 py-1">Exchange: NSE</span>
-            <span className="bg-neutral-100 px-2 py-1">Currency: KES</span>
+            <span className="bg-neutral-100 px-2 py-1">Sector: {company.sector}</span>
+            <span className="bg-neutral-100 px-2 py-1">Exchange: {company.exchange}</span>
+            <span className="bg-neutral-100 px-2 py-1">Currency: {company.currency}</span>
           </div>
         </div>
         <div className="text-right">
