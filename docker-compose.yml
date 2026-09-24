@@ -3,7 +3,7 @@ version: '3.8'
 services:
   web:
     build:
-      context: ./frontend
+      context: ./apps/web
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
@@ -34,7 +34,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.api
-    command: celery -A core.tasks worker --loglevel=info
+    command: celery -A apps.api.core.celery_app worker --loglevel=info
     environment:
       - DATABASE_URL=postgresql://afrianalyze:afrianalyze_pass@db:5432/afrianalyze
       - REDIS_URL=redis://redis:6379/0

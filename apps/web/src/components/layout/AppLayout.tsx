@@ -11,9 +11,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             AfriEdge <span className="font-light text-neutral-500">Terminal</span>
           </Link>
           <nav className="hidden md:flex items-center gap-6 text-neutral-600 font-medium text-xs tracking-wide uppercase">
-            <Link href="/" className="text-black transition-colors border-b-2 border-black pb-1">Equities</Link>
-            <Link href="/macro" className="hover:text-black transition-colors pb-1">Macro</Link>
+            <Link href="/" className="hover:text-black transition-colors pb-1">Equities</Link>
+            <Link href="/markets" className="hover:text-black transition-colors pb-1">Markets</Link>
             <Link href="/fixed-income" className="hover:text-black transition-colors pb-1">Fixed Income</Link>
+            <Link href="/portfolio" className="hover:text-black transition-colors pb-1">Portfolios</Link>
+            <Link href="/research-chat" className="hover:text-black transition-colors pb-1">Research</Link>
           </nav>
         </div>
         <div className="flex items-center gap-5">
