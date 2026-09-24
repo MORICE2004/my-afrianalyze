@@ -29,13 +29,16 @@ class LLMClient:
         self.config = config
 
     def _estimate_cost(self, tokens: int) -> float:
-        # Dummy cost calculation for observability demo
-        from packages.core.config import settings
-        from packages.core.exceptions import ProductionDataViolation
-        if settings.APP_ENV == "PRODUCTION":
-            raise ProductionDataViolation("Mock reached in production")
-        # E.g. $0.001 per 1000 tokens
-        return (tokens / 1000.0) * 0.001
+        # Deterministic cost estimation based on model rates ($ per 1k tokens)
+        rate_per_1k = 0.0015
+        model = self.config.model_name.lower()
+        if "gpt-4" in model:
+            rate_per_1k = 0.03
+        elif "opus" in model:
+            rate_per_1k = 0.015
+        elif "flash" in model:
+            rate_per_1k = 0.00035
+        return round((tokens / 1000.0) * rate_per_1k, 6)
 
     @retry(
         stop=stop_after_attempt(3),

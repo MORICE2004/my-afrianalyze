@@ -1,8 +1,39 @@
-docling
-pydantic
-pytest
-pandas
-litellm
-tenacity
-celery
-redis
+﻿# Core API & Web Server
+fastapi>=0.110.0
+uvicorn[standard]>=0.28.0
+pydantic>=2.6.0
+pydantic-settings>=2.2.0
+python-dotenv>=1.0.0
+httpx>=0.27.0
+requests>=2.31.0
+
+# Database & Migrations
+sqlalchemy>=2.0.28
+psycopg2-binary>=2.9.9
+alembic>=1.13.1
+
+# Task Queue & Cache
+celery>=5.3.6
+redis>=5.0.3
+
+# Quantitative & Financial Computing
+numpy>=1.26.0
+pandas>=2.2.0
+scipy>=1.12.0
+scikit-learn>=1.4.0
+
+# Document Ingestion & Scraping
+docling>=1.0.0
+beautifulsoup4>=4.12.3
+
+# AI & LLM Orchestration
+litellm>=1.30.0
+tenacity>=8.2.3
+
+# Observability
+sentry-sdk[fastapi]>=1.42.0
+posthog>=3.5.0
+
+# Testing
+pytest>=8.0.0
+pytest-asyncio>=0.23.0

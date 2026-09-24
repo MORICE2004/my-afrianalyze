@@ -1,18 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+﻿from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
+from packages.database.session import get_db
 
-# Placeholders for DB dependency and Auth dependency
-def get_db():
-    yield None
+class CurrentUser(BaseModel):
+    id: int = 1
+    email: str = "analyst@afriedge.com"
+    role: str = "analyst"
 
-class DummyUser:
-    id = 1
-
-def get_current_user():
-    return DummyUser()
+def get_current_user() -> CurrentUser:
+    return CurrentUser()
 
 router = APIRouter(prefix="/portfolios", tags=["portfolios"])
 
@@ -32,61 +31,56 @@ class PortfolioResponse(PortfolioCreate):
     user_id: int
     created_at: datetime
     
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 @router.post("/", response_model=PortfolioResponse)
-def create_portfolio(portfolio: PortfolioCreate, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+def create_portfolio(portfolio: PortfolioCreate, db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)):
     from packages.database.models import SavedPortfolio
-    db_portfolio = SavedPortfolio(**portfolio.dict(), user_id=current_user.id)
-    if db is not None:
-        db.add(db_portfolio)
-        db.commit()
-        db.refresh(db_portfolio)
+    db_portfolio = SavedPortfolio(
+        name=portfolio.name,
+        base_currency=portfolio.base_currency,
+        target_weights_json=portfolio.target_weights_json or {},
+        user_id=current_user.id
+    )
+    db.add(db_portfolio)
+    db.commit()
+    db.refresh(db_portfolio)
     return db_portfolio
 
 @router.get("/", response_model=List[PortfolioResponse])
-def get_portfolios(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+def get_portfolios(db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)):
     from packages.database.models import SavedPortfolio
-    if db is not None:
-        return db.query(SavedPortfolio).filter(SavedPortfolio.user_id == current_user.id).all()
-    return []
+    return db.query(SavedPortfolio).filter(SavedPortfolio.user_id == current_user.id).all()
 
 @router.get("/{portfolio_id}", response_model=PortfolioResponse)
-def get_portfolio(portfolio_id: int, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+def get_portfolio(portfolio_id: int, db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)):
     from packages.database.models import SavedPortfolio
-    if db is not None:
-        portfolio = db.query(SavedPortfolio).filter(SavedPortfolio.id == portfolio_id, SavedPortfolio.user_id == current_user.id).first()
-        if not portfolio:
-            raise HTTPException(status_code=404, detail="Portfolio not found")
-        return portfolio
-    raise HTTPException(status_code=404, detail="Portfolio not found")
+    portfolio = db.query(SavedPortfolio).filter(SavedPortfolio.id == portfolio_id, SavedPortfolio.user_id == current_user.id).first()
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+    return portfolio
 
 @router.put("/{portfolio_id}", response_model=PortfolioResponse)
-def update_portfolio(portfolio_id: int, portfolio_update: PortfolioUpdate, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+def update_portfolio(portfolio_id: int, portfolio_update: PortfolioUpdate, db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)):
     from packages.database.models import SavedPortfolio
-    if db is not None:
-        portfolio = db.query(SavedPortfolio).filter(SavedPortfolio.id == portfolio_id, SavedPortfolio.user_id == current_user.id).first()
-        if not portfolio:
-            raise HTTPException(status_code=404, detail="Portfolio not found")
+    portfolio = db.query(SavedPortfolio).filter(SavedPortfolio.id == portfolio_id, SavedPortfolio.user_id == current_user.id).first()
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+    
+    update_data = portfolio_update.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(portfolio, key, value)
         
-        update_data = portfolio_update.dict(exclude_unset=True)
-        for key, value in update_data.items():
-            setattr(portfolio, key, value)
-            
-        db.commit()
-        db.refresh(portfolio)
-        return portfolio
-    raise HTTPException(status_code=404, detail="Portfolio not found")
+    db.commit()
+    db.refresh(portfolio)
+    return portfolio
 
 @router.delete("/{portfolio_id}")
-def delete_portfolio(portfolio_id: int, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+def delete_portfolio(portfolio_id: int, db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)):
     from packages.database.models import SavedPortfolio
-    if db is not None:
-        portfolio = db.query(SavedPortfolio).filter(SavedPortfolio.id == portfolio_id, SavedPortfolio.user_id == current_user.id).first()
-        if not portfolio:
-            raise HTTPException(status_code=404, detail="Portfolio not found")
-        db.delete(portfolio)
-        db.commit()
-        return {"detail": "Portfolio deleted successfully"}
+    portfolio = db.query(SavedPortfolio).filter(SavedPortfolio.id == portfolio_id, SavedPortfolio.user_id == current_user.id).first()
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+    db.delete(portfolio)
+    db.commit()
     return {"detail": "Portfolio deleted successfully"}

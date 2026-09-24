@@ -1,0 +1,133 @@
+﻿sources:
+  - id: dse_equities
+    name: Dar es Salaam Stock Exchange
+    country: Tanzania
+    domain: dse.co.tz
+    asset_class: Equities
+    dataset: Daily Price & Market Turnover
+    url: https://www.dse.co.tz
+    access_method: HTTP Scrape / Firecrawl
+    authentication: NONE
+    licensing: PUBLIC_REGULATORY
+    update_frequency: Daily (Mon-Fri 16:30 EAT)
+    historical_depth: 3 Years
+    extraction_method: Firecrawl Markdown Extraction
+    parser: BeautifulSoup / TableParser
+    reliability_tier: TIER_1_PRIMARY
+    status: PARTIALLY_WORKING
+    known_limitations: Irregular HTML structure across redesigns; rate limits require sleep delays.
+    validation_method: Cross-check against closing volume and high/low bands.
+
+  - id: nse_equities
+    name: Nairobi Securities Exchange
+    country: Kenya
+    domain: nse.co.ke
+    asset_class: Equities
+    dataset: Equities Daily Price List
+    url: https://www.nse.co.ke
+    access_method: HTTP Scrape
+    authentication: NONE
+    licensing: LICENSE_REVIEW_REQUIRED
+    update_frequency: Daily
+    historical_depth: 5 Years
+    extraction_method: HTML DOM Parser
+    parser: BeautifulSoup
+    reliability_tier: TIER_1_PRIMARY
+    status: PARTIALLY_WORKING
+    known_limitations: Frequent anti-scraping Cloudflare challenges on primary price endpoints.
+    validation_method: Check 52-week high/low consistency.
+
+  - id: use_equities
+    name: Uganda Securities Exchange
+    country: Uganda
+    domain: use.or.ug
+    asset_class: Equities
+    dataset: Listed Equities & Trading Summary
+    url: https://www.use.or.ug
+    access_method: HTTP Scrape
+    authentication: NONE
+    licensing: PUBLIC_REGULATORY
+    update_frequency: Daily
+    historical_depth: 2 Years
+    extraction_method: Table extraction
+    parser: BeautifulSoup
+    reliability_tier: TIER_2_SECONDARY
+    status: PARTIALLY_WORKING
+    known_limitations: Thin liquidity; many symbols have 0-volume sessions.
+    validation_method: Check price stale flags.
+
+  - id: bot_fixed_income
+    name: Bank of Tanzania
+    country: Tanzania
+    domain: bot.go.tz
+    asset_class: Fixed Income
+    dataset: T-Bill & T-Bond Auction Results
+    url: https://www.bot.go.tz/FinancialMarkets/TBillAuctions
+    access_method: Direct HTTP Session
+    authentication: NONE
+    licensing: OFFICIAL_CENTRAL_BANK
+    update_frequency: Bi-Weekly / Monthly
+    historical_depth: 10 Years
+    extraction_method: HTML Table & PDF Circular Parsing
+    parser: Docling + Camelot Dual Consensus
+    reliability_tier: TIER_1_PRIMARY
+    status: WORKING
+    known_limitations: Merged header rows in PDF bulletins.
+    validation_method: Dual-extraction consensus verification.
+
+  - id: cbk_fixed_income
+    name: Central Bank of Kenya
+    country: Kenya
+    domain: centralbank.go.ke
+    asset_class: Fixed Income
+    dataset: Treasury Bills & Bonds Weekly Results
+    url: https://www.centralbank.go.ke/securities/treasury-bills/
+    access_method: Direct HTTP
+    authentication: NONE
+    licensing: OFFICIAL_CENTRAL_BANK
+    update_frequency: Weekly
+    historical_depth: 5 Years
+    extraction_method: HTML / PDF Bulletins
+    parser: BeautifulSoup / PyMuPDF
+    reliability_tier: TIER_1_PRIMARY
+    status: WORKING
+    known_limitations: Irregular publishing timestamps.
+    validation_method: Yield vs maturity curve monotonicity.
+
+  - id: bou_fixed_income
+    name: Bank of Uganda
+    country: Uganda
+    domain: bou.or.ug
+    asset_class: Fixed Income
+    dataset: Government Securities Auction Results
+    url: https://www.bou.or.ug
+    access_method: Direct HTTP
+    authentication: NONE
+    licensing: OFFICIAL_CENTRAL_BANK
+    update_frequency: Bi-Weekly
+    historical_depth: 5 Years
+    extraction_method: HTML / PDF Bulletins
+    parser: BeautifulSoup / Docling
+    reliability_tier: TIER_1_PRIMARY
+    status: WORKING
+    known_limitations: Occasional URL restructuring during site maintenance.
+    validation_method: Weighted average yield check.
+
+  - id: cmsa_funds
+    name: Capital Markets and Securities Authority (Tanzania)
+    country: Tanzania
+    domain: cmsa.go.tz
+    asset_class: Mutual Funds / CIS
+    dataset: Licensed Fund Managers & CIS Registry
+    url: https://www.cmsa.go.tz/licensees/fund-managers
+    access_method: Direct HTTP
+    authentication: NONE
+    licensing: OFFICIAL_REGULATOR
+    update_frequency: Quarterly
+    historical_depth: Current registry
+    extraction_method: HTML Table Parser
+    parser: BeautifulSoup
+    reliability_tier: TIER_1_PRIMARY
+    status: WORKING
+    known_limitations: Registry contains license listings, not daily unit trust NAVs.
+    validation_method: License validity check.

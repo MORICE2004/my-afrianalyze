@@ -10,12 +10,12 @@ client = TestClient(app)
 
 @pytest.fixture(autouse=True)
 def mock_celery_task():
-    with patch("apps.api.tasks.research_tasks.run_research_task.delay") as mock_delay:
+    with patch("apps.api.main.run_research_task") as mock_task:
         mock_result = MagicMock()
         mock_result.id = "mock-task-id-123"
-        mock_result.state = "SUCCESS"
+        mock_result.state = "STARTED"
         mock_result.result = "mock_research_run_id"
-        mock_delay.return_value = mock_result
+        mock_task.delay.return_value = mock_result
         
         with patch("apps.api.main.AsyncResult") as mock_async_result:
             mock_async_result.return_value = mock_result

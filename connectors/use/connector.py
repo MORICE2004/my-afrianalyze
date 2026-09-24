@@ -46,9 +46,24 @@ class USEConnector(ExchangeConnector):
                 business_description="Umeme Limited is an electricity distribution company...",
                 shares_outstanding=1623878005
             )
+        elif ticker.upper() == "MTNU":
+            return Company(
+                company_id=uuid.uuid4(),
+                name="MTN Uganda Limited",
+                ticker="MTNU",
+                exchange="USE",
+                country="Uganda",
+                sector="Telecommunications",
+                sub_sector="Mobile",
+                reporting_currency="UGX",
+                fiscal_year_end="12-31",
+                business_description="MTN Uganda is the leading telecommunications network provider in Uganda.",
+                shares_outstanding=22389000000
+            )
         raise ValueError(f"Company profile for {ticker} not found")
 
     def get_price_history(self, ticker: str, start_date: str, end_date: str) -> List[PricePoint]:
+        close_price = Decimal("31.50") if ticker.upper() == "STAN" else Decimal("30.50")
         return [
             PricePoint(
                 ticker=ticker.upper(),
@@ -57,7 +72,7 @@ class USEConnector(ExchangeConnector):
                 open=Decimal("30.00"),
                 high=Decimal("31.00"),
                 low=Decimal("30.00"),
-                close=Decimal("30.50"),
+                close=close_price,
                 volume=100000,
                 is_trading_day=True,
                 is_suspended=False,

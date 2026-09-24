@@ -1,17 +1,16 @@
-# My AfriAnalyze Observability
+﻿# AfriEdge Observability & Telemetry Framework
 
-This document outlines the tracking for cost, tracing, and deterministic validation execution across our agent runs.
+## 1. Sentry Error Tracking
+- **Backend:** `sentry-sdk[fastapi]` initialized in `apps/api/core/telemetry.py` with automatic exception capture, trace sampling, and sensitive PII scrubbed from stack traces.
+- **Frontend:** Sentry Next.js integration for capturing uncaught client-side rendering exceptions.
 
-## 1. Run & Execution Tracking
-- **TelemetryManager (`agents/telemetry.py`)**: 
-  - Every agent execution is wrapped with `start_agent_run` and `end_agent_run`.
-  - Captures start/end times, execution duration, and success/fail statuses.
-  - Automatically correlates agent runs to an overarching `run_id`.
+## 2. PostHog Product & Research Telemetry
+- Captures business events without logging sensitive portfolio holdings or financial secrets:
+  - `research_started`: `ticker`, `exchange`
+  - `research_completed`: `ticker`, `run_duration_ms`, `confidence`
+  - `portfolio_analyzed`: `asset_count`, `base_currency`
+  - `valuation_viewed`: `symbol`, `model_type`
 
-## 2. Cost Tracking
-- **Token Estimation (`agents/llm_provider.py`)**:
-  - Intercepts every LLM prompt to compute estimated token limits and dollar costs based on `provider` and `model_name`.
-  - Costs are synced into the Run Metrics via the `TelemetryManager`.
-
-## 3. Scrubbing Sensitive Contexts
-- Prompts, raw financial data, and credentials are **never** logged to external systems or persisted in plain text to general traces. Only aggregate token limits and structural metadata (like the list of technical indicators processed) are captured.
+## 3. LLM Token & Cost Telemetry
+- Every LLM inference call records token usage, latency, and estimated cost via `agents.telemetry.telemetry.log_llm_cost()`.
+- Production rate limits prevent runaway agent cycles.
