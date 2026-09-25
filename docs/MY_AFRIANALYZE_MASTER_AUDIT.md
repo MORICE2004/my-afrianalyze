@@ -1,6 +1,6 @@
 # My AfriAnalyze: Master Audit
 
-Last updated: 2026-09-20. Branch `m3-crdb-report`.
+Last updated: 2026-09-20 (production readiness: see `docs/AFRIEDGE_PRODUCTION_AUDIT.md` and `docs/PRODUCTION_CERTIFICATION.md`, 2026-09-25). Branch `m3-crdb-report`.
 This file is the current truth about the repository (CLAUDE.md, PRODUCT_CONTEXT.md section 66).
 Status words: `REAL`, `MOCKED`, `PARTIAL`, `BLOCKED`, `UNTESTED`, `BROKEN`, `MISSING`.
 Proof for every claim below is in `docs/PROGRESS.md`. Open items are in `docs/KNOWN_GAPS.md`.

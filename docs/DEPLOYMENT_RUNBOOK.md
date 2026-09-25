@@ -1,128 +1,87 @@
-# Deployment
+# Deployment runbook
 
-Written 2026-09-20 for a public launch. The web app is ready for Vercel. The rest is not a matter of
-running one command, and this file says exactly why and what is left.
+Updated 2026-09-25. Architecture and why: `docs/PRODUCTION_ARCHITECTURE.md`. Variables:
+`docs/ENVIRONMENT.md`. Database: `docs/DATABASE_RUNBOOK.md`. Status of each part:
+`docs/PRODUCTION_CERTIFICATION.md`.
 
-Read it with `docs/COMPLIANCE_NOTES.md` (the open legal questions) and `docs/KNOWN_GAPS.md`.
+## Where things stand
 
-## The shape of the thing
-
-| Part | What it is | Where it can go |
-|---|---|---|
-| `apps/web` | Next.js 16 | **Vercel** (ready, see below) |
-| `apps/api` | FastAPI, Python | **Not Vercel.** Needs a host that runs a long-lived Python process with a disk: Render, Fly.io, Railway |
-| Database | SQLite locally, 1.3 MB | Managed PostgreSQL. Migrations exist (`alembic`); never yet run against PostgreSQL |
-| `data/raw` | 179 MB, of which 175 MB is 12 annual-report PDFs | Object storage, or the API host's disk. See "The PDFs" below |
-
-Vercel alone gets you the front end and nothing behind it, so every figure would read "not available".
-
-## Done already
-
-- `apps/web/vercel.json`: framework, Frankfurt region (closest Vercel region to Tanzania), and security
-  headers (HSTS, `X-Frame-Options: DENY`, `nosniff`, referrer policy).
-- `next.config.ts` no longer forces `output: "standalone"` on Vercel, which builds its own way. The
-  Docker image still gets the standalone bundle. Both builds verified.
-
-## Before anything goes public
-
-**1. Approve the two research runs.** Nothing else matters until this is done: in production the reports
-return HTTP 403 and the site has no product on it. Verified today:
-
-```
-403  /api/v1/reports/DSE:NMB    "has not been reviewed and published yet"
-403  /api/v1/reports/DSE:CRDB   "has not been reviewed and published yet"
-```
-
-Approving is yours to do, under your own name:
-
-A run goes draft to in_review to published, so each one takes two commands:
-
-```powershell
-.venv\Scripts\python -m pipelines.review submit  RA-20260919-001 --by "Your Full Name" --note "..."
-.venv\Scripts\python -m pipelines.review approve RA-20260919-001 --by "Your Full Name" --note "..."
-.venv\Scripts\python -m pipelines.review submit  RA-20260919-003 --by "Your Full Name" --note "..."
-.venv\Scripts\python -m pipelines.review approve RA-20260919-003 --by "Your Full Name" --note "..."
-```
-
-(`pipelines.review list` shows the current run ids, which change when a report is rebuilt.)
-
-Before you sign them, settle the cost of equity question at the top of `docs/KNOWN_GAPS.md`. Today both
-reports say BUY, CRDB on a 98% upside that the report itself flags as needing review, and on a different
-but equally defensible beta NMB is a SELL instead.
-
-**2. Decide on publishing DSE market data openly.** You accepted the Data Vending Policy risk to build
-the product (`docs/COMPLIANCE_NOTES.md`). A public website showing DSE prices is a different and larger
-exposure than using them on your own machine, because redistribution is the thing the policy actually
-restricts. The price files themselves are already withheld (HTTP 403, they are never served on), so the
-question is only about the figures shown on the page.
-
-**3. Decide about the annual-report PDFs.** Every figure links to the page it came from, which is the
-best thing about this product. That link serves our stored copy of the bank's annual report. Publishing
-those copies is listed as an open legal question in `docs/COMPLIANCE_NOTES.md`. Three ways:
-
-- **Host them** (175 MB). Keeps the promise intact. Resolve the rights question first.
-- **Link to the bank instead.** No copies republished, but the stored `url` is the investor-relations
-  landing page, not the file, so "page 324" becomes "somewhere in this report". The product loses its
-  edge. Getting direct PDF links per year would restore it.
-- **Keep sources for signed-in users only.** Needs accounts, which are not built.
-
-**4. The licensing question you have already answered once.** Your position of 2026-09-19 is that target
-prices and BUY/HOLD/SELL labels need no licence. Publishing to the public is when that position starts
-to matter. It is recorded as your position, not as legal advice.
-
-## Steps, once those are settled
-
-### 1. Database
-
-Create a managed PostgreSQL (Render, Neon, Supabase). Then, from your machine:
-
-```powershell
-$env:DATABASE_URL = "postgresql+psycopg2://USER:PASSWORD@HOST/DBNAME"
-.venv\Scripts\python -m alembic upgrade head
-.venv\Scripts\python -m pipelines.load_security_master
-.venv\Scripts\python -m pipelines.macro
-# then per bank, the four commands in CLAUDE.md, and the price and index importers
-```
-
-This has never been run against PostgreSQL. Expect the money columns to need checking first: they are
-`NUMERIC` there and `ExactDecimal` here, which is the point, but it is untested.
-
-### 2. API
-
-Deploy `apps/api` to Render or Fly from the repo. Environment:
-
-| Variable | Value |
+| Part | State |
 |---|---|
-| `APP_ENV` | `PRODUCTION` |
-| `DATABASE_URL` | the PostgreSQL URL |
-| `CORS_ORIGINS` | your Vercel domain, exactly |
-| `SHOW_TRADE_LABELS` | `true` or `false` |
+| Web app on Vercel | Deployed as a **protected preview** (project `morice2004s-projects/web`, Root Directory `apps/web`, CLI deploys, no Git integration). No production deployment is live: three production attempts on 2026-09-24 failed with Error |
+| API on Render | Not created. `render.yaml` and `Dockerfile.api` are ready; CI builds and starts the image on every push |
+| Postgres on Neon | Not created |
+| Research reports | Both are unapproved drafts, so in production they return 403 |
 
-It needs a persistent disk if you host the PDFs, and enough memory for the report build.
+## Decisions only the owner can make (before a public launch)
 
-Never put these in git. Set them in the host's own settings.
+1. **Approve the two research runs** under your own name (two commands each: `pipelines.review submit`,
+   then `approve`; `pipelines.review list` shows the current ids). Settle the cost-of-equity question at the
+   top of `docs/KNOWN_GAPS.md` first: it decides whether NMB says BUY or SELL.
+2. **Publishing DSE figures on a public site.** You accepted the Data Vending Policy risk for use; public
+   display is the thing the policy restricts (`docs/COMPLIANCE_NOTES.md`). The raw price files are never
+   served (403).
+3. **The annual-report PDFs.** Every figure links to its page in our stored copy. Hosting copies is an open
+   rights question; until it is settled the production API has no PDFs and those links say "missing on disk".
+4. **Paid plans.** Render's free API sleeps after 15 idle minutes (about a minute to wake). `starter` avoids it.
+5. **Which branch is the product.** `master` holds a separate "AfriEdge" line of work with invented market
+   figures and a hardcoded sign-in (`docs/AFRIEDGE_PRODUCTION_AUDIT.md`). Deploy from `m3-crdb-report`, or
+   merge it into `master` first; do not deploy `master` as it stands.
 
-### 3. Web
+## Steps (in this order)
 
-In Vercel: **New Project → import the repository → set Root Directory to `apps/web`.** Then:
+Nothing here needs a secret to pass through chat or git. Where a password is involved, it goes from one
+dashboard straight into another.
 
-| Variable | Value |
+### 1. Database (Neon)
+
+Create the project in Frankfurt and copy the connection string (`docs/DATABASE_RUNBOOK.md` section 1).
+Then load it from your machine (section 2 there).
+
+### 2. API (Render)
+
+1. Render dashboard → **New → Blueprint** → pick `MORICE2004/my-afrianalyze`, branch `m3-crdb-report`
+   (or `master` once merged). Render reads `render.yaml`.
+2. It asks for the `sync: false` values:
+   - `DATABASE_URL`: paste the Neon connection string.
+   - `CORS_ORIGINS`: the web app's address, e.g. `https://web-morice2004s-projects.vercel.app` (exactly,
+     no trailing slash; several separated by commas).
+   - `ALLOWED_HOSTS`: the API's own host, e.g. `afrianalyze-api.onrender.com`.
+   - `SENTRY_DSN`: leave empty unless a Sentry project exists.
+3. Wait for the deploy. The health check is `/ready`: it stays red (503) until the database is loaded,
+   which is correct.
+4. Check: `https://<api>/ready` is 200; `https://<api>/docs` is 404 (off in production);
+   `https://<api>/api/v1/securities?q=nmb` lists NMB.
+
+### 3. Web (Vercel)
+
+1. Vercel → project `web` → Settings → Environment Variables, **Production** only:
+   `NEXT_PUBLIC_API_URL` = `https://<api>`, and `API_URL_INTERNAL` = the same.
+2. Deploy: from the repo root, `vercel deploy --prod`. The build refuses to run without an `https://` API
+   address, so a misconfigured production deploy fails instead of shipping a broken site.
+3. Deployment Protection stays on until decisions 1 to 3 are made. Turning it off for production is the
+   deliberate launch step.
+
+### 4. Smoke test (against production)
+
+| Check | Expect |
 |---|---|
-| `NEXT_PUBLIC_API_URL` | the public API address |
-| `API_URL_INTERNAL` | the same address |
+| `/` | 200, search box |
+| Search "NMB", open it | report page (or the 403 "not reviewed" message until approved) |
+| A figure's source link | page of the PDF, or "missing on disk" until decision 3 |
+| `/health` | sources listed with ages; stale ones marked |
+| `/robots.txt` | `Disallow: /` until `NEXT_PUBLIC_ALLOW_INDEXING=true` |
+| Browser console | no errors, no CORS failures |
+| 375 px wide | no sideways scrolling |
 
-Deploy, then check: search finds NMB, a report opens, a figure links to its source, `/health` shows the
-sources, and the disclaimer is on every page.
+## Rolling back
 
-### 4. Afterwards
+- **Web:** Vercel → Deployments → the previous production deployment → *Promote* (or `vercel rollback`).
+- **API:** Render → Deploys → previous deploy → *Rollback*.
+- **Database:** see `docs/DATABASE_RUNBOOK.md` section 3. Code rollbacks never touch the data.
 
-- Point a domain at it.
-- Turn on Vercel's deployment protection for preview builds so drafts are not public.
-- Watch the first `pipelines.macro` run against PostgreSQL.
-- `docs/INCIDENT_RESPONSE.md` covers what to do if a figure turns out to be wrong in public.
+## Recovering the environment
 
-## What I did not do
-
-I did not deploy. Three reasons, all of them yours to lift: the reports are unapproved drafts, so a
-public site would have no product on it; publishing DSE data and the banks' PDFs are open questions;
-and signing in to Vercel and a database host is yours to do, because I do not enter credentials.
+Everything needed to recreate the setup is in the repo (`render.yaml`, `Dockerfile.api`,
+`apps/web/vercel.json`, `.env.example`, this file) except the values: the Neon connection string (Neon
+dashboard) and, if used, the Sentry DSN (Sentry dashboard).

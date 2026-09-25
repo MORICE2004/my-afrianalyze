@@ -1,37 +1,38 @@
-# My AfriAnalyze - Cost Model
+# Cost model
 
-This document outlines the expected cost structure for running the My AfriAnalyze platform.
+Rewritten 2026-09-25. The previous version assumed LLM extraction of annual reports (GPT-4o, $0.25 to
+$0.50 per report) and an AWS database. Neither is how the product works: figures are extracted by Docling
+and Camelot on the owner's machine, and **the v1 code path makes no LLM calls at all**. Every figure is
+computed by deterministic Python.
 
-## 1. LLM Cost (Inference & Reasoning)
-- **Model**: Assumed use of OpenAI GPT-4o or similar high-tier reasoning models for unstructured text processing (e.g., annual reports, complex filings).
-- **Token Usage per Document**:
-  - Input tokens: ~50,000 - 100,000 tokens (for 150-300 page annual reports parsed via Docling).
-  - Output tokens: ~2,000 - 5,000 tokens (for structured extraction into Pydantic schemas).
-- **Cost Estimate per Document**: ~$0.25 - $0.50 per report.
-- **Cost per Bank/Company (Annually)**: 1 Annual Report + 4 Quarterly Reports + 2 Earnings Calls = ~$2.00 - $3.50 per company per year.
+## Monthly running cost at launch
 
-## 2. Extraction Cost (Docling Integration)
-- **Infrastructure**: Running Docling requires memory-intensive instances (e.g., 8GB+ RAM per worker for PDF parsing).
-- **Compute Cost**: If hosted on AWS (e.g., t3.large or m5.large instances) or equivalent cloud provider.
-- **Cost Estimate**: Assuming 10 hours of processing time per month across all target companies. ~$0.10/hour = $1.00 - $5.00/month for document extraction compute.
+| Item | Plan | Cost | Limit that matters |
+|---|---|---|---|
+| Web (Vercel) | Hobby | $0 | Hobby is for non-commercial use (Vercel's terms). A commercial launch needs Pro, currently listed at $20 per member per month; check before launch |
+| API (Render) | Free | $0 | Sleeps after 15 idle minutes; about a minute to wake. Starter (paid) removes that |
+| Database (Neon) | Free | $0 | 0.5 GB (we use about 1.3 MB); 100 CU-hours per month; 6-hour restore window |
+| Error reporting (Sentry) | Developer (free) | $0 | Event quota; errors only, no tracing |
+| CI (GitHub Actions) | Free minutes | $0 | A full run takes a few minutes; public repositories are free, private ones have a monthly allowance |
+| Extraction (Docling, Camelot) | Owner's machine | electricity | About 5 minutes per annual report, a few times a year per bank |
+| LLM calls | none | $0 | None in the v1 code path |
 
-## 3. Database Cost
-- **Structured Data (PostgreSQL)**: To store time-series financial data, ratios, and historical prices.
-  - Instance: Basic managed PostgreSQL (e.g., AWS RDS db.t4g.micro or db.t3.small)
-  - Cost Estimate: ~$15 - $30 / month.
-- **Document/Vector Storage**: If storing vector embeddings for semantic search of reports.
-  - Cost Estimate: ~$5 - $15 / month (e.g., Pinecone starter or pgvector on same RDS instance).
-- **Total DB Cost Estimate**: ~$20 - $45 / month.
+The prices above were checked against provider pages on 2026-09-25 for Render and Neon
+(`docs/PRODUCTION_ARCHITECTURE.md`, sources). Vercel's and Sentry's were not re-checked today; confirm on
+their pricing pages before relying on them.
 
-## 4. Research-Run Cost (End-to-End Execution)
-A "Research-Run" represents running the entire pipeline (Extract -> Validate -> Calculate -> Value -> Report) for a single company or a batch.
-- **Compute (Data pipelines, Valuation Engine)**: Minimal cost, largely CPU-bound math operations. ~$0.01 per run.
-- **API Costs**: Any paid APIs for live market prices (e.g., African exchange data APIs, if not scraped/free). Assuming $50/month for minimal exchange data access.
-- **LLM Synthesis**: Generating the final research report (Input: 20k tokens of data, Output: 2k tokens report) = ~$0.10.
+## What would change the cost
 
-### Total Estimated Cost for a Full Platform Update (10 Companies)
-- **LLM Parsing/Extraction**: $5.00
-- **Compute Pipeline**: $1.00
-- **Final Report Generation**: $1.00
-- **Total Run Cost**: ~$7.00 per full market update.
-- **Fixed Monthly Costs (DB, APIs, Hosting)**: ~$75.00 - $100.00 / month.
+- **Always-on API** (no cold starts): Render Starter, a paid plan.
+- **Scheduled data refresh**: free as a GitHub Actions schedule; a Render cron job is paid.
+- **A research copilot**: the first LLM cost. It must answer from the stored report payload only and be
+  rate-limited per user, and it needs sign-in first. Not built.
+- **Hosting the annual-report PDFs**: 175 MB today; object storage costs cents, but the rights question
+  comes first.
+- **Adding exchanges** (NSE, USE): same infrastructure; the cost is extraction time and licensing.
+
+## Guards against surprise costs
+
+- No tracing in Sentry (`traces_sample_rate=0.0`).
+- The report and PDF endpoints are rate-limited per client.
+- Nothing calls an LLM, so there is no token spend to run away.

@@ -1,19 +1,5 @@
-# Product Analytics (Sentry + PostHog)
+# Product analytics
 
-## Abstraction Layers
-To prevent vendor lock-in and respect privacy mandates for financial data:
-- **Backend API**: Uses `BackendTelemetry` (`apps/api/core/telemetry.py`)
-- **Frontend App**: Uses wrapper methods (`apps/web/src/lib/telemetry.ts`)
-
-## Environmental Controls
-Both services are purely opt-in using `.env` values:
-- `POSTHOG_ENABLED=true` / `NEXT_PUBLIC_POSTHOG_ENABLED=true`
-- `SENTRY_ENABLED=true` / `NEXT_PUBLIC_SENTRY_ENABLED=true`
-
-## Data Privacy (Scrubbing)
-All contexts routed to Sentry/PostHog pass through a `scrubData()` sanitizer. The following patterns are scrubbed replacing values with `[SCRUBBED]`:
-- `password`
-- `api_key`
-- `secret`
-- `financial_data`
-- `source_doc`
+Superseded on 2026-09-25 by `docs/OBSERVABILITY.md`. The earlier text described `apps/api/core/telemetry.py`
+and `apps/web/src/lib/telemetry.ts` with Sentry and PostHog switches. The first is legacy code the live API
+does not import; the second does not exist. Neither PostHog nor frontend Sentry is wired in today.

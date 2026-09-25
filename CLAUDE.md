@@ -56,7 +56,7 @@ Current truth: `docs/MY_AFRIANALYZE_MASTER_AUDIT.md`. Proof of each step: `docs/
 
 | Path | What it is |
 |---|---|
-| `apps/api/main.py` | FastAPI app: `/health`, securities, reports (+ `/pdf`), source files, markets, fixed income, portfolio proposal |
+| `apps/api/main.py` | FastAPI app: `/ready` (platform health check, 503 when it cannot serve), `/health` (data-health report), securities, reports (+ `/pdf`), source files, markets, fixed income, portfolio proposal |
 | `apps/web/` | Next.js 16 App Router frontend (`src/app/*` routes, `src/lib/api.ts` client, `src/components/report/*`) |
 | `packages/database/` | SQLAlchemy models (`models.py`), `ExactDecimal` type (`types.py`), session (`session.py`) |
 | `packages/analysis/` | Deterministic engines: ratios, line items, beta (5 methods + rule), cost of equity, bank valuation, model view, notes |
@@ -126,7 +126,11 @@ If a licensed file is ever obtained instead:
 cd apps\web; npm run dev -- --port 3000                              # web, http://localhost:3000
 ```
 
-`docker compose up` is written for the same stack with PostgreSQL but is UNTESTED (Docker is not installed).
+`docker compose up` is written for the same stack with PostgreSQL but is UNTESTED locally (Docker is not
+installed). The API image itself (`Dockerfile.api`, `requirements-api.txt`) is built, started and checked
+against Postgres by CI on every push. Deploying: `docs/DEPLOYMENT_RUNBOOK.md`.
+
+Check which sources answer (writes nothing): `.venv\Scripts\python -m pipelines.probe_sources`.
 
 ### Test
 
@@ -147,7 +151,14 @@ Playwright uses the installed Google Chrome (`PW_CHANNEL`, default `chrome`). Sc
 | `APP_ENV` | `DEVELOPMENT` | `PRODUCTION` hides reports that are not published by a reviewer (403); tests set `TEST` |
 | `DATABASE_URL` | SQLite at `data/afrianalyze.db` | PostgreSQL URL in Docker |
 | `CORS_ORIGINS` | ports 3000 and 3001 on localhost and 127.0.0.1 | Allowed browser origins |
+| `ALLOWED_HOSTS` | `*` | Host names the API answers to; set to the API's domain in production |
+| `SENTRY_DSN` | empty (off) | Backend error reporting; no PII, no request bodies |
+| `EXPENSIVE_REQUESTS_PER_MINUTE` | `30` | Per-client limit on report and PDF builds |
 | `SHOW_TRADE_LABELS` | `true` | BUY/HOLD/SELL labels next to the model view (section 71). On by the owner's decision of 2026-09-19 |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | API address the browser uses |
 | `API_URL_INTERNAL` | same as above | API address for server-side rendering (Docker: `http://api:8000`) |
+| `NEXT_PUBLIC_ALLOW_INDEXING` | unset | `true` lets search engines index the site; leave unset until reports are published |
 | `HF_HUB_DISABLE_SYMLINKS` | set to `1` by the extractor | Lets Docling download its models on Windows without symlink rights |
+
+`APP_ENV=PRODUCTION` refuses to start on SQLite or with localhost/`*` CORS, and turns off `/docs`. A Vercel
+production build refuses to run without an `https://` `NEXT_PUBLIC_API_URL`. Full list: `docs/ENVIRONMENT.md`.

@@ -1,6 +1,6 @@
 # Known gaps
 
-Last updated: 2026-09-20. Anything fake, partial, blocked or untested is listed here (ROADMAP rule 4).
+Last updated: 2026-09-25. Anything fake, partial, blocked or untested is listed here (ROADMAP rule 4).
 Full detail and evidence: `docs/MY_AFRIANALYZE_MASTER_AUDIT.md`.
 
 ## Owner decisions (2026-09-19)
@@ -14,6 +14,22 @@ Full detail and evidence: `docs/MY_AFRIANALYZE_MASTER_AUDIT.md`.
 | Reviewer | The owner, for now. Target flow: user requests a report, system prepares it, owner reviews, user sees it | Review command exists; the request queue is MISSING (below) |
 | Legacy code | Delete only what is no longer useful | Deleted the Uganda connector and DSE price provider (invented values only), their two tests, and the mock sign-in (and the unused `next-auth` package). Kept the agents, the other connectors (they contain real fetch code) and the old engines |
 | Push | Yes | Branch pushed to GitHub |
+
+## Production readiness (2026-09-25)
+
+Full list with evidence: `docs/AFRIEDGE_PRODUCTION_AUDIT.md`; status per capability:
+`docs/PRODUCTION_CERTIFICATION.md` (overall `BLOCKED`).
+
+- **Two products on one repository.** `master` holds the "AfriEdge" line with invented figures, a hardcoded
+  sign-in and false certification claims (audit M-1 to M-5). Do not deploy or merge it as it stands. Owner
+  decision: which line is the product.
+- **Not deployed.** No Neon database, no Render API. Steps: `docs/DEPLOYMENT_RUNBOOK.md`.
+- **Prices and index are STALE** (loaded 2026-09-20) and nothing refreshes them. Owner decision: a GitHub
+  Actions schedule (needs the database URL as a GitHub secret) or a Render cron job (paid).
+- **BoT Central Bank Rate loader is BROKEN** on the latest MPC statement.
+- **Backups:** review history lives only in the database; `data/` is not backed up; dump/restore untested.
+- **Observability:** backend Sentry wired but not connected; frontend Sentry and PostHog MISSING.
+- **No Content-Security-Policy.** Playwright is not in CI.
 
 ## The one to look at first
 

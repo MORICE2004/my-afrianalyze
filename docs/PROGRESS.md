@@ -4,6 +4,59 @@ Proof for each step (ROADMAP rule 3). Newest first. Plain-language summary at th
 
 ---
 
+## 2026-09-25: production readiness audit, and the fixes that did not need an account
+
+**In plain words:** the owner supplied a production-readiness directive. I audited from scratch, fixed
+everything in the repository that stood between this code and a safe deployment, and got CI running for
+the first time. The site is still not public: that needs a database and API host in the owner's name, the
+two reports approved, and the licensing questions answered. Findings: `docs/AFRIEDGE_PRODUCTION_AUDIT.md`.
+Status per capability: `docs/PRODUCTION_CERTIFICATION.md`.
+
+**Found on `master` (not changed).** A second line of work, rebranded "AfriEdge", was pushed to `master`
+from another working copy (`~/.gemini/antigravity/scratch/my-afrianalyze`) between 2026-09-17 and 09-24. It
+certifies itself `READY_WITH_LIMITATIONS`. Checked: its markets and fixed-income pages have invented
+figures in the source, its health page is fixed text, its Uganda connector returns made-up prices, its
+portfolio API treats every caller as user 1 with no sign-in, and it claims CI passes remotely when GitHub
+had recorded no workflow runs at all. Three production deploys to Vercel from it on 2026-09-24 failed, so
+nothing is live. Which line is the product is the owner's decision.
+
+**Fixed on this branch** (16 items, table F-1 to F-16 in the audit). The ones that mattered most:
+- CI only ran on `master`, so it had never run. Now five jobs on every push. First run: 3 of 5 passed and
+  the 2 failures were real (the web type check had been passing locally on files Next generated earlier;
+  a test read CI's database URL). Second run: 5 of 5.
+- `/health` said 200 when the database was down, and echoed the database error. New `/ready` answers 503.
+- The API Docker image did `COPY . /app/`, which would have shipped `.env` and the local database, and
+  installed PyTorch to serve web pages. Now 149 MB, named folders only, non-root. Proved by installing
+  `requirements-api.txt` into an empty virtualenv and serving every endpoint from it.
+- A production web build without `NEXT_PUBLIC_API_URL` silently pointed every visitor at their own
+  machine. It now fails the build.
+- PRODUCTION refuses SQLite and localhost CORS; `postgres://` URLs work; `psycopg2` was never actually
+  installed on this machine, so loading a Postgres database would have failed on the first command.
+- Money on Postgres had never been tested on Postgres. CI now does it: exact to 28 digits.
+
+**Sources probed** (`python -m pipelines.probe_sources`, 16 sources): 5 answer real data requests (DSE,
+World Bank, IMF, ECB, UN Comtrade), 9 are reachable with no loader (all of Kenya and Uganda among them),
+2 fail certificate verification (KNBS, UBOS) and were not bypassed. `docs/DATA_SOURCE_MATRIX.md`.
+
+**Providers checked** before choosing: Render's free Postgres is deleted after 30 days (+14), so the
+database goes on Neon (free tier does not expire; 0.5 GB against our 1.3 MB). API on Render with
+`render.yaml`, deploying only after CI passes.
+
+**Tests:** local 222 passed, 4 skipped. CI run #36139810755: all 5 jobs passed (unit 152 passed, 74
+skipped without the downloaded reports; Postgres 17 passed). `tsc`, `eslint`, `next build` clean.
+pip-audit and npm audit: no known vulnerabilities. Secret scan of all 27 commits: clean.
+
+**Not tested:** anything on real production infrastructure (none exists); Sentry end to end (no project);
+backup and restore; Playwright against the changed code (only `/ready` and `/health` were checked in the
+browser today).
+
+**My own mistakes today:** a `COPY apps/__init__.py` line in the new Dockerfile for a file that does not
+exist (caught before committing); seed rows in a new test missing a required column; a test that read the
+machine's `DATABASE_URL` (caught by CI); citing test names in the certification from memory, two of which
+did not exist (checked and corrected before committing).
+
+---
+
 ## 2026-09-20: share prices, the market index, and a beta that can be defended
 
 **In plain words:** both banks now show a real share price, and the valuation runs end to end. Getting
