@@ -1,32 +1,121 @@
 name: CI
 
-# Runs on the default branch (master) and on pull requests into it.
+# Every push on every branch, and pull requests. (Until 2026-09-25 this ran only on master, where no work
+# happens, so it had never run once.)
 on:
   push:
-    branches: ["master"]
   pull_request:
-    branches: ["master"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
-  backend:
+  backend-unit:
+    name: Backend unit tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install dependencies (v1 only; legacy litellm/celery tests skip themselves)
+          cache: pip
+      - name: Install dependencies (legacy celery/redis/litellm tests skip themselves)
         run: |
           python -m pip install --upgrade pip
           grep -vE "^(celery|redis|tenacity|litellm)" requirements.txt > /tmp/req.txt
           pip install -r /tmp/req.txt
-      - name: Database migrations apply cleanly
+      - name: Migrations apply to an empty SQLite database
         run: alembic upgrade head
-      - name: Unit tests (hand-checked values; no downloaded data needed)
-        # The API and NMB integration tests skip themselves when the NMB data is not loaded.
+      - name: Tests (integration tests skip themselves without the downloaded bank reports)
         run: pytest -q tests
 
+  postgres:
+    name: Postgres from zero, and the API in production mode
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci_only_not_a_secret
+          POSTGRES_DB: afrianalyze
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ci:ci_only_not_a_secret@localhost:5432/afrianalyze
+      TEST_POSTGRES_URL: postgresql://ci:ci_only_not_a_secret@localhost:5432/afrianalyze
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install the API's own requirements only (what the server image gets)
+        run: pip install -r requirements-api.txt pytest httpx
+      - name: Migrations up from an empty database, all the way down, and up again
+        run: |
+          alembic upgrade head
+          alembic downgrade base
+          alembic upgrade head
+      - name: Postgres tests (exact money round trip, readiness, production settings)
+        run: pytest -q tests/v1/test_production_config.py tests/v1/test_exact_decimal.py
+      - name: Seed the security master (config/securities.json, checked into git)
+        run: python -m pipelines.load_security_master
+      - name: Serve in PRODUCTION mode and check it answers correctly
+        env:
+          APP_ENV: PRODUCTION
+          CORS_ORIGINS: https://ci.example
+        run: |
+          uvicorn apps.api.main:app --port 8000 &
+          for i in $(seq 1 30); do curl -sf localhost:8000/ready && break; sleep 1; done
+          echo
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8000/ready)" = 200
+          curl -sf "localhost:8000/api/v1/securities?q=nmb" | grep -q '"DSE:NMB"'
+          # API docs are off in production.
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8000/docs)" = 404
+          # A report with no ingested annual reports is a clean 404, never a 500.
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8000/api/v1/reports/DSE:NMB)" = 404
+
+  api-image:
+    name: API Docker image builds and starts
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci_only_not_a_secret
+          POSTGRES_DB: afrianalyze
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: docker build -f Dockerfile.api -t afrianalyze-api .
+      - name: Nothing secret or bulky got into the image
+        run: |
+          ! docker run --rm afrianalyze-api sh -c 'ls -a /app' | grep -E '^(\.env|\.venv|data|node_modules|\.git)$'
+          test "$(docker run --rm afrianalyze-api whoami)" = app
+      - name: Start against Postgres (migrations run on start) and answer /ready
+        run: |
+          docker run -d --name api --network host \
+            -e APP_ENV=PRODUCTION -e CORS_ORIGINS=https://ci.example -e PORT=8000 \
+            -e DATABASE_URL=postgres://ci:ci_only_not_a_secret@localhost:5432/afrianalyze \
+            afrianalyze-api
+          for i in $(seq 1 60); do curl -s localhost:8000/ready && break; sleep 1; done
+          echo
+          # Migrated but not seeded: the API must say so with a 503, not pretend to be healthy.
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8000/ready)" = 503
+          curl -s localhost:8000/ready | grep -q DATABASE_NOT_SEEDED
+      - name: Container log on failure
+        if: failure()
+        run: docker logs api || true
+
   frontend:
+    name: Frontend types, lint and build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -36,6 +125,32 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
       - run: npm ci
       - run: npx tsc --noEmit
+      - run: npx eslint src
       - run: npm run build
+
+  security:
+    name: Secrets and vulnerable dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # scan the whole history, not only the last commit
+      - name: Secret scan (gitleaks, whole git history)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Known vulnerabilities in the API's Python dependencies
+        run: pip install pip-audit && pip-audit -r requirements-api.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Known high-severity vulnerabilities in the web app's runtime dependencies
+        working-directory: ./apps/web
+        run: npm audit --omit=dev --audit-level=high
