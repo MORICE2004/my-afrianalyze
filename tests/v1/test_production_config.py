@@ -44,8 +44,10 @@ def test_production_accepts_a_real_configuration():
     assert s.cors_origins == ["https://afrianalyze.example"]
 
 
-def test_development_keeps_its_local_defaults():
-    assert Settings(APP_ENV="DEVELOPMENT").DATABASE_URL.startswith("sqlite")
+def test_development_keeps_its_local_defaults(monkeypatch):
+    # The default, not whatever this machine's environment sets (CI sets a Postgres URL).
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    assert Settings(APP_ENV="DEVELOPMENT", _env_file=None).DATABASE_URL.startswith("sqlite")
 
 
 # ------------------------------------------------------------------ readiness

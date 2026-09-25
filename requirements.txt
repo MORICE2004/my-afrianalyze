@@ -7,7 +7,7 @@ pydantic==2.13.5
 pydantic-settings==2.15.0
 SQLAlchemy==2.0.54
 alembic==1.20.0
-psycopg2-binary          # PostgreSQL driver (docker-compose); SQLite needs nothing
+psycopg2-binary==2.9.13   # PostgreSQL driver (production, docker-compose); SQLite needs nothing
 numpy==2.5.3
 pandas==3.0.5
 requests==2.34.2
