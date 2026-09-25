@@ -1,0 +1,14 @@
+# What the API server needs to serve pages, and nothing else. The full requirements.txt adds the PDF
+# extraction stack (Docling, Camelot, PyTorch: several GB), which only the offline pipelines use.
+# Checked by installing this file into an empty virtualenv and serving every endpoint (docs/PROGRESS.md).
+fastapi==0.141.1
+uvicorn==0.53.0
+SQLAlchemy==2.0.54
+alembic==1.20.0
+psycopg2-binary==2.9.13
+pydantic==2.13.5
+pydantic-settings==2.15.0
+python-dotenv==1.2.3
+numpy==2.5.3
+reportlab==5.0.1
+sentry-sdk==2.70.0

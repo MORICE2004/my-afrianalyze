@@ -5,12 +5,17 @@ says so and why; there are no fallback values.
 """
 from __future__ import annotations
 
+import logging
+import threading
+import time
+from collections import deque
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, text
 from sqlalchemy.orm import Session
@@ -20,13 +25,51 @@ from packages.database.models import DataSourceStatus, MacroObservation, PriceBa
 from packages.database.session import get_session
 from packages.report.builder import build_report
 
-app = FastAPI(title="My AfriAnalyze API", version="0.2.0")
+log = logging.getLogger("afrianalyze.api")
+PRODUCTION = settings.APP_ENV == AppEnvironment.PRODUCTION
+
+if settings.SENTRY_DSN:
+    import sentry_sdk
+
+    # Errors only (no performance tracing, so no cost surprise), and no request bodies, cookies, IP
+    # addresses or user details (CLAUDE.md rule 10).
+    sentry_sdk.init(dsn=settings.SENTRY_DSN, environment=settings.APP_ENV.value.lower(),
+                    send_default_pii=False, traces_sample_rate=0.0, max_request_body_size="never")
+
+# The interactive API docs are for development; in production the web app is the interface.
+app = FastAPI(title="My AfriAnalyze API", version="0.2.0",
+              docs_url=None if PRODUCTION else "/docs", redoc_url=None,
+              openapi_url=None if PRODUCTION else "/openapi.json")
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()],
+    allow_origins=settings.cors_origins,
     allow_methods=["GET", "POST"],
-    allow_headers=["*"],
+    allow_headers=["Content-Type"],
 )
+
+# Report and PDF builds are the only endpoints that do real work per request, so they get a per-client
+# limit. This is an in-process brake against a script hammering one server, not a security control: it
+# resets on restart and each server instance counts separately.
+_EXPENSIVE_PREFIX = "/api/v1/reports/"
+_hits: dict[str, deque] = {}
+_hits_lock = threading.Lock()
+
+
+@app.middleware("http")
+async def limit_expensive_requests(request: Request, call_next):
+    if request.url.path.startswith(_EXPENSIVE_PREFIX):
+        client = request.client.host if request.client else "unknown"
+        now = time.monotonic()
+        with _hits_lock:
+            window = _hits.setdefault(client, deque())
+            while window and now - window[0] > 60:
+                window.popleft()
+            if len(window) >= settings.EXPENSIVE_REQUESTS_PER_MINUTE:
+                return JSONResponse({"detail": "Too many report requests. Try again in a minute."},
+                                    status_code=429, headers={"Retry-After": "60"})
+            window.append(now)
+    return await call_next(request)
 
 MARKETS = {
     "TZ": {"exchange": "DSE", "currency": "TZS", "name": "Tanzania (DSE)", "index": "DSE:DSEI"},
@@ -43,14 +86,51 @@ def _aware(dt: datetime | None) -> datetime | None:
 
 # ------------------------------------------------------------------ health
 
-@app.get("/health")
-def health(session: Session = Depends(get_session)) -> dict:
-    now = datetime.now(timezone.utc)
+def _database_ok(session: Session) -> bool:
     try:
         session.execute(text("SELECT 1"))
-    except Exception as exc:
+        return True
+    except Exception:
+        # The error can name the database host and user, so it goes to the server log, not the response.
+        log.exception("database check failed")
+        return False
+
+
+@app.get("/ready")
+def ready(session: Session = Depends(get_session)) -> JSONResponse:
+    """For the hosting platform's health check: 503 unless the API can serve data.
+
+    Stale or blocked data sources do not make the API unready (the pages say which data is missing);
+    they are reported as DEGRADED so monitoring can see them without taking the service down.
+    """
+    now = datetime.now(timezone.utc)
+    if not _database_ok(session):
+        return JSONResponse({"status": "DATABASE_UNAVAILABLE", "checked_at": now.isoformat()}, status_code=503)
+    try:
+        has_schema = session.query(Security).first() is not None
+    except Exception:
+        log.exception("schema check failed")
+        has_schema = False
+    if not has_schema:
+        # Connected, but migrations or the security master have not been run: nothing can be served.
+        return JSONResponse({"status": "DATABASE_NOT_SEEDED", "checked_at": now.isoformat()}, status_code=503)
+    stale = []
+    for row in session.query(DataSourceStatus):
+        last = _aware(row.last_success_at)
+        if row.status != "ok" or last is None or (now - last).total_seconds() / 3600 > row.max_age_hours:
+            stale.append(row.source)
+    return JSONResponse({"status": "DEGRADED" if stale else "APP_HEALTHY", "checked_at": now.isoformat(),
+                         "stale_or_blocked_sources": sorted(stale)})
+
+
+@app.get("/health")
+def health(session: Session = Depends(get_session)) -> dict:
+    """The data-health report shown to people on /health. It answers 200 whenever the API is up and says
+    in its body whether the database and each source are working. Platforms should use /ready instead."""
+    now = datetime.now(timezone.utc)
+    if not _database_ok(session):
         return {"status": "offline", "checked_at": now.isoformat(),
-                "database": {"ok": False, "detail": str(exc)}, "sources": []}
+                "database": {"ok": False, "detail": "The database is not reachable."}, "sources": []}
     sources = []
     for row in session.query(DataSourceStatus).order_by(DataSourceStatus.source):
         last = _aware(row.last_success_at)

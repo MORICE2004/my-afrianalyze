@@ -1,0 +1,29 @@
+# Render Blueprint for the API (docs/DEPLOYMENT_RUNBOOK.md). Checked against render.com/docs/blueprint-spec
+# on 2026-09-25. The database is NOT here on purpose: Render's free Postgres is deleted 30 days (+14 grace)
+# after creation, so the database lives on Neon and its URL is entered in Render's dashboard.
+services:
+  - type: web
+    name: afrianalyze-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile.api
+    dockerContext: .
+    # Free sleeps after 15 idle minutes and takes about a minute to wake. "starter" (paid) avoids that;
+    # choosing it is the owner's decision (CLAUDE.md: paid services).
+    plan: free
+    region: frankfurt   # same region as the Vercel functions (fra1) and Neon (eu-central-1)
+    healthCheckPath: /ready
+    # Deploy only after the GitHub checks in .github/workflows/ci.yml pass on the linked branch.
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: APP_ENV
+        value: PRODUCTION
+      - key: SHOW_TRADE_LABELS
+        value: "true"
+      - key: DATABASE_URL        # SECRET: Neon connection string, typed into Render's dashboard
+        sync: false
+      - key: CORS_ORIGINS        # the web app's https:// origin(s)
+        sync: false
+      - key: ALLOWED_HOSTS       # e.g. afrianalyze-api.onrender.com
+        sync: false
+      - key: SENTRY_DSN          # optional; empty keeps error reporting off
+        sync: false

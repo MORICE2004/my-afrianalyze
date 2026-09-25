@@ -14,7 +14,8 @@ from packages.database.base import Base
 import packages.database.models  # noqa: F401  (registers tables on Base)
 
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+# configparser treats "%" as special, so a URL-encoded password (e.g. "%40") must be escaped.
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL.replace("%", "%%"))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

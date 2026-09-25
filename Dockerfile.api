@@ -1,30 +1,29 @@
-# FastAPI backend. UNTESTED: Docker is not installed on the dev machine (docs/KNOWN_GAPS.md).
-FROM python:3.12-slim AS builder
-
-WORKDIR /app
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY requirements.txt .
-RUN pip wheel --no-cache-dir --wheel-dir /app/wheels -r requirements.txt
-
+# FastAPI backend: serves stored data only. The PDF extraction pipelines (Docling, Camelot) are not in this
+# image; they run on a workstation and write to the same database (docs/DATABASE_RUNBOOK.md).
+# Not built locally (Docker is not installed on the dev machine); CI builds it on every push.
 FROM python:3.12-slim
 
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
+
 WORKDIR /app
+COPY requirements-api.txt .
+RUN pip install -r requirements-api.txt
 
-# libgl/libglib are needed by OpenCV (Camelot) and Docling at runtime.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgl1 libglib2.0-0 \
-    && rm -rf /var/lib/apt/lists/*
+# Only what the server runs. Copying named folders (not ".") keeps .env, .venv, data/ and node_modules out
+# of the image even if .dockerignore is wrong.
+COPY alembic.ini ./
+COPY alembic ./alembic
+COPY apps/api ./apps/api
+COPY packages ./packages
+COPY pipelines ./pipelines
+COPY config ./config
 
-COPY --from=builder /app/wheels /wheels
-RUN pip install --no-cache-dir /wheels/*
+RUN useradd --create-home --uid 10001 app && chown -R app /app
+USER app
 
-COPY . /app/
-
+ENV PORT=8000
 EXPOSE 8000
 
-# Apply database migrations, then serve the API.
-CMD ["sh", "-c", "alembic upgrade head && uvicorn apps.api.main:app --host 0.0.0.0 --port 8000"]
+# Migrations only add; they never drop data. Then serve. --proxy-headers takes the client address from the
+# platform's load balancer (used by the per-client limit on report requests).
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn apps.api.main:app --host 0.0.0.0 --port ${PORT} --proxy-headers --forwarded-allow-ips='*'"]
