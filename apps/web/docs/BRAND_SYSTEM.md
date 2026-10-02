@@ -1,4 +1,4 @@
-# My AfriAnalyze Brand System
+# AfriEdge Brand System
 
 ## Core Ethos
 Our design language must communicate: MODERN, EDITORIAL, FINANCIAL, INTELLIGENT.

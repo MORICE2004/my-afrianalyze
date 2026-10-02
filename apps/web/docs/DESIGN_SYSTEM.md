@@ -1,4 +1,4 @@
-# My AfriAnalyze Design System
+# AfriEdge Design System
 
 ## Moving Away from "Card Overuse"
 The current design suffers from "card overuse" - trapping every piece of information inside a rounded rectangle with a drop shadow. This wastes space and creates visual clutter.

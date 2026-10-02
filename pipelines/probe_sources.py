@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 
 import requests
 
-UA = "MyAfriAnalyzeResearchBot/0.1 (source availability check; contact via github.com/MORICE2004/my-afrianalyze)"
+UA = "AfriEdgeResearchBot/0.1 (source availability check; contact via github.com/MORICE2004/my-afrianalyze)"
 
 # (key, country, home page, a data request, what a real answer must contain)
 SOURCES = [

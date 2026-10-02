@@ -18,7 +18,7 @@ from packages.database.models import DataSourceStatus, Security
 from packages.database.session import get_session
 
 GOOD = {"APP_ENV": "PRODUCTION", "DATABASE_URL": "postgresql://u:p@db.example.net/afri",
-        "CORS_ORIGINS": "https://afrianalyze.example"}
+        "CORS_ORIGINS": "https://afriedge.example"}
 
 
 # ------------------------------------------------------------------ settings
@@ -41,7 +41,7 @@ def test_production_refuses_open_or_local_cors(origins):
 
 def test_production_accepts_a_real_configuration():
     s = Settings(**GOOD)
-    assert s.cors_origins == ["https://afrianalyze.example"]
+    assert s.cors_origins == ["https://afriedge.example"]
 
 
 def test_development_keeps_its_local_defaults(monkeypatch):

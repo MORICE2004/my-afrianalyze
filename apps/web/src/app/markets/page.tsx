@@ -43,7 +43,7 @@ export default async function MarketsPage() {
                 ) : (
                   <NotAvailable reason={m.index.reason ?? ""} />
                 )}
-                <p className="mt-3 text-xs text-neutral-500">{m.securities_in_master} securities in the security master · {m.currency}</p>
+                <p className="mt-3 text-xs text-neutral-500">{m.securities_in_master} {m.securities_in_master === 1 ? "security" : "securities"} in the security master · {m.currency}</p>
               </div>
             ))}
           </div>

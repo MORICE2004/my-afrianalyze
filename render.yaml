@@ -3,7 +3,7 @@
 # after creation, so the database lives on Neon and its URL is entered in Render's dashboard.
 services:
   - type: web
-    name: afrianalyze-api
+    name: afriedge-api
     runtime: docker
     dockerfilePath: ./Dockerfile.api
     dockerContext: .
@@ -23,7 +23,7 @@ services:
         sync: false
       - key: CORS_ORIGINS        # the web app's https:// origin(s)
         sync: false
-      - key: ALLOWED_HOSTS       # e.g. afrianalyze-api.onrender.com
+      - key: ALLOWED_HOSTS       # e.g. afriedge-api.onrender.com
         sync: false
       - key: SENTRY_DSN          # optional; empty keeps error reporting off
         sync: false

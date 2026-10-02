@@ -6,8 +6,11 @@ import { ErrorState } from "@/components/ui/NotAvailable";
 import { apiGet, type Security } from "@/lib/api";
 
 export const metadata: Metadata = {
-  title: "Search listed companies",
-  description: "Search DSE, NSE and USE companies by ticker or name and open the sourced research report.",
+  // The layout's "%s | AfriEdge" template applies to child routes, not to the page beside it, so the home
+  // page names the brand itself.
+  title: { absolute: "AfriEdge | Search listed companies" },
+  description:
+    "Search listed companies by ticker or name and open the sourced research report. Reports cover DSE-listed companies today.",
 };
 
 export default async function HomePage() {

@@ -58,7 +58,7 @@ def _footer(canvas, doc, report):
     canvas.saveState()
     canvas.setFont("Helvetica", 6.5)
     canvas.setFillColor(GREY)
-    canvas.drawString(15 * mm, 10 * mm, "My AfriAnalyze. Research and education only, not investment advice. "
+    canvas.drawString(15 * mm, 10 * mm, "AfriEdge. Research and education only, not investment advice. "
                                         f"Generated {report['generated_at']}.")
     canvas.drawRightString(195 * mm, 10 * mm, f"Page {doc.page}")
     canvas.restoreState()
@@ -68,7 +68,7 @@ def render_pdf(report: dict) -> bytes:
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=15 * mm, rightMargin=15 * mm,
                             topMargin=14 * mm, bottomMargin=16 * mm,
-                            title=f"{report['security']['name']} research report")
+                            title=f"{report['security']['name']} research report", author="AfriEdge")
     sec, head = report["security"], report["header"]
     years = [str(y) for y in report["years"]]
     story: list = []

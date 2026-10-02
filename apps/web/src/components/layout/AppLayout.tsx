@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useState } from "react";
@@ -32,9 +33,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-50 bg-white border-b border-neutral-200 shadow-sm text-sm">
         <div className="flex items-center justify-between px-4 sm:px-6 py-3 gap-4">
           <div className="flex items-center gap-8 min-w-0">
-            <Link href="/" className="font-bold tracking-tight uppercase flex items-center gap-2 shrink-0">
-              <span className="w-3 h-3 bg-black" aria-hidden />
-              AfriAnalyze
+            <Link href="/" className="font-bold tracking-tight flex items-center gap-2 shrink-0 text-base">
+              <Image src="/logo-mark.png" alt="" width={23} height={20} priority />
+              AfriEdge
             </Link>
             <nav aria-label="Main" className="hidden lg:flex items-center gap-5 text-neutral-600 font-medium text-xs tracking-wide uppercase">
               {NAV.map((n) => (
