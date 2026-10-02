@@ -4,6 +4,65 @@ Proof for each step (ROADMAP rule 3). Newest first. Plain-language summary at th
 
 ---
 
+## 2026-10-02: one canonical AfriEdge codebase, sign-in, and the source-health layer
+
+**In plain words:** the owner made `m3-crdb-report` the canonical branch and asked for the AfriEdge name.
+I mapped every copy of the project, audited the legacy AfriEdge copy line by line, kept only its logo and
+name, and then built what the directive asked for that needed no outside account: real sign-in with
+per-user portfolios, a Content-Security-Policy, a register of every data source with its live state, a
+self-updating Bank of Tanzania policy rate, and a scheduled refresh. Nothing is deployed yet.
+
+**Repositories** (`docs/REPOSITORY_RECONCILIATION.md`). Four places on disk; the legacy Antigravity copy is
+exactly `master` at `b77c609`. Backups pushed before any change: `afriedge-legacy-archive` (= master) and
+`afriedge-production-baseline` (= `957ab54`). Nothing deleted, nothing force-pushed, `master` untouched.
+
+**Legacy forensics** (`docs/LEGACY_AFRIEDGE_FORENSIC_REPORT.md`): 19 findings. The worst: its "grounded"
+copilot was fed a fixed block labelled "Verified Metrics (FY2025 Audited)" for every ticker. Against NMB's
+real FY2025 figures from our two-reader extraction, every one is wrong: NIM 8.4% (real 9.0%), NPL 3.2%
+(2.4%), ROE 24.1% (26.9%), C/I 46.8% (37.1%), fair value TZS 5,420 (2,354). Its report page shows the same
+price (17.50) and OVERWEIGHT call for every company; its sign-in accepts any password as "J Smith".
+
+**Not ported, checked:** the canonical code was searched for 18 legacy markers (17.50, 701.2B, OVERWEIGHT,
+2,145.32, 5,420, 24.1%, J Smith, jsmith@example, analyst@afriedge, DummyUser, mockData, Math.random,
+Decimal("31.50"), Golden Cross, Last sync, 2 mins ago, PUBLIC_REGULATORY, "Mocking authentication"). All zero
+except one `Math.random`, which is the new browser test making unique throwaway emails.
+
+**Built and verified**
+- AfriEdge brand: logo cropped from the legacy PNG into a mark, favicon, Apple icon and share card; titles,
+  metadata, API title, PDF footer and file name, README rewritten without unsupported claims.
+- Sign-in: Argon2id, 256-bit session tokens stored as SHA-256, httpOnly cookie held by the web server, CSRF
+  origin checks, 10 attempts per minute. Migration `7c1e5a2f9d30` (up/down/up and `alembic check` clean).
+- Portfolios: one owner each; another user's id answers 404; values = quantity x latest stored close in
+  Decimal; unpriced = INSUFFICIENT_DATA, not zero; old prices flagged STALE.
+- In the browser with two accounts: A saved 100 NMB at cost 1,900 and saw 207,000.00 value and 17,000.00 gain,
+  marked STALE (close of 18 Sept); B saw nothing and got 404 on read, overwrite and delete of A's portfolio,
+  and on a path-traversal id; A's portfolio unchanged in the database; the session cookie is invisible to
+  page JavaScript; forged-origin and origin-less POSTs got 403.
+- CSP and Permissions-Policy: served; no violations on any page; the browser refused to frame the site.
+- No sideways scrolling on 8 pages at 320 px, and on the heaviest pages at 375, 390 and 430 px.
+- Source registry (`config/source_registry.json`): 15 sources on `/health` with state, last success, last
+  failure, licensing and loader state; Kenya and Uganda say COMING and LICENSE_REVIEW_REQUIRED on `/markets`.
+- Bank of Tanzania policy rate: the loader was pinned to the April statement and could not see that the MPC
+  **raised the CBR to 6.25% on 2 July 2026**. It now finds the newest statement on bot.go.tz itself; a live
+  run stored 6.25% with the quoted sentence. The old 5.75% had been marked stale, not shown as current.
+- `refresh-data.yml`: weekday refresh of prices and macro, inert until the owner stores
+  `PRODUCTION_DATABASE_URL`. The DSE index is excluded on purpose: its importer deletes the whole series
+  before inserting, so a fresh runner would have erased ten years of history.
+
+**Tests (2026-10-02):** Python 253 passed, 4 skipped. Playwright 32/32 (desktop 1440 and mobile 375),
+including a new sign-up-to-isolation journey. tsc, eslint and `next build` clean.
+
+**Not done (needs an outside account or a decision):** Neon, Render, Sentry and PostHog accounts; deployment;
+password reset (needs email); the copilot; technical analysis on the report; optimisation and stress tests;
+Kenya and Uganda loaders. The two reports are still unapproved drafts.
+
+**My own mistakes:** marked four Kenyan and Ugandan agencies `PUBLIC_STATISTICS` without reading their terms
+(corrected to `LICENSE_REVIEW_REQUIRED` before committing); a test that tried to send Python's `inf` as
+JSON (replaced by the string forms an attacker would send); left an `if False else` in the CBR label
+(removed); forgot the running API does not reload, so `/health` first showed the old shape (restarted).
+
+---
+
 ## 2026-09-25: production readiness audit, and the fixes that did not need an account
 
 **In plain words:** the owner supplied a production-readiness directive. I audited from scratch, fixed

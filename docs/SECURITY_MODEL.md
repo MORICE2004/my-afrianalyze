@@ -14,9 +14,23 @@ branch `m3-crdb-report`; `master` has different code and its own problems (see
 - **Unpublished drafts.** Kept out of view by the 403 above, by Vercel Deployment Protection on the preview,
   and by `robots.txt` disallowing indexing.
 
-There are no user accounts, no personal data and no payments. The API has no endpoint that writes to the
-database. That removes most of the usual attack surface (sign-in, sessions, CSRF, IDOR), and is the
-reason it is not built yet: sign-in arrives with the first feature that stores something per person.
+Since 2026-10-02 there are user accounts (email and password) and saved portfolios. No payments and no
+other personal data.
+
+## Sign-in and isolation
+
+- Passwords: Argon2id (`argon2-cffi` defaults, the RFC 9106 profile), 12 to 128 characters. A wrong password
+  and an unknown email get the same message, and an unknown email is checked against a dummy hash so timing
+  does not reveal which accounts exist.
+- Sessions: a 256-bit random token; the database stores only its SHA-256. Expires after 7 days; logout
+  revokes it. The browser holds it in an httpOnly, SameSite=Lax cookie (Secure in production) on the web
+  app's own domain; page JavaScript cannot read it (checked in the browser). The web server forwards it to
+  the API as a Bearer token, so the API's CORS policy stays narrow (no Authorization header, no PUT/DELETE).
+- CSRF: every state-changing route on the web app requires a same-site Origin header (403 otherwise, tested
+  with a forged origin and with none).
+- IDOR: every portfolio query filters on the session's user; another user's id answers 404. Tested at the
+  API (`tests/v1/test_auth_and_portfolios.py`) and in the browser (`apps/web/e2e/smoke.spec.ts`).
+- Abuse: 10 sign-in attempts per minute per client.
 
 ## Checks (2026-09-25)
 
@@ -41,8 +55,8 @@ reason it is not built yet: sign-in arrives with the first feature that stores s
 
 | Gap | Severity | Note |
 |---|---|---|
-| No Content-Security-Policy | P2 | Needs the API origin per environment, and a browser check that Next's hydration scripts still run. Not done blind |
+| CSP allows inline scripts | P2 | `next.config.ts` sets a CSP (only this site and the API; no framing, plugins, base or form hijack). Next.js needs inline scripts; a nonce-based policy would make every page render per request |
 | Rate limit is per process and trusts the load balancer's forwarded address | P2 | Enough to stop one script hammering one server; not a defence against a distributed attack. Render's edge is the real protection |
-| No sign-in | not applicable today | Required before any per-user feature (saved portfolios answer 401) |
+| No password reset, email verification or account deletion | P1 before public sign-ups | Needs an email service (owner's account) |
 | Legacy code in the repo (`agents/`, `connectors/`, `apps/api/routers`, `apps/api/tasks`) | P3 | Not imported by the live API, so not reachable over HTTP. The copy of `apps/api/routers/portfolios.py` on `master` has a hardcoded user and must not be mounted (finding M-3) |
 | Security review by a second tool | open | `/security-review` or equivalent has not been run on this branch |

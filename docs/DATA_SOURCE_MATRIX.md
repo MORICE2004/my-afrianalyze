@@ -20,7 +20,7 @@ answers; nothing in this repo reads its data), `BLOCKED` (bot challenge), `UNAVA
 | NMB Bank investor relations | Annual reports FY2021-FY2025 (PDF) | `pipelines/banks/*` | 2026-09-19 | Two independent readers must agree; tie checks; every figure found on its cited page | Publicly posted by the issuer; republishing our copies is an open question | REAL (295 facts) |
 | CRDB Bank investor relations | Annual reports FY2021-FY2025 (PDF) | `pipelines/banks/*` | 2026-09-19 | As above | As above | REAL (297 facts) |
 | Bank of Tanzania | Treasury bond yields (2Y to 25Y) | `pipelines/macro.py:bot_bonds` | 2026-09-18 | Yield range checks; each tenor dated to its own auction | Public statistics | REAL; within its 21-day limit until 2026-10-09 |
-| Bank of Tanzania | Central Bank Rate | `pipelines/macro.py:bot_cbr` | never (last attempt failed) | Parsed from the MPC statement PDF | Public | **BROKEN**: a newer MPC decision is not parsed |
+| Bank of Tanzania | Central Bank Rate | `pipelines/macro.py:bot_cbr` (finds the newest MPC statement on the notices page) | 2026-10-02 | The decision sentence must be found in the newest statement, or the job fails; an older rate is never carried forward | Public | REAL: 6.25% (raised, 2 July 2026) |
 | NBS Tanzania | Headline CPI inflation | `pipelines/macro.py:nbs_inflation` | 2026-09-18 | Range check | Public | REAL |
 | Damodaran (NYU Stern) | Country risk premium; emerging-market bank industry beta | `pipelines/macro.py:damodaran*` | 2026-09-18 / 09-20 | Refuses implausible values or a changed sheet layout | Free for use with attribution | REAL |
 

@@ -74,15 +74,15 @@ AfriEdge work to keep (the name and logo are easy to carry over); none of M-2 to
 | O-1 | No API host and no Postgres exist | P0 | BLOCKED | Owner creates Neon and Render accounts (`docs/DEPLOYMENT_RUNBOOK.md`) |
 | O-2 | Both research runs are unapproved drafts, so production shows no report (403) | P0 | DECISION | Owner reviews and approves under their name |
 | O-3 | Cost-of-equity treatment (`subtract_default_spread` gives 12.94%, about 2.2 points over the 10-year TZS yield) and CRDB's 25.9% loan-growth extrapolation are unsettled; NMB flips BUY/SELL on the beta choice | P1 | DECISION | `docs/KNOWN_GAPS.md` first section |
-| O-4 | Prices and index are STALE (loaded 2026-09-20); nothing refreshes them on a schedule | P1 | DECISION | GitHub Actions schedule (DB secret in GitHub) or Render cron (paid): `docs/PRODUCTION_ARCHITECTURE.md` |
-| O-5 | BoT Central Bank Rate loader fails on the latest MPC statement | P1 | OPEN | Fix the parser |
+| O-4 | Prices and index are STALE (loaded 2026-09-20) | P1 | PARTLY FIXED | `refresh-data.yml` refreshes prices and macro on weekdays once the owner stores `PRODUCTION_DATABASE_URL` in the GitHub `production` environment. The index is excluded: its importer replaces the whole series, so it needs an update-in-place mode first |
+| O-5 | BoT Central Bank Rate loader was pinned to the April 2026 statement and could not see the July decision (raised to 6.25%) | P1 | FIXED 2026-10-02 | Finds the newest statement on bot.go.tz's notices page; `test_bot_cbr.py`; a live run stored 6.25% with the quoted sentence |
 | O-6 | Review history exists only in the database; `data/` (the source of everything else) is not backed up; dump and restore untested | P1 | OPEN | `docs/DATABASE_RUNBOOK.md` section 4 |
 | O-7 | DSE redistribution on a public site; republishing the banks' PDFs | P0 for public launch | `LICENSE_REVIEW_REQUIRED` | Owner decision (`docs/COMPLIANCE_NOTES.md`) |
 | O-8 | Kenya and Uganda: sources reachable, no loaders; outside v1 scope (CLAUDE.md) | P4 | DECISION | Scope change by the owner |
 | O-9 | Sentry backend wired but not connected; frontend Sentry and PostHog missing | P2 | BLOCKED | Owner creates the projects |
-| O-10 | No Content-Security-Policy | P2 | OPEN | Needs the per-environment API origin and a browser check |
+| O-10 | No Content-Security-Policy | P2 | FIXED 2026-10-02 | `next.config.ts`; the browser blocked framing in testing; no violations on any page. Inline scripts still allowed (Next.js); a nonce-based CSP is a later step |
 | O-11 | 18 legacy packages, `agents/`, `connectors/`, legacy routers and tasks in the repo | P3 | DECISION | Delete or archive (deleting is the owner's call) |
-| O-12 | Not built in v1 (the directive assumes them): sign-in, AI copilot, technical indicators on the report, portfolio construction, optimisation, stress tests, unit trusts, T-bills | P4 | MISSING | Roadmap milestones; each needs its data first |
+| O-12 | Not built in v1 (the directive assumes them): AI copilot, technical indicators on the report, portfolio construction, optimisation, stress tests, unit trusts, T-bills | P4 | MISSING | Roadmap milestones; each needs its data first |
 | O-13 | Playwright browser checks are not in CI (they need the loaded data) | P2 | OPEN | A seeded CI database, or run against the deployed site |
 | O-14 | Vercel Hobby is for non-commercial use | P2 | DECISION | Pro plan before a commercial launch |
 | O-15 | KNBS and UBOS certificates fail verification | P3 | BLOCKED | Their servers; not bypassed |

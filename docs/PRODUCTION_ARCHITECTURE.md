@@ -34,21 +34,16 @@ flowchart LR
 - **No object storage for the annual-report PDFs.** Whether our copies may be republished is an open
   question (`docs/COMPLIANCE_NOTES.md`). Until it is answered the API image does not contain them, and the
   source-file links return "missing on disk" in production.
-- **No sign-in.** The site is read-only research; nothing is stored per user. Saved portfolios answer 401.
-  Sign-in comes with the first feature that stores something per person (docs/SECURITY_MODEL.md).
+- **No separate auth service.** Sign-in lives in the API (Argon2id, hashed session tokens) and the web app
+  keeps the token in an httpOnly cookie (docs/SECURITY_MODEL.md). No third-party account was needed.
 
-## The one gap that needs a decision: refreshing data
+## Refreshing data
 
-Nothing refreshes prices, the index or macro data on a schedule. Today it happens when someone runs the
-commands. Prices are already past their 120-hour freshness limit (loaded 2026-09-20), and the site says
-so. The two sensible options:
-
-1. **A scheduled GitHub Actions workflow** running `pipelines.macro` and the price import daily. Costs
-   nothing, but the Neon URL (a secret) must be stored in GitHub's encrypted secrets.
-2. **A Render cron job** from the same image. Keeps the secret in one place, but Render cron jobs are a
-   paid feature.
-
-Either is small. It is the owner's call because both involve where the database password lives or money.
+Chosen 2026-10-02: a **GitHub Actions schedule** (`.github/workflows/refresh-data.yml`), weekdays at 18:00 in
+Dar es Salaam, refreshing DSE prices and the macro inputs. It costs nothing and needs no extra service. The
+database password is stored as a secret of the `production` environment, which the owner adds; until then
+every run stops at its first step with a notice. A Render cron job was the alternative and is a paid
+feature. The DSE index is not refreshed yet (its importer replaces the whole series).
 
 ## Sources checked
 

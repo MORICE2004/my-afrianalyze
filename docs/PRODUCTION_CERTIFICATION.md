@@ -22,17 +22,17 @@ tests that need the downloaded reports); Postgres job 17 passed. Local: 222 pass
 
 | Capability | Implemented | Real | Tested | Deployed | Evidence | Status | Limitation |
 |---|---|---|---|---|---|---|---|
-| Frontend | yes | yes | tsc, eslint, build (local and CI); Playwright 28 checks at 1440/375 px (local, 2026-09-20) | preview only, protected | Vercel `web-1u7t6cvbb…` Ready | READY_WITH_LIMITATIONS | Playwright not in CI; no production deployment |
+| Frontend | yes | yes | tsc, eslint, build; Playwright 32/32 at 1440 and 375 px (2026-10-02); 8 pages at 320/375/390/430 px with no sideways scroll | preview only, protected | Vercel `web-1u7t6cvbb…` Ready (pre-rebrand build) | READY_WITH_LIMITATIONS | Playwright not in CI; the AfriEdge build is not deployed yet |
 | API | yes | yes | 222 local tests; CI serves it in PRODUCTION mode on Postgres | no | CI job "Postgres from zero" | BLOCKED | No host yet (O-1) |
 | PostgreSQL | yes | yes (CI Postgres 16) | migrations up/down/up; money round trip; image migrates on start | no | CI jobs "Postgres", "API image" | BLOCKED | Neon not created; full data load never run on Postgres |
 | Redis | no | n/a | n/a | n/a | Not needed by v1 (`PRODUCTION_ARCHITECTURE.md`) | READY_WITH_LIMITATIONS | Deliberately absent |
-| Background workers | no | n/a | n/a | n/a | Pipelines are commands; legacy Celery unused | READY_WITH_LIMITATIONS | No scheduled refresh: prices STALE (O-4) |
-| Authentication | no | n/a | n/a | n/a | No per-user data exists; saved portfolios 401 | REJECTED | Must precede any per-user feature |
-| Authorization | partial | yes | review gate 403 tested | no | `tests/v1/test_api.py` (APP_ENV=PRODUCTION monkeypatch) | READY_WITH_LIMITATIONS | Only the publish gate; no users |
+| Background workers | no (by design) | n/a | n/a | n/a | No request starts background work; pipelines are commands. Scheduled refresh is a GitHub Actions workflow (`refresh-data.yml`) | READY_WITH_LIMITATIONS | Refresh inert until `PRODUCTION_DATABASE_URL` is stored; DSE index excluded until its importer updates in place |
+| Authentication | yes | yes | 25 API tests (`test_auth_and_portfolios.py`) and a browser journey | no | Argon2id hashes; 256-bit session tokens stored only as SHA-256; httpOnly SameSite cookie; logout revokes; 7-day expiry; 10 sign-in attempts per minute per client | READY_WITH_LIMITATIONS | No password reset or email verification (needs an email service); no account deletion yet |
+| Authorization | yes | yes | A cannot read, change or delete B's portfolio (API test and browser test); review gate 403 | no | every portfolio query filters on the session user; other users' ids answer 404 | READY | |
 | DSE | yes (prices, index) | yes | 13 importer tests; reconciliation | no | 2,473 days NMB/CRDB; 2,460 DSEI | READY_WITH_LIMITATIONS | STALE; `LICENSE_REVIEW_REQUIRED` for public display |
 | NSE | no (v1) | reachable | probe | n/a | `DATA_SOURCE_MATRIX.md` | REJECTED | Outside v1 scope |
 | USE | no (v1) | reachable | probe | n/a | as above | REJECTED | Outside v1 scope |
-| BoT | yes (bond yields); CBR broken | yes | indirectly (`test_fixed_income_points_carry_sources`); no loader test | no | 2Y-25Y yields, dated per auction | READY_WITH_LIMITATIONS | CBR loader fails (O-5); no T-bills |
+| BoT | yes (bond yields, policy rate) | yes | `test_bot_cbr.py` (6); fixed income API test | no | CBR 6.25% from the 2 July 2026 MPC statement, found on bot.go.tz's notices page each run | READY_WITH_LIMITATIONS | No T-bills |
 | CBK | no | reachable | probe | n/a | as above | REJECTED | Outside v1 scope |
 | BoU | no | reachable | probe | n/a | as above | REJECTED | Outside v1 scope |
 | NBS | yes (CPI) | yes | range check in the loader; no loader test | no | August 2026 CPI | READY_WITH_LIMITATIONS | The loader has no test of its own |
@@ -49,17 +49,17 @@ tests that need the downloaded reports); Postgres job 17 passed. Local: 222 pass
 | Market analysis | partial | yes | `test_markets_and_portfolios_do_not_invent_numbers` | no | DSEI level and movers from stored prices | READY_WITH_LIMITATIONS | Two securities priced; no breadth or sector view |
 | Fixed income | partial | yes | fixed-income test | no | BoT bond curve, real yield, 2y-10y spread | READY_WITH_LIMITATIONS | No T-bills, no duration/convexity |
 | Mutual funds | no | n/a | n/a | n/a | | REJECTED | Not built |
-| Portfolios | no | n/a | proposal answers "not available" honestly | no | `/api/v1/portfolio/proposals` | REJECTED | Not built |
+| Portfolios | yes (save, value) | yes | API and browser tests | no | quantity x latest stored close in Decimal; unpriced holdings INSUFFICIENT_DATA; stale prices flagged | READY_WITH_LIMITATIONS | TZS only; no return history, risk or drift yet |
 | Optimization | legacy only | no | n/a | n/a | | REJECTED | Not built in v1 |
 | Stress testing | legacy only | no | n/a | n/a | | REJECTED | Not built in v1 |
 | Evidence lineage | yes | yes | every figure has source, page, status | no | `test_every_shown_figure_has_status_source_and_units` | READY_WITH_LIMITATIONS | Source links need the PDFs hosted (O-7) |
 | AI copilot | no | n/a | n/a | n/a | No LLM calls in v1 | REJECTED | Not built; needs sign-in and rate limits first |
 | Sentry | backend wired | no | inert without DSN | no | `apps/api/main.py` | BLOCKED | No Sentry project; frontend not wired |
 | PostHog | no | n/a | n/a | n/a | | REJECTED | Not built |
-| CI/CD | yes | yes | 5 jobs green | GitHub Actions | run #36139810755 | READY_WITH_LIMITATIONS | Render deploy gate (`checksPass`) configured, not yet exercised |
-| Security | yes | yes | tests + gitleaks + pip-audit + npm audit | n/a | `SECURITY_MODEL.md` | READY_WITH_LIMITATIONS | No CSP; no second-tool review yet |
+| CI/CD | yes | yes | 5 CI jobs; scheduled refresh workflow | GitHub Actions | runs listed in PROGRESS | READY_WITH_LIMITATIONS | Render deploy gate (`checksPass`) configured, not yet exercised |
+| Security | yes | yes | tests, gitleaks, pip-audit, npm audit; CSRF and isolation tests; CSP checked in the browser | n/a | `SECURITY_MODEL.md` | READY_WITH_LIMITATIONS | CSP allows inline scripts (Next.js); no second-tool review yet |
 | Backups | documented | no | not tested | n/a | `DATABASE_RUNBOOK.md` | REJECTED | Dump/restore never run; `data/` not backed up |
-| Browser verification | yes | yes | Playwright local | preview only | 28 checks (2026-09-20) | INCONCLUSIVE | Not run against a deployed API; not rerun since today's changes except `/ready` and `/health` in the browser |
+| Browser verification | yes | yes | Playwright 32/32 locally against the real API and data; manual journey with two accounts | preview only | 2026-10-02 | INCONCLUSIVE | Not run against a deployed API |
 
 ## The directive's end-to-end journey
 

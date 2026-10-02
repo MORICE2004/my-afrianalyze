@@ -27,8 +27,15 @@ Classes: `PUBLIC` (ends up in the browser), `SERVER_ONLY` (not secret, but only 
 |---|---|---|---|
 | `NEXT_PUBLIC_API_URL` | **PUBLIC**, REQUIRED_FOR_PRODUCTION | `http://localhost:8000` | The API address the browser calls. Compiled into the JavaScript. A Vercel production build fails unless it is `https://` |
 | `API_URL_INTERNAL` | SERVER_ONLY, OPTIONAL | `NEXT_PUBLIC_API_URL` | Address for server-side rendering (in Docker: `http://api:8000`) |
+| `NEXT_PUBLIC_SITE_URL` | PUBLIC, OPTIONAL | `http://localhost:3000` | The site's own address, used for share-card (OpenGraph) links. Set it to the production domain |
 | `NEXT_PUBLIC_ALLOW_INDEXING` | PUBLIC, OPTIONAL | unset | `true` lets search engines index the site. Leave unset until reports are published |
 | `VERCEL`, `VERCEL_ENV` | set by Vercel | | Used to skip the standalone bundle and to apply the production-build guard |
+
+## GitHub (scheduled refresh)
+
+| Secret | Where | Class | What it does |
+|---|---|---|---|
+| `PRODUCTION_DATABASE_URL` | Settings → Environments → `production` → Environment secrets | **SECRET** | The Neon connection string that `refresh-data.yml` writes prices and macro data to. Unset: the workflow does nothing |
 
 ## Pipelines (your machine, writing to the production database)
 

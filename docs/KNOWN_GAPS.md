@@ -24,12 +24,14 @@ Full list with evidence: `docs/AFRIEDGE_PRODUCTION_AUDIT.md`; status per capabil
   sign-in and false certification claims (audit M-1 to M-5). Do not deploy or merge it as it stands. Owner
   decision: which line is the product.
 - **Not deployed.** No Neon database, no Render API. Steps: `docs/DEPLOYMENT_RUNBOOK.md`.
-- **Prices and index are STALE** (loaded 2026-09-20) and nothing refreshes them. Owner decision: a GitHub
-  Actions schedule (needs the database URL as a GitHub secret) or a Render cron job (paid).
-- **BoT Central Bank Rate loader is BROKEN** on the latest MPC statement.
+- **Prices and index are STALE** (loaded 2026-09-20). `refresh-data.yml` will refresh prices and macro once
+  `PRODUCTION_DATABASE_URL` is stored in the GitHub `production` environment. The DSE index needs its
+  importer changed to update in place before it can be scheduled.
+- BoT Central Bank Rate: fixed 2026-10-02 (now 6.25%, the July 2026 decision).
+- **No password reset or email verification** (needs an email service).
 - **Backups:** review history lives only in the database; `data/` is not backed up; dump/restore untested.
 - **Observability:** backend Sentry wired but not connected; frontend Sentry and PostHog MISSING.
-- **No Content-Security-Policy.** Playwright is not in CI.
+- CSP added 2026-10-02 (inline scripts still allowed). Playwright is not in CI.
 
 ## The one to look at first
 

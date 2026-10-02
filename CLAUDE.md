@@ -1,4 +1,4 @@
-# My AfriAnalyze: Rules for Claude Code
+# AfriEdge (formerly My AfriAnalyze): Rules for Claude Code
 
 An African investment research and portfolio intelligence platform. AI explains. Deterministic code calculates. Every number has a source.
 
@@ -56,7 +56,10 @@ Current truth: `docs/MY_AFRIANALYZE_MASTER_AUDIT.md`. Proof of each step: `docs/
 
 | Path | What it is |
 |---|---|
-| `apps/api/main.py` | FastAPI app: `/ready` (platform health check, 503 when it cannot serve), `/health` (data-health report), securities, reports (+ `/pdf`), source files, markets, fixed income, portfolio proposal |
+| `apps/api/main.py` | FastAPI app: `/ready` (platform health check, 503 when it cannot serve), `/health` (data-health report plus the source registry), securities, reports (+ `/pdf`), source files, markets, fixed income, portfolio proposal |
+| `apps/api/routers/auth.py`, `portfolios.py` | Sign-in (Argon2id, hashed session tokens) and per-user saved portfolios. Every portfolio query filters on the session's user |
+| `apps/web/src/lib/session.ts`, `src/app/api/session/*`, `src/app/api/portfolios/*` | The web server holds the session in an httpOnly cookie and forwards it to the API; same-origin checks on every write |
+| `config/source_registry.json` | Every data source (15), its licensing and whether a loader exists; merged with live status on `/health` |
 | `apps/web/` | Next.js 16 App Router frontend (`src/app/*` routes, `src/lib/api.ts` client, `src/components/report/*`) |
 | `packages/database/` | SQLAlchemy models (`models.py`), `ExactDecimal` type (`types.py`), session (`session.py`) |
 | `packages/analysis/` | Deterministic engines: ratios, line items, beta (5 methods + rule), cost of equity, bank valuation, model view, notes |
