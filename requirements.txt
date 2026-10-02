@@ -29,3 +29,4 @@ celery
 redis
 tenacity
 litellm
+argon2-cffi==25.1.0      # password hashing (Argon2id) for sign-in

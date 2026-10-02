@@ -1,4 +1,4 @@
-"""My AfriAnalyze API.
+"""AfriEdge API.
 
 Only serves stored, sourced data. When something is not available the response
 says so and why; there are no fallback values.
@@ -23,9 +23,11 @@ from sqlalchemy.orm import Session
 from packages.core.config import REPO_ROOT, AppEnvironment, settings
 from packages.database.models import DataSourceStatus, MacroObservation, PriceBar, Security, SourceDocument
 from packages.database.session import get_session
+from apps.api.routers import auth as auth_router
+from apps.api.routers import portfolios as portfolios_router
 from packages.report.builder import build_report
 
-log = logging.getLogger("afrianalyze.api")
+log = logging.getLogger("afriedge.api")
 PRODUCTION = settings.APP_ENV == AppEnvironment.PRODUCTION
 
 if settings.SENTRY_DSN:
@@ -37,7 +39,7 @@ if settings.SENTRY_DSN:
                     send_default_pii=False, traces_sample_rate=0.0, max_request_body_size="never")
 
 # The interactive API docs are for development; in production the web app is the interface.
-app = FastAPI(title="My AfriAnalyze API", version="0.2.0",
+app = FastAPI(title="AfriEdge API", version="0.2.0",
               docs_url=None if PRODUCTION else "/docs", redoc_url=None,
               openapi_url=None if PRODUCTION else "/openapi.json")
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
@@ -52,21 +54,30 @@ app.add_middleware(
 # limit. This is an in-process brake against a script hammering one server, not a security control: it
 # resets on restart and each server instance counts separately.
 _EXPENSIVE_PREFIX = "/api/v1/reports/"
+_AUTH_PREFIX = "/api/v1/auth/"        # sign-in and sign-up: a tighter budget against password guessing
+AUTH_REQUESTS_PER_MINUTE = 10
 _hits: dict[str, deque] = {}
 _hits_lock = threading.Lock()
 
 
 @app.middleware("http")
 async def limit_expensive_requests(request: Request, call_next):
-    if request.url.path.startswith(_EXPENSIVE_PREFIX):
+    path = request.url.path
+    if path.startswith(_EXPENSIVE_PREFIX):
+        bucket, limit, what = "reports", settings.EXPENSIVE_REQUESTS_PER_MINUTE, "report"
+    elif path.startswith(_AUTH_PREFIX) and request.method == "POST":
+        bucket, limit, what = "auth", AUTH_REQUESTS_PER_MINUTE, "sign-in"
+    else:
+        bucket = None
+    if bucket:
         client = request.client.host if request.client else "unknown"
         now = time.monotonic()
         with _hits_lock:
-            window = _hits.setdefault(client, deque())
+            window = _hits.setdefault(f"{bucket}:{client}", deque())
             while window and now - window[0] > 60:
                 window.popleft()
-            if len(window) >= settings.EXPENSIVE_REQUESTS_PER_MINUTE:
-                return JSONResponse({"detail": "Too many report requests. Try again in a minute."},
+            if len(window) >= limit:
+                return JSONResponse({"detail": f"Too many {what} requests. Try again in a minute."},
                                     status_code=429, headers={"Retry-After": "60"})
             window.append(now)
     return await call_next(request)
@@ -123,6 +134,40 @@ def ready(session: Session = Depends(get_session)) -> JSONResponse:
                          "stale_or_blocked_sources": sorted(stale)})
 
 
+def _source_registry(rows: dict[str, dict]) -> list[dict]:
+    """Every source AfriEdge covers or plans to cover (config/source_registry.json), each with its live
+    state from the loaders' own records. A source with no loader can never show a last success."""
+    import json
+
+    reg = json.loads((settings.CONFIG_DIR / "source_registry.json").read_text(encoding="utf-8"))
+    out = []
+    for src in reg["sources"]:
+        live = [rows[k] for k in src["status_keys"] if k in rows]
+        if src["parser_state"] == "NOT_BUILT":
+            state = "COMING" if src["coverage"] == "COMING" else "NOT_BUILT"
+        elif not live:
+            state = "NEVER_RUN"
+        elif any(r["status"] == "failed" for r in live):
+            state = "FAILED"
+        elif not all(r["fresh"] for r in live):
+            state = "STALE"
+        elif any(r["status"] == "partial" for r in live):
+            state = "PARTIAL"
+        else:
+            state = "OK"
+        successes = [r["last_success_at"] for r in live if r["last_success_at"]]
+        retrievals = [r["last_attempt_at"] for r in live if r["last_attempt_at"]]
+        failures = [r["last_attempt_at"] for r in live if r["status"] == "failed" and r["last_attempt_at"]]
+        out.append({"id": src["id"], "name": src["name"], "country": src["country"], "datasets": src["datasets"],
+                    "state": state, "parser_state": src["parser_state"], "coverage": src["coverage"],
+                    "licensing": src["licensing"], "licensing_note": src["licensing_note"],
+                    "last_success_at": max(successes) if successes else None,
+                    "last_retrieval_at": max(retrievals) if retrievals else None,
+                    "last_failure_at": max(failures) if failures else None,
+                    "probe": src.get("probe")})
+    return out
+
+
 @app.get("/health")
 def health(session: Session = Depends(get_session)) -> dict:
     """The data-health report shown to people on /health. It answers 200 whenever the API is up and says
@@ -136,8 +181,10 @@ def health(session: Session = Depends(get_session)) -> dict:
         last = _aware(row.last_success_at)
         age_h = None if last is None else (now - last).total_seconds() / 3600
         fresh = row.status == "ok" and age_h is not None and age_h <= row.max_age_hours
+        attempt = _aware(row.last_attempt_at)
         sources.append({"source": row.source, "status": row.status, "fresh": fresh,
                         "last_success_at": last.isoformat() if last else None,
+                        "last_attempt_at": attempt.isoformat() if attempt else None,
                         "age_hours": None if age_h is None else round(age_h, 1),
                         "max_age_hours": row.max_age_hours, "detail": row.detail})
     if not sources:
@@ -148,6 +195,7 @@ def health(session: Session = Depends(get_session)) -> dict:
         overall = "degraded"
     return {"status": overall, "checked_at": now.isoformat(), "database": {"ok": True},
             "sources": sources,
+            "registry": _source_registry({x["source"]: x for x in sources}),
             "summary": f"{sum(s['fresh'] for s in sources)} of {len(sources)} data sources fresh"}
 
 
@@ -220,7 +268,7 @@ def get_report_pdf(security_id: str, session: Session = Depends(get_session)) ->
 
     report = get_report(security_id, session)
     pdf = render_pdf(report)
-    name = f"AfriAnalyze_{report['security']['id'].replace(':', '_')}_{date.today():%Y%m%d}.pdf"
+    name = f"AfriEdge_{report['security']['id'].replace(':', '_')}_{date.today():%Y%m%d}.pdf"
     return Response(pdf, media_type="application/pdf",
                     headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
@@ -256,9 +304,16 @@ def markets_overview(session: Session = Depends(get_session)) -> dict:
                      "trade_date": last.trade_date.isoformat(),
                      "change": (last.close - prev.close) / prev.close}
         else:
-            index = {"available": False, "id": m["index"],
-                     "reason": "No index data loaded for this exchange"
-                     + (f" ({status.detail})" if status and m["exchange"] == "DSE" else "")}
+            if m["exchange"] == "DSE":
+                reason = "No index data loaded" + (f" ({status.detail})" if status else "")
+                idx_status = "INSUFFICIENT_DATA"
+            else:
+                # Kenya and Uganda are supported by the design but their sources are not integrated yet,
+                # and their exchanges' data terms have not been reviewed.
+                reason = (f"COMING: {m['exchange']} data is not integrated yet, and its terms of use have not "
+                          f"been reviewed (LICENSE_REVIEW_REQUIRED). Nothing is shown until both are done.")
+                idx_status = "BLOCKED"
+            index = {"available": False, "id": m["index"], "status": idx_status, "reason": reason}
         count = session.query(func.count()).select_from(Security).filter(Security.exchange == m["exchange"]).scalar()
         out.append({"market": code, "name": m["name"], "exchange": m["exchange"], "currency": m["currency"],
                     "index": index, "securities_in_master": count})
@@ -342,6 +397,6 @@ def portfolio_proposal(req: ProposalRequest, session: Session = Depends(get_sess
                                        "Cash residual reported"]}
 
 
-@app.get("/api/v1/portfolios")
-def saved_portfolios() -> dict:
-    raise HTTPException(401, "Sign-in is not implemented. Saved portfolios are only shown for an authenticated user.")
+# Sign-in and saved portfolios (per-user; every query is scoped to the signed-in user).
+app.include_router(auth_router.router)
+app.include_router(portfolios_router.router)

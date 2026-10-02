@@ -12,3 +12,4 @@ python-dotenv==1.2.3
 numpy==2.5.3
 reportlab==5.0.1
 sentry-sdk==2.70.0
+argon2-cffi==25.1.0      # password hashing (Argon2id)

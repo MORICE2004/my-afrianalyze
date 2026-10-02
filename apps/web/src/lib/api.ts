@@ -1,4 +1,4 @@
-// Client for the My AfriAnalyze API. Every call returns either data or an error
+// Client for the AfriEdge API. Every call returns either data or an error
 // the UI can show. There is no fallback data anywhere in the frontend.
 
 // The browser calls the public URL. Server-side rendering can use a different address, e.g. the API's
@@ -83,11 +83,31 @@ export interface HealthSource {
   detail: string;
 }
 
+export type RegistryState = "OK" | "STALE" | "FAILED" | "PARTIAL" | "NEVER_RUN" | "COMING" | "NOT_BUILT";
+
+// One source from config/source_registry.json, merged with its loaders' live records by the API.
+export interface RegistrySource {
+  id: string;
+  name: string;
+  country: string;
+  datasets: string;
+  state: RegistryState;
+  parser_state: "IMPLEMENTED" | "NOT_BUILT";
+  coverage: "V1" | "COMING";
+  licensing: string;
+  licensing_note: string;
+  last_success_at: string | null;
+  last_retrieval_at: string | null;
+  last_failure_at: string | null;
+  probe: { result: string; checked_at: string; detail?: string } | null;
+}
+
 export interface Health {
   status: "online" | "degraded" | "offline";
   checked_at: string;
   database: { ok: boolean; detail?: string };
   sources: HealthSource[];
+  registry?: RegistrySource[];
   summary?: string;
 }
 

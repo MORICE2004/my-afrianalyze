@@ -10,7 +10,8 @@ const ROUTES: { path: string; name: string; expectText: RegExp }[] = [
   { path: "/markets", name: "markets", expectText: /Not available/i },
   { path: "/fixed-income", name: "fixed-income", expectText: /Bank of Tanzania/i },
   { path: "/portfolio", name: "portfolio", expectText: /Portfolio/i },
-  { path: "/dashboard", name: "dashboard", expectText: /Sign-in is not implemented/i },
+  { path: "/dashboard", name: "dashboard", expectText: /Sign in to see your portfolios/i },
+  { path: "/login", name: "login", expectText: /Sign in to AfriEdge/i },
   { path: "/health", name: "health", expectText: /dse_prices/i },
   { path: "/research-chat", name: "research-chat", expectText: /not available|switched off|disabled/i },
 ];
@@ -101,4 +102,55 @@ test("portfolio builder refuses to size positions it cannot size", async ({ page
   // Prices exist now, but the weighting rules and board lots do not, so it must still show no numbers.
   await expect(main).toContainText(/not implemented yet/);
   expect(await main.innerText()).not.toMatch(/\d+(\.\d+)?%\s+(weight|allocation)/i);
+});
+
+// Sign-up, a saved portfolio valued from the stored close, and isolation through the real UI. Each run makes
+// two throwaway accounts with unique emails in the local database (synthetic test users, not real people).
+test("a portfolio is private to the account that saved it", async ({ browser }) => {
+  test.skip(!!process.env.OFFLINE, "needs the API");
+  const run = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+  const password = `e2e-only-${run}`;
+
+  async function signUp(email: string) {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    const errors = watchErrors(page);
+    await page.goto("/login", { waitUntil: "networkidle" });
+    await page.getByRole("tab", { name: "Create account" }).click();
+    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Password").fill(password);
+    await page.getByRole("button", { name: "Create account" }).last().click();
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page.locator("main")).toContainText(`Signed in as ${email}`);
+    return { ctx, page, errors };
+  }
+
+  const a = await signUp(`e2e-a-${run}@afriedge.test`);
+  await a.page.getByLabel("Portfolio name").fill("E2E holdings");
+  await a.page.getByLabel("Security 1").selectOption("DSE:NMB");
+  await a.page.getByLabel("Quantity 1").fill("10");
+  await a.page.getByRole("button", { name: "Save portfolio" }).click();
+  const card = a.page.getByTestId("portfolio-card");
+  await expect(card).toContainText("E2E holdings");
+  // 10 shares x the stored close of TZS 2,070.00
+  await expect(card).toContainText("20,700.00");
+  const ids: number[] = await a.page.evaluate(async () =>
+    (await (await fetch("/api/portfolios")).json()).portfolios.map((p: { id: number }) => p.id));
+  expect(a.errors).toEqual([]);
+
+  const b = await signUp(`e2e-b-${run}@afriedge.test`);
+  await expect(b.page.locator("main")).toContainText("No saved portfolios");
+  const attempt = await b.page.evaluate(async (id) => {
+    const get = await fetch(`/api/portfolios/${id}`);
+    const del = await fetch(`/api/portfolios/${id}`, { method: "DELETE" });
+    return [get.status, del.status];
+  }, ids[0]);
+  expect(attempt).toEqual([404, 404]);
+
+  // A's portfolio survived B's attempt.
+  await a.page.reload({ waitUntil: "networkidle" });
+  await expect(a.page.getByTestId("portfolio-card")).toContainText("E2E holdings");
+  // B's two 404s above are deliberate, so only B's page is excused from the no-errors check.
+  await a.ctx.close();
+  await b.ctx.close();
 });

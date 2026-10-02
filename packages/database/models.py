@@ -274,22 +274,37 @@ class Entitlement(Base):
 
 
 class User(Base):
+    """A signed-up person. The password is stored only as an Argon2id hash (apps/api/routers/auth.py)."""
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
+    email: Mapped[str] = mapped_column(String(320), unique=True, index=True)  # stored lower-case
     password_hash: Mapped[str] = mapped_column(String(200))
     role: Mapped[str] = mapped_column(String(20), default="user")
     plan_id: Mapped[str | None] = mapped_column(ForeignKey("plans.id"))
+    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     portfolios: Mapped[list["SavedPortfolio"]] = relationship(back_populates="owner")
+
+
+class UserSession(Base):
+    """A signed-in session. Only the SHA-256 of the token is stored, so a copy of the database cannot be
+    used to sign in; the token itself exists only in the user's cookie."""
+    __tablename__ = "user_sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class SavedPortfolio(Base):
     __tablename__ = "saved_portfolios"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)  # every query filters on it
     name: Mapped[str] = mapped_column(String(200))
     base_currency: Mapped[str] = mapped_column(String(3))
     target_weights_json: Mapped[dict] = mapped_column(JSON, default=dict)
@@ -305,10 +320,13 @@ class PortfolioHolding(Base):
     __tablename__ = "portfolio_holdings"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    portfolio_id: Mapped[int] = mapped_column(ForeignKey("saved_portfolios.id"))
-    asset_id: Mapped[str] = mapped_column(String(32))
-    weight: Mapped[Decimal] = mapped_column(ExactDecimal)
-    cost_basis: Mapped[Decimal] = mapped_column(ExactDecimal)
-    purchase_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    portfolio_id: Mapped[int] = mapped_column(ForeignKey("saved_portfolios.id"), index=True)
+    asset_id: Mapped[str] = mapped_column(ForeignKey("securities.id"))
+    # What the user holds. Weights and values are calculated from quantity and the latest sourced price,
+    # never stored, so they cannot go out of date.
+    quantity: Mapped[Decimal | None] = mapped_column(ExactDecimal)
+    weight: Mapped[Decimal | None] = mapped_column(ExactDecimal)       # unused; kept for the old schema
+    cost_basis: Mapped[Decimal | None] = mapped_column(ExactDecimal)   # price paid per share, optional
+    purchase_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     portfolio: Mapped[SavedPortfolio] = relationship(back_populates="holdings")
