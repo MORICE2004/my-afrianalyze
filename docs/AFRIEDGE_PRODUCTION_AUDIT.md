@@ -66,6 +66,7 @@ AfriEdge work to keep (the name and logo are easy to carry over); none of M-2 to
 | F-14 | `OBSERVABILITY.md`, `COST_MODEL.md`, `ANALYTICS.md` described legacy or non-existent systems (LLM extraction, a `telemetry.ts` that does not exist) | P2 | Rewritten or marked superseded | read against the code |
 | F-15 | Interactive API docs exposed in production | P3 | Off in PRODUCTION | CI: `/docs` is 404 in PRODUCTION mode |
 | F-16 | No limit on report/PDF builds | P2 | 30 per client per minute per process | `test_report_requests_are_limited_per_client` |
+| F-17 | Next.js 16.3.5 fell under a critical advisory published 2026-09-30 (GHSA-vcvr-r3jv-pc5j, remote code execution in next/og ImageResponse). The code does not import next/og, but the package was in the build | P0 | Upgraded to 16.3.8 | Caught by the CI dependency audit (run 37018577896); after the upgrade npm audit finds 0, and tsc, eslint, build and Playwright 32/32 pass |
 
 ## Open
 

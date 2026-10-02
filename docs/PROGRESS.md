@@ -49,6 +49,10 @@ except one `Math.random`, which is the new browser test making unique throwaway 
   `PRODUCTION_DATABASE_URL`. The DSE index is excluded on purpose: its importer deletes the whole series
   before inserting, so a fresh runner would have erased ten years of history.
 
+**Security patch:** CI's npm audit failed on a critical Next.js advisory published 2026-09-30
+(GHSA-vcvr-r3jv-pc5j, RCE in next/og ImageResponse; 16.2.0 to 16.3.5). We do not import next/og, but the
+package shipped in the build, so it was upgraded to 16.3.8: npm audit 0, Playwright 32/32 again.
+
 **Tests (2026-10-02):** Python 253 passed, 4 skipped. Playwright 32/32 (desktop 1440 and mobile 375),
 including a new sign-up-to-isolation journey. tsc, eslint and `next build` clean.
 
