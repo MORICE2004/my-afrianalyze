@@ -24,9 +24,12 @@ Updated 2026-09-25. Architecture and why: `docs/PRODUCTION_ARCHITECTURE.md`. Var
 3. **The annual-report PDFs.** Every figure links to its page in our stored copy. Hosting copies is an open
    rights question; until it is settled the production API has no PDFs and those links say "missing on disk".
 4. **Paid plans.** Render's free API sleeps after 15 idle minutes (about a minute to wake). `starter` avoids it.
-5. **Which branch is the product.** `master` holds a separate "AfriEdge" line of work with invented market
-   figures and a hardcoded sign-in (`docs/AFRIEDGE_PRODUCTION_AUDIT.md`). Deploy from `m3-crdb-report`, or
-   merge it into `master` first; do not deploy `master` as it stands.
+5. **Make `master` match the canonical branch.** Decided 2026-09-25: `m3-crdb-report` is canonical and
+   `master` holds the legacy AfriEdge line (archived as `afriedge-legacy-archive`). `master` is still the
+   repository's default branch, and GitHub runs **scheduled workflows only from the default branch**, so the
+   weekday data refresh cannot run until the canonical code is on `master`. The plan in
+   `docs/REPOSITORY_RECONCILIATION.md`: a merge into `master` that keeps the canonical side, so history stays
+   readable. Not done yet because it rewrites what `master` shows; it needs the owner's go-ahead.
 
 ## Steps (in this order)
 
@@ -62,11 +65,19 @@ Then load it from your machine (section 2 there).
 3. Deployment Protection stays on until decisions 1 to 3 are made. Turning it off for production is the
    deliberate launch step.
 
-### 4. Smoke test (against production)
+### 4. Scheduled data refresh (GitHub)
+
+1. GitHub → repository Settings → Environments → **New environment** `production`. Optionally add yourself
+   as a required reviewer and limit it to the `master` branch.
+2. In that environment, **Add secret** `PRODUCTION_DATABASE_URL` = the Neon connection string.
+3. Actions → **Refresh data** → *Run workflow* once, and check `/health`: DSE prices and BoT should show today.
+
+### 5. Smoke test (against production)
 
 | Check | Expect |
 |---|---|
-| `/` | 200, search box |
+| `/` | 200, search box, AfriEdge logo |
+| `/login`, create an account, save a portfolio | values shown from the latest close; a second account cannot see it |
 | Search "NMB", open it | report page (or the 403 "not reviewed" message until approved) |
 | A figure's source link | page of the PDF, or "missing on disk" until decision 3 |
 | `/health` | sources listed with ages; stale ones marked |
