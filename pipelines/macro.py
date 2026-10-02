@@ -33,7 +33,8 @@ RAW = Path("data/raw")
 
 BOT_TBONDS = "https://www.bot.go.tz/TBonds"
 BOT_TBOND_SUMMARY = "https://www.bot.go.tz/TBonds/AuctionSummaries"
-BOT_MPC_STATEMENT = "https://www.bot.go.tz/Adverts/PressRelease/en/2026040215591446.pdf"
+# The newest MPC statement is found on this page each run (bot_cbr), not pinned to one PDF.
+BOT_PRESS_RELEASES = "https://www.bot.go.tz/PressRelease?lang=en"
 NBS_CPI_PAGE = "https://www.nbs.go.tz/statistics/topic/consumer-price-index-2026"
 DAMODARAN_CRP = "https://pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/ctryprem.html"
 DAMODARAN_BETAS = "https://pages.stern.nyu.edu/~adamodar/pc/datasets/betaemerg.xls"
@@ -127,30 +128,61 @@ def _pdf_text(content: bytes) -> str:
     return re.sub(r"\s+", " ", " ".join(doc[i].get_textpage().get_text_range() for i in range(len(doc))))
 
 
-def bot_cbr(session) -> str:
-    r = requests.get(BOT_MPC_STATEMENT, headers=UA, timeout=60)
+CBR_DECISION = re.compile(
+    r"(maintained|kept|retained|raised|increased|lowered|reduced|cut)\s+the\s+Central\s+Bank\s+Rate\s*\(CBR\)\s+"
+    r"(?:(?:at|from)\s+([\d.]+)\s*(?:percent|%)\s*)?(?:to\s+([\d.]+)\s*(?:percent|%))?", re.I)
+
+
+def latest_mpc_statement() -> tuple[str, date]:
+    """The newest Monetary Policy Committee statement listed on the BoT's public notices page. The PDF names
+    start with their publication time (e.g. 2026070313025546 = 3 July 2026), so the newest sorts last."""
+    r = requests.get(BOT_PRESS_RELEASES, headers=UA, timeout=60)
     r.raise_for_status()
-    sha = save(RAW / "bot" / "mpc_statement_2026-04.pdf", r.content)
-    text = _pdf_text(r.content)
-    m = re.search(r"maintained the Central Bank Rate \(CBR\) at ([\d.]+) percent", text, re.I)
-    when = re.search(r"(\d{1,2}(?:st|nd|rd|th)? \w+ 2026)", text)
-    if not m:
-        status(session, "bot_cbr", False, 24 * 100, "CBR sentence not found in MPC statement")
-        return "BoT CBR: not found"
-    obs_date = date(2026, 4, 1)
-    upsert_obs(session, series_id="BOT_CBR", observation_date=obs_date, value=Decimal(m.group(1)) / 100,
-               unit="decimal", label="Central Bank Rate (policy rate), MPC statement April 2026",
-               attributes={"quote": m.group(0), "statement_date_text": when.group(1) if when else None,
-                           "raw_sha256": sha,
-                           "note": "Latest MPC statement located on bot.go.tz. The July 2026 decision was not found."},
-               source_url=BOT_MPC_STATEMENT, source_name="Bank of Tanzania, Monetary Policy Committee Statement",
+    found = []
+    for href, label in re.findall(r'<a[^>]+href="([^"]+\.pdf)"[^>]*>(.*?)</a>', r.text, re.S | re.I):
+        text = html.unescape(re.sub(r"<[^>]+>", " ", label)).lower()
+        stamp = re.search(r"/(\d{8})\d*\.pdf$", href)
+        if "monetary policy committee" in text and "calendar" not in text and stamp:
+            found.append((stamp.group(1), href))
+    if not found:
+        raise ValueError(f"No MPC statement listed on {BOT_PRESS_RELEASES}; the page layout may have changed")
+    stamp, href = max(found)
+    url = href if href.startswith("http") else "https://www.bot.go.tz" + href
+    return url, date(int(stamp[:4]), int(stamp[4:6]), int(stamp[6:8]))
+
+
+def bot_cbr(session) -> str:
+    """The policy rate from the newest MPC statement. If that statement cannot be read, the job fails: an
+    older statement's rate is never carried forward as if it were current."""
+    url, published = latest_mpc_statement()
+    r = requests.get(url, headers=UA, timeout=60)
+    r.raise_for_status()
+    sha = save(RAW / "bot" / f"mpc_statement_{published.isoformat()}.pdf", r.content)
+    text = " ".join(_pdf_text(r.content).split())
+    m = CBR_DECISION.search(text)
+    rate = (m.group(3) or m.group(2)) if m else None
+    if not rate:
+        status(session, "bot_cbr", False, 24 * 100, f"CBR decision sentence not found in the newest MPC statement ({url})")
+        return "BoT CBR: decision not found in the newest statement"
+    meeting = re.search(r"[Mm]eeting held on (\d{1,2})(?:st|nd|rd|th)?\s+(\w+)\s+(20\d\d)", text)
+    obs_date = published
+    if meeting:
+        try:
+            obs_date = datetime.strptime(" ".join(meeting.groups()), "%d %B %Y").date()
+        except ValueError:
+            pass
+    upsert_obs(session, series_id="BOT_CBR", observation_date=obs_date, value=Decimal(rate) / 100,
+               unit="decimal", label=f"Central Bank Rate (policy rate), MPC decision of {obs_date.isoformat()}",
+               attributes={"quote": m.group(0).strip(), "decision": m.group(1).lower(),
+                           "published": published.isoformat(), "raw_sha256": sha},
+               source_url=url, source_name="Bank of Tanzania, Monetary Policy Committee Statement",
                retrieved_at=now())
-    # The CBR is set quarterly; mark it stale once more than ~100 days old.
+    # The MPC meets quarterly; past ~100 days a newer decision should exist.
     stale = (date.today() - obs_date).days > 100
     status(session, "bot_cbr", not stale, 24 * 100,
-           f"CBR {m.group(1)}% from April 2026 MPC statement"
-           + ("; stale: a newer MPC decision is expected but was not found" if stale else ""))
-    return f"BoT CBR: {m.group(1)}% (April 2026 statement){' STALE' if stale else ''}"
+           f"CBR {rate}% ({m.group(1).lower()}) at the MPC meeting of {obs_date.isoformat()}"
+           + ("; stale: a newer MPC decision is expected but is not listed yet" if stale else ""))
+    return f"BoT CBR: {rate}% ({m.group(1).lower()}, {obs_date.isoformat()}){' STALE' if stale else ''}"
 
 
 # ------------------------------------------------------------------ NBS CPI
