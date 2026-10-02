@@ -17,8 +17,9 @@ Statuses: `READY`, `READY_WITH_LIMITATIONS`, `BLOCKED` (needs something outside 
 `INCONCLUSIVE`, `REJECTED` (not built, or fails the bar), `INSUFFICIENT_DATA`.
 Columns: **Real** = works on real data, not fixtures. **Deployed** = running on production infrastructure.
 
-CI evidence below is run #36139810755 (all 5 jobs passed): unit tests 152 passed, 74 skipped (integration
-tests that need the downloaded reports); Postgres job 17 passed. Local: 222 passed, 4 skipped.
+Evidence as of 2026-10-02, commit `aca2618`. CI run #37020058787, all 5 jobs passed: unit tests 183 passed,
+74 skipped (integration tests that need the downloaded reports); Postgres job 17 passed; gitleaks no leaks;
+pip-audit and npm audit clean. Local: Python 253 passed, 4 skipped; Playwright 32/32 (1440 and 375 px).
 
 | Capability | Implemented | Real | Tested | Deployed | Evidence | Status | Limitation |
 |---|---|---|---|---|---|---|---|
