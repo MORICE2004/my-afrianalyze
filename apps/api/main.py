@@ -396,9 +396,43 @@ def markets_overview(session: Session = Depends(get_session)) -> dict:
             "commentary": {"available": False,
                            "reason": "Market commentary is only published when it can be generated from stored, "
                                      "sourced market data. None is loaded."},
-            "movers": {"available": False,
-                       "reason": "Needs end-of-day prices for the whole board. Only the securities with "
-                                 "research reports have prices loaded."}}
+            "movers": _dse_movers(session)}
+
+
+def _dse_movers(session: Session) -> dict:
+    """Breadth and the largest moves on the last trading day, from stored DSE closes. A security whose last
+    day had no trade is counted as 'no trade', never as a move (the DSE repeats the previous close)."""
+    if not dse_display_allowed():
+        return {"available": False, "status": "BLOCKED", "reason": DSE_DISPLAY_BLOCKED}
+    listed = {s.id: s for s in session.query(Security).filter_by(exchange="DSE")}
+    latest = session.query(func.max(PriceBar.trade_date)).filter(PriceBar.instrument_id.in_(
+        [k for k in listed if k != "DSE:DSEI"])).scalar()
+    if latest is None:
+        return {"available": False, "status": "INSUFFICIENT_DATA", "reason": "No DSE share prices are stored."}
+    moves, no_trade, stale = [], [], []
+    for sid in sorted(listed):
+        bars = (session.query(PriceBar).filter_by(instrument_id=sid).order_by(PriceBar.trade_date.desc()).limit(2).all())
+        if len(bars) < 2:
+            continue
+        last, prev = bars
+        if last.trade_date != latest:
+            stale.append(sid)
+        elif not last.volume:
+            no_trade.append(sid)
+        elif prev.close:
+            moves.append({"security_id": sid, "name": listed[sid].name, "close": last.close,
+                          "change": last.close / prev.close - 1, "volume": last.volume})
+    moves.sort(key=lambda m: m["change"])
+    priced = len(moves) + len(no_trade) + len(stale)
+    return {"available": True, "trade_date": latest.isoformat(), "attribution": DSE_ATTRIBUTION,
+            "coverage": f"{priced} of {len(listed)} DSE-listed securities have stored prices",
+            "breadth": {"up": sum(1 for m in moves if m["change"] > 0), "down": sum(1 for m in moves if m["change"] < 0),
+                        "unchanged": sum(1 for m in moves if m["change"] == 0), "no_trade": len(no_trade),
+                        "not_updated": len(stale)},
+            "gainers": [m for m in reversed(moves) if m["change"] > 0][:5],
+            "losers": [m for m in moves if m["change"] < 0][:5],
+            "note": ("Change from the previous stored close, for securities that traded on the day. Splits are "
+                     "not adjusted here; a security whose history has an unexplained jump is not loaded at all.")}
 
 
 # ------------------------------------------------------------------ fixed income

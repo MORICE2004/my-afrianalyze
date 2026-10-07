@@ -47,16 +47,11 @@ jobs:
         if: env.SKIP != '1'
         run: pip install -r requirements-api.txt requests==2.34.2 xlrd==2.0.2 pypdfium2==5.13.0
 
-      - name: DSE prices (last 30 days, merged into the stored history)
+      - name: DSE prices (last 30 days for every share already loaded, merged into the stored history)
         if: env.SKIP != '1'
-        run: |
-          set -euo pipefail
-          for code in NMB CRDB; do
-            curl -fsS --retry 3 -A "$UA" -o "${code}.json" \
-              "https://dse.co.tz/api/get/market/prices/for/range/duration?security_code=${code}&days=30&class=EQUITY"
-            # Refuses a wrong-company file or an unexplained jump (checked against the last stored day).
-            python -m pipelines.dse.import_public_prices --instrument "DSE:${code}" --file "${code}.json" --days 30
-          done
+        # Refuses a wrong-company file or an unexplained jump (checked against the last stored day); a share's
+        # first ten-year load is a deliberate manual step, so refused shares are never slipped in here.
+        run: python -m pipelines.dse.refresh_prices 30
 
       - name: DSE index (only the dates after the last stored level, one request per date)
         if: env.SKIP != '1'

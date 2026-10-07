@@ -7,6 +7,8 @@
 """
 from __future__ import annotations
 
+from decimal import Decimal
+
 import pypdfium2 as pdfium
 import pytest
 from fastapi.testclient import TestClient
@@ -180,8 +182,16 @@ def test_markets_and_portfolios_do_not_invent_numbers():
             assert x["index"]["id"] == "DSE:DSEI" and x["index"]["trade_date"] and "change" in x["index"]
         else:
             assert x["index"]["reason"]
-    # Commentary and movers are not built, so they must say so rather than show something invented.
-    assert m["commentary"]["available"] is False and m["movers"]["available"] is False
+    # Commentary is not built, so it must say so rather than show something invented.
+    assert m["commentary"]["available"] is False
+    # Movers come from stored DSE closes: every mover traded that day, and the coverage is stated.
+    mv = m["movers"]
+    if mv["available"]:
+        assert mv["coverage"] and "Dar es Salaam Stock Exchange" in mv["attribution"]
+        for x in mv["gainers"] + mv["losers"]:
+            assert Decimal(x["volume"]) > 0 and x["security_id"].startswith("DSE:")
+    else:
+        assert mv["reason"]
     assert client.get("/api/v1/portfolios").status_code == 401
     ok = {"market": "TZ", "capital": 1_000_000, "currency": "TZS", "risk_profile": "Moderate", "horizon_years": 5}
     r = client.post("/api/v1/portfolio/proposals", json=ok)

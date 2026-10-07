@@ -249,3 +249,12 @@ test("portfolio analysis shows risk, stress tests and optimisation from stored p
   expect(errors).toEqual([]);
   await ctx.close();
 });
+
+test("markets shows DSE breadth and movers from stored closes, and Kenya and Uganda as not integrated", async ({ page }) => {
+  test.skip(!!process.env.OFFLINE, "needs the API");
+  await page.goto("/markets", { waitUntil: "networkidle" });
+  const movers = page.getByTestId("movers");
+  await expect(movers).toContainText("did not trade");
+  await expect(movers).toContainText("DSE-listed securities have stored prices");
+  await expect(page.getByTestId("market-NSE")).toContainText("LICENSE_REVIEW_REQUIRED");
+});
