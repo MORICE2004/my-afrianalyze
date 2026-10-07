@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useState } from "react";
+import { PortfolioAnalysis } from "@/components/account/PortfolioAnalysis";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState, ErrorState } from "@/components/ui/NotAvailable";
 import { apiGet, type DataStatus } from "@/lib/api";
@@ -120,6 +121,7 @@ export function PortfolioManager() {
 
 function PortfolioCard({ p, onDelete }: { p: Portfolio; onDelete: () => void }) {
   const t = p.totals;
+  const [analyse, setAnalyse] = useState(false);
   return (
     <section className="border border-neutral-200 bg-white" data-testid="portfolio-card">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-4 py-3">
@@ -131,6 +133,9 @@ function PortfolioCard({ p, onDelete }: { p: Portfolio; onDelete: () => void }) 
           {t.status === "PARTIAL" || t.status === "NO_DATA"
             ? <span className="text-xs font-semibold uppercase text-amber-800 bg-amber-50 px-2 py-1">{t.status.replace("_", " ")}</span>
             : <StatusBadge status={t.status} />}
+          <button type="button" onClick={() => setAnalyse((x) => !x)} className="text-xs underline" aria-expanded={analyse}>
+            {analyse ? "Hide analysis" : "Analyse"}
+          </button>
           <button type="button" onClick={onDelete} className="text-xs text-red-700 underline">Delete</button>
         </div>
       </header>
@@ -170,6 +175,7 @@ function PortfolioCard({ p, onDelete }: { p: Portfolio; onDelete: () => void }) 
           </table>
         </div>
       )}
+      {analyse && <div className="border-t border-neutral-200 px-4 py-4"><PortfolioAnalysis id={p.id} /></div>}
       <footer className="border-t border-neutral-200 px-4 py-3 text-xs text-neutral-600 space-y-1">
         {t.market_value && <p className="text-sm text-neutral-900">Total value: <span className="font-mono">TZS {fmtPerShare(t.market_value)}</span>
           {t.largest_weight && <> · largest holding {fmtPct(Number(t.largest_weight))}</>}</p>}

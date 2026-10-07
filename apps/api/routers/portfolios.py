@@ -44,6 +44,8 @@ class PortfolioIn(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     base_currency: str = Field("TZS", pattern="^[A-Z]{3}$")
     holdings: list[HoldingIn] = Field(default_factory=list, max_length=MAX_HOLDINGS)
+    # Optional target allocation, for drift and rebalancing. Weights must sum to 1 over held securities.
+    target_weights: dict[str, Decimal] | None = None
 
 
 def _owned(session: Session, user: User, portfolio_id: int) -> SavedPortfolio:
@@ -68,6 +70,20 @@ def _check(session: Session, body: PortfolioIn) -> None:
         if sec.currency != body.base_currency:
             raise HTTPException(422, f"{sec.id} trades in {sec.currency}; this portfolio is in "
                                      f"{body.base_currency}, and FX conversion is not built.")
+
+
+def _check_targets(body: PortfolioIn) -> dict:
+    if not body.target_weights:
+        return {}
+    targets = {k.strip().upper(): v for k, v in body.target_weights.items()}
+    held = {h.security_id for h in body.holdings}
+    if not set(targets) <= held:
+        raise HTTPException(422, f"Target weights name securities not held: {sorted(set(targets) - held)}")
+    if any(v < 0 or v > 1 for v in targets.values()):
+        raise HTTPException(422, "Each target weight must be between 0 and 1.")
+    if abs(sum(targets.values(), Decimal(0)) - 1) > Decimal("0.0001"):
+        raise HTTPException(422, "Target weights must add up to 1 (100%).")
+    return {k: str(v) for k, v in targets.items()}
 
 
 def _write_holdings(p: SavedPortfolio, body: PortfolioIn) -> None:
@@ -130,6 +146,7 @@ def _view(session: Session, p: SavedPortfolio) -> dict:
     weights = [r["weight"] for r in rows if "weight" in r]
     return {
         "id": p.id, "name": p.name, "base_currency": p.base_currency,
+        "target_weights": p.target_weights_json or {},
         "created_at": p.created_at.isoformat() if p.created_at else None,
         "holdings": rows,
         "totals": {
@@ -156,7 +173,7 @@ def create_portfolio(body: PortfolioIn, user: User = Depends(current_user),
         raise HTTPException(422, f"You can keep up to {MAX_PORTFOLIOS} portfolios.")
     _check(session, body)
     p = SavedPortfolio(user_id=user.id, name=body.name.strip(), base_currency=body.base_currency,
-                       target_weights_json={})
+                       target_weights_json=_check_targets(body))
     _write_holdings(p, body)
     session.add(p)
     session.commit()
@@ -175,6 +192,7 @@ def replace_portfolio(portfolio_id: int, body: PortfolioIn, user: User = Depends
     p = _owned(session, user, portfolio_id)
     _check(session, body)
     p.name, p.base_currency = body.name.strip(), body.base_currency
+    p.target_weights_json = _check_targets(body)
     _write_holdings(p, body)
     session.commit()
     return _view(session, p)
@@ -185,3 +203,33 @@ def delete_portfolio(portfolio_id: int, user: User = Depends(current_user),
                      session: Session = Depends(get_session)) -> None:
     session.delete(_owned(session, user, portfolio_id))
     session.commit()
+
+
+@router.get("/{portfolio_id}/analysis")
+def analyse_portfolio(portfolio_id: int, user: User = Depends(current_user),
+                      session: Session = Depends(get_session)) -> dict:
+    """Risk, concentration, liquidity, drift, stress tests and optimisation for one owned portfolio
+    (packages/analysis/portfolio_risk.py). Owner only: another user's id answers 404."""
+    import json
+
+    from packages.analysis import portfolio_risk
+    from packages.core.config import settings
+    from packages.database.models import MacroObservation
+
+    p = _owned(session, user, portfolio_id)
+    if not dse_display_allowed():
+        return {"available": False, "status": "BLOCKED", "reason": DSE_DISPLAY_BLOCKED}
+    holdings, history = [], {}
+    for h in p.holdings:
+        sec = session.get(Security, h.asset_id)
+        holdings.append({"security_id": h.asset_id, "quantity": h.quantity, "sector": sec.sector if sec else None,
+                         "currency": sec.currency if sec else p.base_currency})
+        history[h.asset_id] = [(b.trade_date, b.close, b.volume) for b in
+                               session.query(PriceBar).filter_by(instrument_id=h.asset_id).order_by(PriceBar.trade_date)]
+    cpi = (session.query(MacroObservation).filter_by(series_id="NBS_CPI_HEADLINE_YOY")
+           .order_by(MacroObservation.observation_date.desc()).first())
+    inflation = None if cpi is None else {"value": cpi.value, "as_of": cpi.observation_date.isoformat(),
+                                          "source": cpi.source_name}
+    cfg = json.loads((settings.CONFIG_DIR / "portfolio.json").read_text(encoding="utf-8"))
+    targets = {k: Decimal(v) for k, v in (p.target_weights_json or {}).items()}
+    return {"portfolio_id": p.id, **portfolio_risk.analyse(holdings, history, cfg, inflation, targets or None)}

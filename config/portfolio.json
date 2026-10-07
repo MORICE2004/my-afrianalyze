@@ -1,0 +1,19 @@
+{
+  "_comment": "Portfolio analysis settings (packages/analysis/portfolio_risk.py). Statistics use WEEKLY returns of split-adjusted closes: on a thinly traded market daily returns of two shares are rarely synchronous, which understates their co-movement (PRODUCT_CONTEXT.md section 74). History applies today's quantities to past prices; it is not the owner's actual performance.",
+  "history_weeks": 104,
+  "min_weeks": 52,
+  "max_zero_volume_share": 0.4,
+  "liquidity_days": 60,
+  "participation_of_daily_volume": 0.2,
+  "_participation_note": "Days to sell a holding assume selling at most this share of the average daily volume, so the order does not become the market.",
+  "drift_tolerance": 0.05,
+  "stress_scenarios": [
+    {"id": "equity_minus_20", "name": "All listed shares fall 20%", "kind": "equity_shock", "shock": -0.20},
+    {"id": "banks_minus_30", "name": "Bank shares fall 30%", "kind": "sector_shock", "sector": "Banking", "shock": -0.30},
+    {"id": "tzs_minus_20", "name": "Tanzanian shilling falls 20% against the US dollar", "kind": "fx_shock", "currency": "TZS", "depreciation": 0.20},
+    {"id": "inflation_latest", "name": "One year of inflation at the latest NBS rate", "kind": "inflation", "series": "NBS_CPI_HEADLINE_YOY"},
+    {"id": "worst_13_weeks", "name": "The worst 13 weeks in the price history", "kind": "historical", "weeks": 13},
+    {"id": "rates_plus_200bp", "name": "Interest rates rise 2 percentage points", "kind": "rate_shock", "bp": 200},
+    {"id": "commodity_minus_30", "name": "Commodity prices fall 30%", "kind": "commodity_shock", "shock": -0.30}
+  ]
+}

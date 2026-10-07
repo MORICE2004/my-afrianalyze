@@ -221,3 +221,31 @@ test("the copilot asks for sign-in, then answers honestly without an AI provider
   await expect(reply).toContainText("research report itself is unaffected");
   await ctx.close();
 });
+
+test("portfolio analysis shows risk, stress tests and optimisation from stored prices", async ({ browser }) => {
+  test.skip(!!process.env.OFFLINE, "needs the API");
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+  const errors = watchErrors(page);
+  await page.goto("/login", { waitUntil: "networkidle" });
+  await page.getByRole("tab", { name: "Create account" }).click();
+  await page.getByLabel("Email").fill(`e2e-analysis-${Date.now()}@afriedge.test`);
+  await page.getByLabel("Password").fill(`e2e-only-${Date.now()}`);
+  await page.getByRole("button", { name: "Create account" }).last().click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await page.getByLabel("Portfolio name").fill("Two banks");
+  await page.getByLabel("Security 1").selectOption("DSE:NMB");
+  await page.getByLabel("Quantity 1").fill("1000");
+  await page.getByRole("button", { name: "Add holding" }).click();
+  await page.getByLabel("Security 2").selectOption("DSE:CRDB");
+  await page.getByLabel("Quantity 2").fill("1000");
+  await page.getByRole("button", { name: "Save portfolio" }).click();
+  await page.getByRole("button", { name: "Analyse" }).click();
+  const a = page.getByTestId("portfolio-analysis");
+  await expect(a).toContainText("Volatility");
+  await expect(a).toContainText("Bank shares fall 30%");
+  await expect(a).toContainText("Minimum variance");
+  await expect(a).toContainText("Needs expected returns");      // mean-variance refused, not guessed
+  expect(errors).toEqual([]);
+  await ctx.close();
+});

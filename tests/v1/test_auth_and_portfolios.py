@@ -212,3 +212,25 @@ def test_with_dse_display_off_holdings_are_blocked_not_valued(client, monkeypatc
     h = p["holdings"][0]
     assert h["price"]["status"] == "BLOCKED" and "Data Vending Policy" in h["price"]["reason"]
     assert "market_value" not in h and p["totals"]["market_value"] is None
+
+
+def test_analysis_is_owner_only_and_honest_about_thin_history(client):
+    a, b = _signup(client, "a@example.com"), _signup(client, "b@example.com")
+    p = _portfolio(client, a)
+    assert client.get(f"/api/v1/portfolios/{p['id']}/analysis", headers=b).status_code == 404
+    assert client.get(f"/api/v1/portfolios/{p['id']}/analysis").status_code == 401
+    out = client.get(f"/api/v1/portfolios/{p['id']}/analysis", headers=a).json()
+    assert out["available"] and out["risk"]["status"] == "INSUFFICIENT_DATA"     # one stored day only
+    assert any(s.get("available") for s in out["stress_tests"])
+
+
+@pytest.mark.parametrize("targets, why", [
+    ({"DSE:TEST": "0.6"}, "add up to 1"),
+    ({"DSE:NOPRICE": "1"}, "not held"),
+    ({"DSE:TEST": "1.5"}, "between 0 and 1"),
+])
+def test_bad_target_weights_are_refused(client, targets, why):
+    a = _signup(client, "a@example.com")
+    r = client.post("/api/v1/portfolios", headers=a, json={
+        "name": "x", "holdings": [{"security_id": "DSE:TEST", "quantity": "10"}], "target_weights": targets})
+    assert r.status_code == 422 and why in r.json()["detail"]
