@@ -65,18 +65,28 @@ Then load it from your machine (section 2 there).
    which is correct.
 4. Check: `https://<api>/ready` is 200; `https://<api>/docs` is 404 (off in production);
    `https://<api>/api/v1/securities?q=nmb` lists NMB.
-5. Check the visitor address header once: Render's logs show the client address the API used. If they show
-   Cloudflare or Render addresses instead of yours, `cf-connecting-ip` is not reaching the API: clear
-   `CLIENT_IP_HEADER` so it falls back to `TRUSTED_PROXY_HOPS`, and check again.
+5. Check that rate limits are per visitor (after step 3, so requests come through the web app): on the
+   sign-in page, try 11 sign-ins within a minute from your computer, each with a **different** made-up email
+   (the same email would hit the per-account lock after 5 instead). The 11th must be refused with a 429
+   "too many requests" message. Straight away, try once from your phone **on mobile data** (a different
+   address) with another made-up email: it must say the email or password is wrong, not "too many". If the phone is
+   also refused, the API is seeing one address for everyone: check `INTERNAL_PROXY_SECRET` is identical on
+   Render and Vercel, then try clearing `CLIENT_IP_HEADER` on Render.
 
 ### 3. Web (Vercel)
 
 1. Vercel → project `web` → Settings → Environment Variables, **Production** only:
    `NEXT_PUBLIC_API_URL` = `https://<api>`, `API_URL_INTERNAL` = the same, and `INTERNAL_PROXY_SECRET` =
    the value set on Render (mark it Sensitive). Without it every signed-in visitor shares one rate limit.
-2. Deploy: from the repo root, `vercel deploy --prod`. The build refuses to run without an `https://` API
-   address, so a misconfigured production deploy fails instead of shipping a broken site.
-3. Deployment Protection stays on until decisions 1 to 3 are made. Turning it off for production is the
+2. Set the function region once: Vercel → project `web` → Settings → Functions → Region = **Frankfurt
+   (fra1)**. Found 2026-10-07: the project default is `iad1` (US East) and `regions` in `apps/web/vercel.json`
+   is not applied, so without this every server-side render would cross the Atlantic to reach the API.
+   Until it is set, pass the region on each deploy (as the previews do).
+3. Deploy: from the repo root, `vercel deploy --prod --regions fra1`. The root `.vercelignore` uploads only
+   `apps/web` (not `data/`, `.env` files or the Python code; checked on the preview's file list). The build
+   refuses to run without an `https://` API address, so a misconfigured production deploy fails instead of
+   shipping a broken site.
+4. Deployment Protection stays on until decisions 1 to 3 are made. Turning it off for production is the
    deliberate launch step.
 
 ### 4. Scheduled data refresh (GitHub)

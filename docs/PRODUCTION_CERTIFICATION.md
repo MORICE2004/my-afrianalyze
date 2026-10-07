@@ -26,7 +26,7 @@ pip-audit and npm audit); local `pip-audit` and `npm audit --omit=dev` clean.
 
 | Capability | Implemented | Real | Tested | Deployed | Evidence | Status | Limitation |
 |---|---|---|---|---|---|---|---|
-| Frontend (Next.js 16) | yes | yes | tsc, eslint, build in CI; Playwright 46/46; every page at 320/375/390/430 px without sideways scroll | protected preview only | Vercel preview (`PROGRESS.md`) | READY_WITH_LIMITATIONS | Playwright not in CI; no production deploy until an API exists |
+| Frontend (Next.js 16) | yes | yes | tsc, eslint, build in CI; Playwright 46/46; every page at 320/375/390/430 px without sideways scroll | protected preview only | `web-gvgi9zlgt-morice2004s-projects.vercel.app`, commit `b099091`, fra1, Ready | READY_WITH_LIMITATIONS | Playwright not in CI; no production deploy until an API exists; preview has no API, so data pages say the data service is not reachable |
 | API (FastAPI) | yes | yes | Python suite; CI serves the image in PRODUCTION mode on Postgres | no | CI "API Docker image" | BLOCKED | No Render service (owner) |
 | PostgreSQL | yes | CI Postgres 16 | 3 migrations up/down/up; exact money round trip | no | CI "Postgres from zero" | BLOCKED | Neon not created; full load never run on Postgres |
 | Background workers / Redis | none, by decision | n/a | n/a | n/a | Every request finishes within a page load (`PRODUCTION_ARCHITECTURE.md`, re-checked 2026-10-07) | READY_WITH_LIMITATIONS | Rate limits in memory per process (one instance only) |

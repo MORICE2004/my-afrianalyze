@@ -40,6 +40,13 @@ World Bank.
 **Evidence:** Python 358 passed, 4 skipped; Playwright 46/46 (1440 and 375 px, real local API and data);
 pip-audit and npm audit clean; gitleaks clean in CI.
 
+**Vercel preview** of `b099091`: `https://web-gvgi9zlgt-morice2004s-projects.vercel.app` (Ready, SSO-protected).
+Two findings: the project's function region defaulted to `iad1` (US East) and `vercel.json`'s `fra1` was
+ignored, so the preview was redeployed with `--regions fra1` and the runbook now says to set it once in the
+dashboard; and no `.vercelignore` existed, so one now uploads only `apps/web` (checked on the deployment's file
+list: 181 entries, nothing from `data/` or any `.env`). What earlier previews uploaded cannot be checked (the
+API answers 404 for their file trees).
+
 **Not done, and why:** no deployment of the API or database (owner's Render and Neon accounts); no approval
 of either run (owner's review, after the cost-of-equity decision); copilot never run against the real model
 (no key; a paid service); Sentry and PostHog not connected (no projects); unit trust prices not loaded (UTT

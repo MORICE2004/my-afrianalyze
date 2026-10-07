@@ -1,0 +1,14 @@
+# The Vercel project builds apps/web only (Root Directory = apps/web). Upload nothing else: the repo root holds
+# data/ (the local database and downloaded reports), .env files and the Python code, none of which Vercel needs.
+# Allowlist: ignore everything, then bring back the web app without its local build output and secrets.
+/*
+!/apps
+/apps/*
+!/apps/web
+/apps/web/node_modules
+/apps/web/.next
+/apps/web/.env*
+/apps/web/.vercel
+/apps/web/test-results
+/apps/web/playwright-report
+/apps/web/tsconfig.tsbuildinfo
