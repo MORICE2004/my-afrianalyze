@@ -249,6 +249,14 @@ export interface Report {
     rule: Record<string, unknown>;
     adjustments: string[];   // share splits applied to the price series, in words
   };
+  // Descriptive technical indicators (packages/analysis/technical.py). Never used by the valuation.
+  technical: {
+    available: boolean; status: DataStatus; reason?: string;
+    last_close?: number | string; last_trade_date?: string; age_days?: number; stale?: boolean; split_adjusted?: boolean;
+    liquidity: { window: number; zero_volume_days: number; max_zero_volume_share: number | string };
+    indicators?: Record<string, Record<string, unknown>>;
+    note?: string;
+  };
   cost_of_equity: {
     inputs: Record<string, CoeInput | null>;
     method: { subtract_default_spread: boolean; crp_scaling: string; sensitivity_betas: number[]; risk_free_series: string };

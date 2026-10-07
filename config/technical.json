@@ -1,0 +1,14 @@
+{
+  "_comment": "Thresholds for the technical-analysis layer (PRODUCT_CONTEXT.md section 74: indicators need minimum observations and liquidity thresholds set in config; below them, INSUFFICIENT_DATA). Indicators describe price behaviour; they never change the valuation, the cost of equity or the model view.",
+  "max_zero_volume_share": 0.4,
+  "_max_zero_volume_share_note": "If more than this share of an indicator's window had no trade, the repeated closes would be read as calm or momentum that never happened, so the indicator is INSUFFICIENT_DATA.",
+  "stale_after_days": 7,
+  "_stale_after_days_note": "Calendar days between the last stored close and today after which every indicator is marked STALE.",
+  "sma_periods": [20, 50, 200],
+  "ema_period": 20,
+  "rsi_period": 14,
+  "macd": {"fast": 12, "slow": 26, "signal": 9},
+  "bollinger": {"period": 20, "width": 2},
+  "range_days": 252,
+  "obv_days": 60
+}

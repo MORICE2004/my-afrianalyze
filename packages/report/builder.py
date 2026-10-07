@@ -26,6 +26,7 @@ from packages.analysis.common import (
     Unavailable,
 )
 from packages.analysis.cost_of_equity import cost_of_equity, cost_of_equity_grid
+from packages.analysis.technical import analyse as technical_analysis
 from packages.analysis.line_items import analyse_series
 from packages.analysis.notes import line_note
 from packages.analysis.recommendation import confidence, recommend, INCONCLUSIVE_VIEW, robust_view
@@ -296,6 +297,13 @@ def build_report(session: Session, security_id: str) -> dict | None:
     beta_block = {"benchmark": index_id, "estimates": estimates, "zero_volume": zero,
                   "selected": selected, "rule": rule, "adjustments": split_notes}
 
+    # ------------------------------------------------------------ technical analysis (descriptive only)
+    if price_bars:
+        technical = technical_analysis([(b.trade_date, b.close, b.volume) for b in price_bars], security_id,
+                                       _config("technical.json"))
+    else:
+        technical = price  # the same BLOCKED or INSUFFICIENT_DATA reason as the share price
+
     # ------------------------------------------------------------ cost of equity
     coe_cfg = val_cfg["cost_of_equity"]
     rf = (session.query(MacroObservation).filter_by(series_id=coe_cfg["risk_free_series"])
@@ -456,6 +464,7 @@ def build_report(session: Session, security_id: str) -> dict | None:
         "statements": [{"code": k, "title": STATEMENT_TITLES[k], "rows": v} for k, v in statements.items()],
         "ratios": ratio_rows,
         "beta": beta_block,
+        "technical": technical,
         "cost_of_equity": {"inputs": coe_inputs, "method": coe_cfg, "result": coe, "sensitivity": coe_grid,
                            "alternatives": coe_alternatives},
         "valuation": {"result": valuation, "sensitivity": sensitivity, "base_drivers": drivers,

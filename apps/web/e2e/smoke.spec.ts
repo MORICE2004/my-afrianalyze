@@ -175,7 +175,7 @@ for (const id of ["DSE:NMB", "DSE:CRDB"]) {
   test(`every tab of the ${id} report opens without errors`, async ({ page }) => {
     const errors = watchErrors(page);
     await page.goto(`/report/${encodeURIComponent(id)}`, { waitUntil: "networkidle" });
-    for (const name of ["Summary", "Financial statements", "Ratios", "Beta", "Valuation", "Scenarios", "Risks", "Sources"]) {
+    for (const name of ["Summary", "Financial statements", "Ratios", "Valuation", "Scenarios", "Technical", "Beta", "Risks", "Sources"]) {
       await page.getByRole("button", { name, exact: true }).click();
       await expect(page.locator("main"), `${name} tab`).toBeVisible();
       expect(errors, `errors after opening ${name}`).toEqual([]);
@@ -184,3 +184,13 @@ for (const id of ["DSE:NMB", "DSE:CRDB"]) {
     await expect(page.getByTestId("coe-alternatives")).toBeVisible();
   });
 }
+
+test("the technical tab shows computed indicators and says what it cannot compute", async ({ page }) => {
+  await page.goto("/report/DSE%3ANMB", { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: "Technical", exact: true }).click();
+  const t = page.getByTestId("technical");
+  await expect(t).toContainText("RSI (14)");
+  await expect(t).toContainText("200-day average");
+  await expect(t).toContainText("not stored yet");          // ATR, ADX, VWAP need data we do not hold
+  await expect(t).toContainText("not trading signals");
+});
