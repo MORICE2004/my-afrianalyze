@@ -5,13 +5,14 @@ import { ModelViewBadge } from "@/components/ModelViewBadge";
 import EvidenceLineage from "@/components/research/EvidenceLineage";
 import ValuationExplainer from "@/components/research/ValuationExplainer";
 import { TechnicalPanel } from "@/components/report/TechnicalPanel";
+import { ResearchRunPanel } from "@/components/report/ResearchRunPanel";
 import { NotAvailable } from "@/components/ui/NotAvailable";
 import { PartialMarker, StatusBadge, StatusLegend } from "@/components/ui/StatusBadge";
 import { API_URL, type DataStatus, type Report, type ReviewState, type StatementRow } from "@/lib/api";
 import { fmtDate, fmtPct, fmtPerShare, fmtSignedPct, fmtValue } from "@/lib/format";
 import { ExternalSource, SourceLink } from "./SourceLink";
 
-const TABS = ["Summary", "Financial statements", "Ratios", "Valuation", "Scenarios", "Technical", "Beta", "Risks", "Sources"] as const;
+const TABS = ["Summary", "Financial statements", "Ratios", "Valuation", "Scenarios", "Technical", "Beta", "Risks", "Sources", "Research run"] as const;
 type Tab = (typeof TABS)[number];
 
 export function ReportView({ report }: { report: Report }) {
@@ -110,6 +111,7 @@ export function ReportView({ report }: { report: Report }) {
         {tab === "Beta" && <Beta report={report} />}
         {tab === "Valuation" && <ValuationExplainer report={report} />}
         {tab === "Technical" && <TechnicalPanel report={report} />}
+        {tab === "Research run" && <ResearchRunPanel securityId={report.security.id} />}
         {tab === "Scenarios" && <Scenarios report={report} />}
         {tab === "Risks" && <Risks report={report} />}
         {tab === "Sources" && <EvidenceLineage report={report} />}

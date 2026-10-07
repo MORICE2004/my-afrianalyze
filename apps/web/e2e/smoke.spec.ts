@@ -175,7 +175,7 @@ for (const id of ["DSE:NMB", "DSE:CRDB"]) {
   test(`every tab of the ${id} report opens without errors`, async ({ page }) => {
     const errors = watchErrors(page);
     await page.goto(`/report/${encodeURIComponent(id)}`, { waitUntil: "networkidle" });
-    for (const name of ["Summary", "Financial statements", "Ratios", "Valuation", "Scenarios", "Technical", "Beta", "Risks", "Sources"]) {
+    for (const name of ["Summary", "Financial statements", "Ratios", "Valuation", "Scenarios", "Technical", "Beta", "Risks", "Sources", "Research run"]) {
       await page.getByRole("button", { name, exact: true }).click();
       await expect(page.locator("main"), `${name} tab`).toBeVisible();
       expect(errors, `errors after opening ${name}`).toEqual([]);

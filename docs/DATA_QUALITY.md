@@ -22,7 +22,7 @@ user sees it.
 | Source | Quality |
 |---|---|
 | NMB annual reports | 295 facts, all two-reader agreed; 10 conflicts recorded and not used; tie checks 41 of 42 (the failure is inside NMB's own FY2021 report, recorded in `config/source_issues.json`) |
-| CRDB annual reports | 297 facts; 34 conflicts recorded and not used; tie checks 42 of 42 |
+| CRDB annual reports | 297 facts; 34 conflicts recorded and not used; tie checks 41 of 41 run pass, and 1 could not be run (FY2020 comparatives lack the interest lines). Earlier documents said "42 of 42", counting that one as passed; corrected 2026-10-07 |
 | DSE prices | 2,473 days each for NMB and CRDB; NMB has no trade on 35.6% of days, CRDB 2.1%; NMB's 1:10 split (2026-08-24) applied and cited. **STALE**: last loaded 2026-09-20 |
 | DSE index (DSEI) | 2,460 days; 13 refused by the reconciliation, 268 dates not served by the DSE. **STALE** |
 | BoT bonds | Each tenor dated to its own auction (the 7Y is from 2022, and is shown with that date) |

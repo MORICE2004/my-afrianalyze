@@ -51,6 +51,12 @@ def main(argv: list[str]) -> int:
             print(f"{run.id} is {run.status}; '{args.action}' needs status {before}")
             return 1
         now = datetime.now(timezone.utc)
+        if args.action in ("submit", "approve") and (run.snapshot is None or run.execution_state not in
+                                                      ("COMPLETED", "PARTIAL")):
+            # Only an executed run has a frozen report to review; a FAILED or BLOCKED one has nothing to approve.
+            print(f"{run.id} has execution state {run.execution_state or 'NOT_EXECUTED'}. Execute a run first "
+                  f"(python -m pipelines.research_run {run.security_id}) and review that one.")
+            return 1
         if args.action == "approve":
             if run.summary.get("failed_checks"):
                 print(f"{run.id} has {run.summary['failed_checks']} failed validation check(s). Approving anyway is "

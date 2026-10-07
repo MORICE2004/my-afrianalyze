@@ -235,6 +235,18 @@ class ResearchRun(Base):
     reviewer: Mapped[str | None] = mapped_column(String(200))
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     superseded_by: Mapped[str | None] = mapped_column(String(24))
+    # Execution (packages/research/engine.py). `status` above is the review lifecycle; this is whether the
+    # analysis itself ran: QUEUED, RUNNING, COMPLETED, PARTIAL, FAILED, BLOCKED, INSUFFICIENT_DATA.
+    # Runs created before 2026-10-07 by the data loaders were never executed and have no state.
+    execution_state: Mapped[str | None] = mapped_column(String(20))
+    stages: Mapped[list | None] = mapped_column(JSON)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error: Mapped[str | None] = mapped_column(Text)
+    # The exact report the run produced, as served (exact decimals as strings). What a reviewer approves,
+    # and what production shows once published, so approved numbers cannot change underneath the approval.
+    snapshot: Mapped[dict | None] = mapped_column(JSON)
+    snapshot_sha256: Mapped[str | None] = mapped_column(String(64))
 
 
 class ReviewEvent(Base):

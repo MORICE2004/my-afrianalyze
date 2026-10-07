@@ -22,7 +22,8 @@ from sqlalchemy.orm import Session
 
 from packages.core.config import (DSE_ATTRIBUTION, DSE_DISPLAY_BLOCKED, REPO_ROOT, AppEnvironment,
                                   dse_display_allowed, settings)
-from packages.database.models import DataSourceStatus, MacroObservation, PriceBar, Security, SourceDocument
+from packages.database.models import (DataSourceStatus, MacroObservation, PriceBar, ResearchRun, Security,
+                                      SourceDocument)
 from packages.database.session import get_session
 from apps.api.routers import auth as auth_router
 from apps.api.routers import portfolios as portfolios_router
@@ -256,11 +257,19 @@ def get_report(security_id: str, session: Session = Depends(get_session)) -> dic
     has_docs = session.query(SourceDocument).filter_by(security_id=sec.id, kind="annual_report").first()
     if has_docs is None:
         raise HTTPException(404, f"No research report for {sec.id} yet. Its annual reports have not been ingested.")
-    report = build_report(session, sec.id)
-    # Section 72: in production nothing reaches users before a named reviewer publishes it.
-    if settings.APP_ENV == AppEnvironment.PRODUCTION and report["review"]["status"] != "published":
-        raise HTTPException(403, f"The {sec.id} report has not been reviewed and published yet.")
-    return report
+    if settings.APP_ENV == AppEnvironment.PRODUCTION:
+        # Section 72: in production readers see exactly what a named reviewer approved: the frozen snapshot of
+        # the published run, not a fresh build whose numbers may have moved since the approval.
+        run = (session.query(ResearchRun).filter_by(security_id=sec.id, status="published")
+               .filter(ResearchRun.snapshot.isnot(None)).order_by(ResearchRun.reviewed_at.desc()).first())
+        if run is None:
+            raise HTTPException(403, f"The {sec.id} report has not been reviewed and published yet.")
+        report = dict(run.snapshot)
+        report["review"] = {**report.get("review", {}), "run_id": run.id, "status": run.status,
+                            "reviewer": run.reviewer, "reviewed_at": run.reviewed_at.isoformat() if run.reviewed_at else None,
+                            "snapshot_sha256": run.snapshot_sha256, "frozen": True}
+        return report
+    return build_report(session, sec.id)
 
 
 @app.get("/api/v1/reports/{security_id}/pdf")
@@ -272,6 +281,36 @@ def get_report_pdf(security_id: str, session: Session = Depends(get_session)) ->
     name = f"AfriEdge_{report['security']['id'].replace(':', '_')}_{date.today():%Y%m%d}.pdf"
     return Response(pdf, media_type="application/pdf",
                     headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+# ------------------------------------------------------------------ research runs
+
+def _visible_runs(session: Session, security_id: str | None):
+    q = session.query(ResearchRun).order_by(ResearchRun.created_at.desc())
+    if security_id:
+        q = q.filter(ResearchRun.security_id == security_id.upper())
+    if PRODUCTION:
+        # A draft's stage details include its unreviewed model view, so only reviewed runs are public.
+        q = q.filter(ResearchRun.status.in_(["published", "superseded"]))
+    return q
+
+
+@app.get("/api/v1/research-runs")
+def list_research_runs(security_id: str | None = Query(None, max_length=32),
+                       session: Session = Depends(get_session)) -> dict:
+    from packages.research.engine import describe
+
+    return {"runs": [describe(r) for r in _visible_runs(session, security_id).limit(20)]}
+
+
+@app.get("/api/v1/research-runs/{run_id}")
+def get_research_run(run_id: str, session: Session = Depends(get_session)) -> dict:
+    from packages.research.engine import describe
+
+    run = _visible_runs(session, None).filter(ResearchRun.id == run_id).first()
+    if run is None:
+        raise HTTPException(404, "Research run not found.")
+    return describe(run)
 
 
 @app.get("/api/v1/sources/{document_id}/file")

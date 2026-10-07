@@ -6,6 +6,7 @@ that the web page does not.
 from __future__ import annotations
 
 import io
+from decimal import Decimal
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_LEFT
@@ -25,16 +26,23 @@ BODY = ParagraphStyle("B", parent=styles["BodyText"], fontSize=8.5, leading=11)
 SMALL = ParagraphStyle("S", parent=BODY, fontSize=7, leading=9, textColor=GREY)
 
 
+def _d(v) -> Decimal:
+    """A figure as an exact Decimal, whether it came from a live report (Decimal, float) or a frozen snapshot
+    (exact string). Only used right before formatting."""
+    return v if isinstance(v, Decimal) else Decimal(str(v))
+
+
 def _num(v: float | None, unit: str = "TZS_millions") -> str:
     if v is None:
         return "n/a"
+    v = _d(v)
     if unit == "TZS_per_share":
         return f"{v:,.2f}"
     return f"({abs(v):,.0f})" if v < 0 else f"{v:,.0f}"
 
 
 def _pct(v: float | None) -> str:
-    return "n/a" if v is None else f"{v * 100:.1f}%"
+    return "n/a" if v is None else f"{_d(v) * 100:.1f}%"
 
 
 def _na(block: dict) -> str:
@@ -96,13 +104,13 @@ def render_pdf(report: dict) -> bytes:
     else:
         view = f"Not available ({rec.get('status', '')})"
     key = [["Model view", view],
-           ["Price", f"{price['value']:,.2f} ({price['trade_date']})" if price["available"] else "Not available"],
+           ["Price", f"{_d(price['value']):,.2f} ({price['trade_date']})" if price["available"] else "Not available"],
            ["12-month target", _num(head["target_price"]["value"], "TZS_per_share")
             if head["target_price"]["available"] else "Not available"],
            ["Fair value range", f"{_num(head['fair_value_range']['low'], 'TZS_per_share')} - "
                                 f"{_num(head['fair_value_range']['high'], 'TZS_per_share')}"
             if head["fair_value_range"]["available"] else "Not available"],
-           ["Confidence", f"{head['confidence']['level']} ({head['confidence']['score']:.0f}/100)"]]
+           ["Confidence", f"{head['confidence']['level']} ({_d(head['confidence']['score']):.0f}/100)"]]
     story.append(_table(key, [45 * mm, 135 * mm], header=False))
     if not rec["available"]:
         story.append(Paragraph(_na(rec), SMALL))
@@ -144,8 +152,8 @@ def render_pdf(report: dict) -> bytes:
     rows = [["Method", "Beta", "Std err", "R-squared", "Obs."]]
     for name, est in b["estimates"].items():
         if est.get("available"):
-            rows.append([name, f"{est['beta']:.3f}", "n/a" if est.get("std_error") is None else f"{est['std_error']:.3f}",
-                         "n/a" if est.get("r_squared") is None else f"{est['r_squared']:.3f}", str(est["observations"])])
+            rows.append([name, f"{_d(est['beta']):.3f}", "n/a" if est.get("std_error") is None else f"{_d(est['std_error']):.3f}",
+                         "n/a" if est.get("r_squared") is None else f"{_d(est['r_squared']):.3f}", str(est["observations"])])
         else:
             rows.append([name, "n/a", "", "", Paragraph(est["reason"], SMALL)])
     story.append(_table(rows, [35 * mm, 20 * mm, 20 * mm, 20 * mm, 85 * mm]))
@@ -166,7 +174,7 @@ def render_pdf(report: dict) -> bytes:
         sens = report["valuation"]["sensitivity"]
         rows = [["Beta", "Cost of equity", "Fair value (prob.-weighted)", "Scenario range"]]
         for r in sens.get("rows", []):
-            rows.append([f"{r['beta']:.2f}", _pct(r["cost_of_equity"]), _num(r["fair_value"], "TZS_per_share"),
+            rows.append([f"{_d(r['beta']):.2f}", _pct(r["cost_of_equity"]), _num(r["fair_value"], "TZS_per_share"),
                          f"{_num(r['range_low'], 'TZS_per_share')} - {_num(r['range_high'], 'TZS_per_share')}"])
         if len(rows) > 1:
             story.append(_table(rows, [25 * mm, 35 * mm, 55 * mm, 65 * mm]))
@@ -180,7 +188,7 @@ def render_pdf(report: dict) -> bytes:
     cfg = report["valuation"]["config"]
     rows = [["Scenario", "Probability"] + list(next(iter(cfg["scenarios"].values()))["shocks"].keys())]
     for name, sc in cfg["scenarios"].items():
-        rows.append([name, _pct(sc["probability"])] + [f"{v * 100:+.1f} pp" for v in sc["shocks"].values()])
+        rows.append([name, _pct(sc["probability"])] + [f"{_d(v) * 100:+.1f} pp" for v in sc["shocks"].values()])
     story.append(_table(rows, [25 * mm, 22 * mm] + [26.6 * mm] * 5))
     story.append(Paragraph(f"Terminal growth {_pct(cfg['terminal_growth']['value'])}: {cfg['terminal_growth']['note']} "
                            f"Method weights: {cfg['method_weights']}.", SMALL))
