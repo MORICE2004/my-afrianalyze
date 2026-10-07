@@ -94,3 +94,32 @@ def test_the_index_refresh_keeps_history_and_checks_its_first_day_against_the_st
     bad = _index_file(tmp_path / "bad.jsonl", [("2026-10-05", 4800.00, 1.00)])
     idx.main(["--file", str(bad)])
     assert date(2026, 10, 5) not in _bars(db, "DSE:DSEI")
+
+
+def test_a_source_outage_is_recorded_and_nothing_is_lost(tmp_path, db, monkeypatch):
+    """The DSE is unreachable during the scheduled refresh: the run fails visibly, /health says so, and the
+    stored history and its last-success time are untouched."""
+    import requests
+
+    from pipelines.dse import refresh_prices
+    from packages.database.models import Security
+
+    assert _load(tmp_path, HISTORY) == 0
+    with db() as s:
+        s.add(Security(id="DSE:NMB", exchange="DSE", local_ticker="NMB", name="NMB Bank Plc", sector="Banking",
+                       currency="TZS", is_bank=True, industry_template="bank", listing_status="listed",
+                       listing_url="https://dse.co.tz", verified_at=date(2026, 9, 1)))
+        s.commit()
+        before = s.get(DataSourceStatus, "dse_prices").last_success_at
+    monkeypatch.setattr(refresh_prices, "SessionLocal", db)
+    monkeypatch.setattr(refresh_prices.time, "sleep", lambda *_: None)
+
+    def down(*a, **k):
+        raise requests.ConnectionError("dse.co.tz unreachable")
+    monkeypatch.setattr(refresh_prices.requests, "get", down)
+    assert refresh_prices.main(["30"]) == 1
+    with db() as s:
+        st = s.get(DataSourceStatus, "dse_prices")
+        assert st.status == "partial" and "Needs attention: NMB" in st.detail
+        assert st.last_success_at == before
+    assert len(_bars(db)) == len(HISTORY)

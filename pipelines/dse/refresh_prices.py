@@ -53,7 +53,20 @@ def main(argv: list[str]) -> int:
             rc = import_public_prices.main(["--instrument", f"DSE:{code}", "--file", str(path), "--days", days])
             if rc != 0:
                 failed.append(code)
-    print(f"Refreshed {len(codes) - len(failed)} of {len(codes)} shares." + (f" Needs attention: {', '.join(failed)}." if failed else ""))
+    summary = (f"Refreshed {len(codes) - len(failed)} of {len(codes)} shares."
+               + (f" Needs attention: {', '.join(failed)}." if failed else ""))
+    if failed:
+        # Record the failed attempt on /health; the last success stays as it was, so the age is still true.
+        from datetime import datetime, timezone
+
+        from packages.database.models import DataSourceStatus
+        with SessionLocal() as s:
+            row = s.get(DataSourceStatus, "dse_prices")
+            if row is not None:
+                row.last_attempt_at, row.status = datetime.now(timezone.utc), "partial"
+                row.detail = f"Last refresh: {summary} " + (row.detail or "")[:900]
+                s.commit()
+    print(summary)
     return 1 if failed else 0
 
 
