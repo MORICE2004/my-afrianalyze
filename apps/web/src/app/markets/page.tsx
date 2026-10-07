@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import React from "react";
 import { ErrorState, NotAvailable } from "@/components/ui/NotAvailable";
 import { apiGet } from "@/lib/api";
-import { fmtSignedPct } from "@/lib/format";
+import { fmtPct, fmtSignedPct } from "@/lib/format";
 
 export const metadata: Metadata = {
   title: "Regional markets",
@@ -13,6 +13,8 @@ type Overview = {
   markets: {
     market: string; name: string; exchange: string; currency: string; securities_in_master: number;
     index: { available: boolean; id: string; value?: number; trade_date?: string; change?: number; reason?: string; attribution?: string };
+    macro?: { available: boolean; reason?: string; attribution?: string;
+      rows?: { indicator: string; label: string; value: number | string; unit: string; year: number }[] };
   }[];
   commentary: { available: boolean; reason: string };
   // Decimals arrive as strings; coerce with Number() before formatting.
@@ -67,6 +69,21 @@ export default async function MarketsPage() {
                   </div>
                 ) : (
                   <NotAvailable reason={m.index.reason ?? ""} />
+                )}
+                {m.macro?.available && m.macro.rows && (
+                  <div className="mt-4 border-t border-neutral-100 pt-3" data-testid={`macro-${m.market}`}>
+                    <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                      {m.macro.rows.map((r) => (
+                        <React.Fragment key={r.indicator}>
+                          <dt className="text-neutral-500">{r.label} ({r.year})</dt>
+                          <dd className="font-mono text-right">
+                            {r.unit === "decimal" ? fmtPct(Number(r.value), 1) : Number(r.value).toLocaleString("en-US", { maximumFractionDigits: 2 })}
+                          </dd>
+                        </React.Fragment>
+                      ))}
+                    </dl>
+                    <p className="mt-1 text-[11px] text-neutral-500">{m.macro.attribution}</p>
+                  </div>
                 )}
                 <p className="mt-3 text-xs text-neutral-500">{m.securities_in_master} {m.securities_in_master === 1 ? "security" : "securities"} in the security master · {m.currency}</p>
               </div>

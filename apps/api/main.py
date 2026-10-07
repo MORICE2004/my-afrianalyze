@@ -283,6 +283,24 @@ def get_report_pdf(security_id: str, session: Session = Depends(get_session)) ->
                     headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
+# ------------------------------------------------------------------ unit trusts
+
+@app.get("/api/v1/funds")
+def list_funds() -> dict:
+    """Unit trust registry (config/funds.json). Each figure is either sourced or says why it is not shown."""
+    import json
+
+    cfg = json.loads((settings.CONFIG_DIR / "funds.json").read_text(encoding="utf-8"))
+    out = []
+    for f in cfg["funds"]:
+        mgr = cfg["managers"][f["manager"]]
+        reason = (f"Not loaded: {mgr['name']} publishes this on {mgr['nav_page']}, but states no terms for reusing it "
+                  f"({mgr['licensing']}). Waiting for the owner's decision; nothing is estimated.")
+        out.append({**f, "manager_name": mgr["name"], "licensing": mgr["licensing"],
+                    "figures": {k: {"available": False, "status": "BLOCKED", "reason": reason} for k in cfg["fields"]}})
+    return {"funds": out, "note": cfg["_comment"]}
+
+
 # ------------------------------------------------------------------ research copilot
 
 class CopilotQuestion(BaseModel):
@@ -391,12 +409,32 @@ def markets_overview(session: Session = Depends(get_session)) -> dict:
             index = {"available": False, "id": m["index"], "status": idx_status, "reason": reason}
         count = session.query(func.count()).select_from(Security).filter(Security.exchange == m["exchange"]).scalar()
         out.append({"market": code, "name": m["name"], "exchange": m["exchange"], "currency": m["currency"],
-                    "index": index, "securities_in_master": count})
+                    "index": index, "securities_in_master": count, "macro": _country_macro(session, code)})
     return {"markets": out,
             "commentary": {"available": False,
                            "reason": "Market commentary is only published when it can be generated from stored, "
                                      "sourced market data. None is loaded."},
             "movers": _dse_movers(session)}
+
+
+WB_ISO3 = {"TZ": "TZA", "KE": "KEN", "UG": "UGA"}
+WB_SHOWN = {"NY.GDP.MKTP.KD.ZG": "Real GDP growth", "FP.CPI.TOTL.ZG": "Inflation",
+            "BN.CAB.XOKA.GD.ZS": "Current account (share of GDP)", "PA.NUS.FCRF": "Exchange rate per US dollar"}
+
+
+def _country_macro(session: Session, market: str) -> dict:
+    """Latest annual World Bank figure per indicator for the market's country (CC BY 4.0), each with its year."""
+    iso3, rows = WB_ISO3[market], []
+    for indicator, label in WB_SHOWN.items():
+        o = (session.query(MacroObservation).filter_by(series_id=f"WB_{iso3}_{indicator}")
+             .order_by(MacroObservation.observation_date.desc()).first())
+        if o is not None:
+            rows.append({"indicator": indicator, "label": label, "value": o.value, "unit": o.unit,
+                         "year": o.observation_date.year, "source_url": o.source_url})
+    if not rows:
+        return {"available": False, "status": "INSUFFICIENT_DATA", "reason": "World Bank indicators not loaded."}
+    return {"available": True, "rows": rows,
+            "attribution": "World Bank, World Development Indicators (CC BY 4.0). Annual figures; the year is shown."}
 
 
 def _dse_movers(session: Session) -> dict:

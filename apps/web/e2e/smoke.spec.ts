@@ -12,6 +12,7 @@ const ROUTES: { path: string; name: string; expectText: RegExp }[] = [
   { path: "/portfolio", name: "portfolio", expectText: /Portfolio/i },
   { path: "/dashboard", name: "dashboard", expectText: /Sign in to see your portfolios/i },
   { path: "/login", name: "login", expectText: /Sign in to AfriEdge/i },
+  { path: "/funds", name: "funds", expectText: /LICENSE_REVIEW_REQUIRED/ },
   { path: "/health", name: "health", expectText: /dse_prices/i },
   { path: "/research-chat", name: "research-chat", expectText: /Every number in an answer is checked/i },
 ];

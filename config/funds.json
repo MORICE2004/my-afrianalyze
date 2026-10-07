@@ -1,0 +1,21 @@
+{
+  "_comment": "Unit trust (collective investment scheme) registry. Names, manager and pages were read from the manager's own site on 2026-10-07 (www.uttamis.co.tz). Figures (NAV, performance, fees, minimum investment, allocation) are not loaded: the manager publishes them but its site states no terms for reusing them, so using them is LICENSE_REVIEW_REQUIRED and waits for the owner's decision (CLAUDE.md: ask before using a source with unclear terms). Nothing here is estimated.",
+  "managers": {
+    "UTT_AMIS": {
+      "name": "UTT Asset Management and Investor Services Plc",
+      "site": "https://www.uttamis.co.tz",
+      "nav_page": "https://www.uttamis.co.tz/fund-performance",
+      "licensing": "LICENSE_REVIEW_REQUIRED",
+      "licensing_note": "Only a privacy policy is published; no terms for reusing NAVs or fund data. robots.txt does not exist (404). The NAV table is loaded by the page with a CSRF-protected request."
+    }
+  },
+  "funds": [
+    {"id": "UTT:UMOJA", "name": "Umoja Fund", "manager": "UTT_AMIS", "currency": "TZS", "product_page": "https://www.uttamis.co.tz/products/umoja_fund", "reports_page": "https://www.uttamis.co.tz/reports/umoja_fund"},
+    {"id": "UTT:WEKEZA_MAISHA", "name": "Wekeza Maisha Fund", "manager": "UTT_AMIS", "currency": "TZS", "product_page": "https://www.uttamis.co.tz/products/wekeza_maisha", "reports_page": "https://www.uttamis.co.tz/reports/wekeza_maisha"},
+    {"id": "UTT:WATOTO", "name": "Watoto Fund", "manager": "UTT_AMIS", "currency": "TZS", "product_page": "https://www.uttamis.co.tz/products/watoto_fund", "reports_page": "https://www.uttamis.co.tz/reports/watoto_fund"},
+    {"id": "UTT:JIKIMU", "name": "Jikimu Fund", "manager": "UTT_AMIS", "currency": "TZS", "product_page": "https://www.uttamis.co.tz/products/jikimu_fund", "reports_page": "https://www.uttamis.co.tz/reports/jikimu_fund"},
+    {"id": "UTT:LIQUID", "name": "Liquid Fund", "manager": "UTT_AMIS", "currency": "TZS", "product_page": "https://www.uttamis.co.tz/products/liquid_fund", "reports_page": "https://www.uttamis.co.tz/reports/liquid_fund"},
+    {"id": "UTT:BOND", "name": "Bond Fund", "manager": "UTT_AMIS", "currency": "TZS", "product_page": "https://www.uttamis.co.tz/products/bond_fund", "reports_page": "https://www.uttamis.co.tz/reports/bond_fund"}
+  ],
+  "fields": ["fund_type", "nav_per_unit", "net_asset_value", "performance", "fees", "benchmark", "minimum_investment", "redemption", "liquidity", "asset_allocation", "risk", "reporting_date"]
+}

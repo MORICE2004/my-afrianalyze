@@ -86,15 +86,32 @@
    "probe": null
   },
   {
+   "id": "utt_amis",
+   "name": "UTT AMIS (unit trust manager)",
+   "country": "TZ",
+   "datasets": "Six unit trusts: names and pages listed; NAVs not loaded",
+   "status_keys": [],
+   "coverage": "V1",
+   "parser_state": "NOT_BUILT",
+   "licensing": "LICENSE_REVIEW_REQUIRED",
+   "licensing_note": "No terms of use for its data (privacy policy only; no robots.txt). NAV loader waits for the owner's decision",
+   "probe": {
+    "result": "REACHABLE",
+    "checked_at": "2026-10-07"
+   }
+  },
+  {
    "id": "world_bank",
    "name": "World Bank API",
    "country": "GLOBAL",
-   "datasets": "Macro indicators",
-   "status_keys": [],
-   "coverage": "COMING",
-   "parser_state": "NOT_BUILT",
-   "licensing": "LICENSE_REVIEW_REQUIRED",
-   "licensing_note": "API reachable; its terms of use have not been read yet; World Bank indicators are mostly CC BY 4.0",
+   "datasets": "GDP growth, inflation, current account and official exchange rate, annual, for TZ, KE and UG",
+   "status_keys": [
+    "world_bank"
+   ],
+   "coverage": "V1",
+   "parser_state": "IMPLEMENTED",
+   "licensing": "PUBLIC",
+   "licensing_note": "CC BY 4.0 with attribution (datacatalog.worldbank.org/public-licenses, read 2026-10-07)",
    "probe": {
     "result": "WORKING",
     "checked_at": "2026-09-25"
@@ -108,8 +125,8 @@
    "status_keys": [],
    "coverage": "COMING",
    "parser_state": "NOT_BUILT",
-   "licensing": "LICENSE_REVIEW_REQUIRED",
-   "licensing_note": "API reachable; its terms of use have not been read yet",
+   "licensing": "LICENSE_REQUIRED",
+   "licensing_note": "IMF Copyright and Usage (read 2026-10-07): free reuse of published data, but 'for any potential commercial reuse of IMF Data' permission is needed from copyright@imf.org. No loader until that is granted",
    "probe": {
     "result": "WORKING",
     "checked_at": "2026-09-25"

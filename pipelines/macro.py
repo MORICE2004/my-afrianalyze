@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import html
+import json
 import io
 import re
 import sys
@@ -365,10 +366,66 @@ def damodaran_industry_beta(session) -> str:
             f"({firms} firms, D/E {cell('de'):.2f}, as of {as_of})")
 
 
+
+# ------------------------------------------------------------------ World Bank (CC BY 4.0)
+
+WB_API = "https://api.worldbank.org/v2/country/{countries}/indicator/{indicator}?format=json&per_page=500&date=2010:2030"
+WB_COUNTRIES = ("TZA", "KEN", "UGA")
+# indicator -> (label, unit stored, divisor, plausible range of the stored value)
+WB_INDICATORS = {
+    "NY.GDP.MKTP.KD.ZG": ("Real GDP growth (annual)", "decimal", 100, (-0.3, 0.3)),
+    "FP.CPI.TOTL.ZG": ("Consumer price inflation (annual)", "decimal", 100, (-0.1, 2.0)),
+    "BN.CAB.XOKA.GD.ZS": ("Current account balance (share of GDP)", "decimal", 100, (-0.5, 0.5)),
+    "PA.NUS.FCRF": ("Official exchange rate (local currency per US dollar, period average)", "LCU_per_USD", 1, (0.01, 100000)),
+}
+
+
+def world_bank(session) -> str:
+    """Annual macro indicators for Tanzania, Kenya and Uganda from the World Bank API. Values are parsed as exact
+    decimals (never floats); a year the World Bank leaves empty stays absent; a value outside its plausible
+    range stops the job rather than being stored. Licence: CC BY 4.0 (datacatalog.worldbank.org/public-licenses)."""
+    stored, missing = 0, 0
+    latest: dict[str, str] = {}
+    for indicator, (label, unit, divisor, (lo, hi)) in WB_INDICATORS.items():
+        url = WB_API.format(countries=";".join(WB_COUNTRIES), indicator=indicator)
+        r = requests.get(url, headers=UA, timeout=60)
+        r.raise_for_status()
+        payload = json.loads(r.text, parse_float=Decimal)
+        if not isinstance(payload, list) or len(payload) < 2 or not isinstance(payload[1], list):
+            raise ValueError(f"World Bank answer for {indicator} has an unexpected shape")
+        meta, rows = payload[0], payload[1]
+        updated = meta.get("lastupdated")
+        for row in rows:
+            iso3, year, raw = row.get("countryiso3code"), row.get("date"), row.get("value")
+            if iso3 not in WB_COUNTRIES or not str(year).isdigit():
+                continue
+            if raw is None:
+                missing += 1
+                continue
+            value = Decimal(str(raw)) / divisor
+            if not (Decimal(str(lo)) <= value <= Decimal(str(hi))):
+                raise ValueError(f"{indicator} {iso3} {year} = {raw} is outside the plausible range; not stored")
+            upsert_obs(session, series_id=f"WB_{iso3}_{indicator}", observation_date=date(int(year), 12, 31),
+                       published_on=date.fromisoformat(updated) if updated else None, value=value, unit=unit,
+                       label=f"{row['country']['value']}: {label}, {year}",
+                       attributes={"indicator": indicator, "indicator_name": row["indicator"]["value"],
+                                   "country": iso3, "year": int(year), "as_published": str(raw),
+                                   "licence": "CC BY 4.0", "source_last_updated": updated},
+                       source_url=url, source_name="World Bank, World Development Indicators", retrieved_at=now())
+            stored += 1
+            key = f"{iso3} {indicator}"
+            latest[key] = max(latest.get(key, ""), str(year))
+    newest = max(latest.values()) if latest else "none"
+    status(session, "world_bank", True, 24 * 120,
+           f"{stored} annual observations for {', '.join(WB_COUNTRIES)} across {len(WB_INDICATORS)} indicators "
+           f"(latest year {newest}); {missing} country-years the World Bank leaves empty. CC BY 4.0.")
+    return f"World Bank: {stored} observations, latest year {newest}, {missing} empty"
+
+
 def main() -> int:
     failures = 0
     with SessionLocal() as session:
-        for job in (bot_bonds, bot_cbr, nbs_inflation, damodaran, damodaran_industry_beta):
+        for job in (bot_bonds, bot_cbr, nbs_inflation, damodaran, damodaran_industry_beta, world_bank):
             try:
                 print(job(session))
             except Exception as exc:  # record and continue; /health will show it

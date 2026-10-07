@@ -10,6 +10,7 @@ export const NAV = [
   { href: "/", label: "Equities" },
   { href: "/markets", label: "Markets" },
   { href: "/fixed-income", label: "Fixed income" },
+  { href: "/funds", label: "Unit trusts" },
   { href: "/portfolio", label: "Portfolio builder" },
   { href: "/dashboard", label: "My portfolios" },
   { href: "/research-chat", label: "Research copilot" },
