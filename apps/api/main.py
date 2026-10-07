@@ -10,6 +10,7 @@ import threading
 import time
 from collections import deque
 from datetime import date, datetime, timezone
+from decimal import Decimal
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
@@ -401,6 +402,39 @@ def markets_overview(session: Session = Depends(get_session)) -> dict:
 
 # ------------------------------------------------------------------ fixed income
 
+def _bond_analytics(m: MacroObservation) -> dict:
+    """Duration, convexity and a recomputed price for one auctioned bond. Convention: semi-annual coupons,
+    settlement one day after the auction, which reproduces the BoT's published prices (tests/v1/test_bonds.py)."""
+    import re
+    from datetime import timedelta
+    from decimal import Decimal
+
+    from packages.analysis import bonds
+
+    attrs = m.attributes or {}
+    coupon = re.match(r"\s*([\d.]+)%", m.label or "")
+    try:
+        maturity = datetime.strptime(attrs.get("redemption_date", ""), "%d/%m/%Y").date()
+    except ValueError:
+        maturity = None
+    if not coupon or maturity is None:
+        return {"available": False, "status": "INSUFFICIENT_DATA",
+                "reason": "The auction record lacks the coupon or the redemption date."}
+    settle = m.observation_date + timedelta(days=1)
+    r = bonds.analyse(Decimal(coupon.group(1)) / 100, m.value, settle, maturity, 2)
+    out = {"available": True, "coupon": Decimal(coupon.group(1)) / 100, "maturity": maturity.isoformat(),
+           "settlement_assumed": settle.isoformat(), **r,
+           "price_change_plus_100bp": bonds.price_change(r["modified_duration"], r["convexity"], Decimal("0.01")),
+           "how": "Semi-annual coupons, settlement one day after the auction; computed at the weighted average "
+                  "yield. Duration and convexity in years; price per 100 of face value."}
+    if attrs.get("weighted_average_price"):
+        bot = Decimal(attrs["weighted_average_price"])
+        out["check"] = {"bot_published_price": bot, "difference": r["clean_price"] - bot,
+                        "note": "The BoT publishes average price and average yield separately; the price at the "
+                                "average yield can differ from the average price by a few cents."}
+    return out
+
+
 @app.get("/api/v1/fixed-income/TZ")
 def fixed_income_tz(session: Session = Depends(get_session)) -> dict:
     latest: dict[str, MacroObservation] = {}
@@ -420,6 +454,7 @@ def fixed_income_tz(session: Session = Depends(get_session)) -> dict:
         if sid.startswith("BOT_TBOND_") and sid.endswith("Y_WAYTM"):
             tenor = int(sid.removeprefix("BOT_TBOND_").removesuffix("Y_WAYTM"))
             point = obs(m) | {"tenor_years": tenor, "stale": (date.today() - m.observation_date).days > 365}
+            point["analytics"] = _bond_analytics(m)
             curve.append(point)
     curve.sort(key=lambda p: p["tenor_years"])
     by_tenor = {p["tenor_years"]: p for p in curve}
@@ -442,7 +477,7 @@ def fixed_income_tz(session: Session = Depends(get_session)) -> dict:
 
 class ProposalRequest(BaseModel):
     market: str = Field(pattern="^(TZ|KE|UG)$")
-    capital: float = Field(gt=0)
+    capital: Decimal = Field(gt=0, max_digits=18, decimal_places=2)   # money: never a float
     currency: str
     risk_profile: str = Field(pattern="^(Conservative|Moderate|Aggressive)$")
     horizon_years: int = Field(ge=1, le=40)

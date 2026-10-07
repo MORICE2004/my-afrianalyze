@@ -15,8 +15,14 @@ type Obs = {
   available: boolean; value?: number; as_of?: string; age_days?: number; label?: string;
   source_name?: string; source_url?: string; reason?: string; attributes?: Record<string, unknown>;
 };
+// Bond analytics from the API (packages/analysis/bonds.py). Decimals arrive as strings: coerce before formatting.
+type Num = number | string;
+type Analytics =
+  | { available: true; modified_duration: Num; convexity: Num; price_change_plus_100bp: Num; clean_price: Num;
+      settlement_assumed: string; how: string; check?: { bot_published_price: Num; difference: Num; note: string } }
+  | { available: false; reason: string };
 type FI = {
-  curve: (Obs & { tenor_years: number; stale: boolean })[];
+  curve: (Obs & { tenor_years: number; stale: boolean; analytics?: Analytics })[];
   spread_2y_10y: { available: boolean; value?: number; formula?: string; dates?: string[]; reason?: string };
   policy_rate: Obs;
   inflation: Obs;
@@ -82,16 +88,35 @@ export default async function FixedIncomePage() {
           : <NotAvailable reason="No auction results loaded." />}
       </section>
 
+      <p className="text-xs text-neutral-600">
+        Duration and convexity are computed from each bond&apos;s coupon, redemption date and auction yield, with semi-annual
+        coupons and settlement one day after the auction. That convention recomputes the Bank of Tanzania&apos;s published
+        prices (the &quot;Price check&quot; column; differences of a few cents come from the BoT averaging prices and yields
+        separately). The effect of a 1-point rise uses duration and convexity. Prices are per 100 of face value.
+      </p>
       <section className="overflow-x-auto border border-neutral-200 bg-white">
         <table className="w-full text-sm" data-testid="bond-table">
           <thead className="bg-neutral-50 text-xs text-neutral-500">
-            <tr><th className="text-left px-3 py-2">Tenor</th><th className="text-right px-3 py-2">Weighted avg YTM</th><th className="text-left px-3 py-2">Auction</th><th className="text-left px-3 py-2">Source</th></tr>
+            <tr><th className="text-left px-3 py-2">Tenor</th><th className="text-right px-3 py-2">Weighted avg YTM</th><th className="text-right px-3 py-2">Modified duration</th><th className="text-right px-3 py-2">Convexity</th><th className="text-right px-3 py-2">If yields rise 1 point</th><th className="text-right px-3 py-2">Price check</th><th className="text-left px-3 py-2">Auction</th><th className="text-left px-3 py-2">Source</th></tr>
           </thead>
           <tbody className="divide-y divide-neutral-100">
             {d.curve.map((p) => (
               <tr key={p.tenor_years} className={p.stale ? "text-neutral-400" : ""}>
                 <td className="px-3 py-2">{p.tenor_years} years</td>
                 <td className="px-3 py-2 text-right font-mono">{p.value !== undefined ? fmtPct(p.value, 2) : "—"}</td>
+                {p.analytics && p.analytics.available ? (
+                  <>
+                    <td className="px-3 py-2 text-right font-mono">{Number(p.analytics.modified_duration).toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right font-mono">{Number(p.analytics.convexity).toFixed(1)}</td>
+                    <td className="px-3 py-2 text-right font-mono">{fmtPct(Number(p.analytics.price_change_plus_100bp), 2)}</td>
+                    <td className="px-3 py-2 text-right font-mono text-xs" title={p.analytics.check?.note}>
+                      {Number(p.analytics.clean_price).toFixed(4)}
+                      {p.analytics.check && <span className="block text-neutral-500">BoT {Number(p.analytics.check.bot_published_price).toFixed(4)}</span>}
+                    </td>
+                  </>
+                ) : (
+                  <td colSpan={4} className="px-3 py-2 text-xs"><NotAvailable compact reason={p.analytics && !p.analytics.available ? p.analytics.reason : "Not computed"} /></td>
+                )}
                 <td className="px-3 py-2 text-xs">{p.label} · {p.as_of}{p.stale ? " · more than a year old" : ""}</td>
                 <td className="px-3 py-2 text-xs">{p.source_url && <ExternalSource href={p.source_url}>{p.source_name}</ExternalSource>}</td>
               </tr>
