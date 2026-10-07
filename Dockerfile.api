@@ -24,6 +24,7 @@ USER app
 ENV PORT=8000
 EXPOSE 8000
 
-# Migrations only add; they never drop data. Then serve. --proxy-headers takes the client address from the
-# platform's load balancer (used by the per-client limit on report requests).
-CMD ["sh", "-c", "alembic upgrade head && exec uvicorn apps.api.main:app --host 0.0.0.0 --port ${PORT} --proxy-headers --forwarded-allow-ips='*'"]
+# Migrations only add; they never drop data. Then serve. No --proxy-headers: with --forwarded-allow-ips='*'
+# uvicorn would take the client address from the LEFT of X-Forwarded-For, which the client writes, and every
+# per-client limit could be dodged. The API reads the address itself (client_ip in apps/api/main.py).
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn apps.api.main:app --host 0.0.0.0 --port ${PORT} --no-proxy-headers"]

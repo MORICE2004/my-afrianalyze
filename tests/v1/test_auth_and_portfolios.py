@@ -127,10 +127,24 @@ def test_portfolios_need_a_real_session(client, headers):
     assert client.delete("/api/v1/portfolios/1", headers=headers).status_code == 401
 
 
-def test_sign_in_attempts_are_rate_limited(client):
-    codes = [client.post("/api/v1/auth/login", json={"email": "a@example.com", "password": "x"}).status_code
-             for _ in range(12)]
+def test_sign_in_attempts_are_rate_limited_per_client(client):
+    codes = [client.post("/api/v1/auth/login", json={"email": f"u{i}@example.com", "password": "x"}).status_code
+             for i in range(12)]
     assert codes[:10] == [401] * 10 and codes[10:] == [429, 429]
+
+
+def test_failed_sign_ins_lock_the_account_whatever_the_address(client):
+    from apps.api.routers import auth
+    auth._failures.clear()
+    _signup(client, "victim@example.com")
+    api._hits.clear()
+    for _ in range(5):
+        assert client.post("/api/v1/auth/login", json={"email": "victim@example.com", "password": "guess"}).status_code == 401
+    api._hits.clear()                     # a new address: the account lock must still hold
+    r = client.post("/api/v1/auth/login", json={"email": "victim@example.com", "password": PASSWORD})
+    assert r.status_code == 429 and "15 minutes" in r.json()["detail"]
+    auth._failures.clear()
+    assert client.post("/api/v1/auth/login", json={"email": "victim@example.com", "password": PASSWORD}).status_code == 200
 
 
 # ------------------------------------------------------------------ isolation between users

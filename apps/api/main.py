@@ -59,6 +59,26 @@ _hits: dict[str, deque] = {}
 _hits_lock = threading.Lock()
 
 
+def client_ip(request: Request) -> str:
+    """The client's address for rate limiting, never from a value the client controls (see config)."""
+    import hmac
+
+    forwarded = request.headers.get("x-afriedge-client-ip")
+    key = request.headers.get("x-afriedge-proxy-key", "")
+    if forwarded and settings.INTERNAL_PROXY_SECRET and hmac.compare_digest(key, settings.INTERNAL_PROXY_SECRET):
+        return forwarded.strip()          # set by our own web server, which proved it with the shared secret
+    if settings.CLIENT_IP_HEADER:
+        value = request.headers.get(settings.CLIENT_IP_HEADER)
+        if value:
+            return value.strip()
+    xff = request.headers.get("x-forwarded-for")
+    if settings.TRUSTED_PROXY_HOPS > 0 and xff:
+        parts = [p.strip() for p in xff.split(",") if p.strip()]
+        if parts:
+            return parts[max(0, len(parts) - settings.TRUSTED_PROXY_HOPS)]
+    return request.client.host if request.client else "unknown"
+
+
 @app.middleware("http")
 async def limit_expensive_requests(request: Request, call_next):
     path = request.url.path
@@ -69,7 +89,7 @@ async def limit_expensive_requests(request: Request, call_next):
     else:
         bucket = None
     if bucket:
-        client = request.client.host if request.client else "unknown"
+        client = client_ip(request)
         now = time.monotonic()
         with _hits_lock:
             window = _hits.setdefault(f"{bucket}:{client}", deque())

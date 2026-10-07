@@ -73,7 +73,7 @@ def test_without_a_key_nothing_is_sent(monkeypatch):
 
 def test_production_refuses_analytics_without_a_salt():
     base = {"APP_ENV": "PRODUCTION", "DATABASE_URL": "postgresql://u:p@h/d", "CORS_ORIGINS": "https://a.example",
-            "DSE_PUBLIC_DISPLAY": "false", "POSTHOG_API_KEY": "phc_test"}
+            "DSE_PUBLIC_DISPLAY": "false", "POSTHOG_API_KEY": "phc_test", "INTERNAL_PROXY_SECRET": "x" * 32}
     with pytest.raises(ValueError, match="ANALYTICS_SALT"):
         Settings(**base)
     assert Settings(**base, ANALYTICS_SALT="x" * 16).POSTHOG_API_KEY == "phc_test"

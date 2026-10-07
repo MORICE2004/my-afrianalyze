@@ -19,6 +19,12 @@ services:
         value: PRODUCTION
       - key: SHOW_TRADE_LABELS
         value: "true"
+      # Render is fronted by Cloudflare, which overwrites cf-connecting-ip with the real client address. Verify on
+      # the first deploy (docs/DEPLOYMENT_RUNBOOK.md); if absent, the API falls back to TRUSTED_PROXY_HOPS.
+      - key: CLIENT_IP_HEADER
+        value: cf-connecting-ip
+      - key: TRUSTED_PROXY_HOPS
+        value: "1"
       - key: DATABASE_URL        # SECRET: Neon connection string, typed into Render's dashboard
         sync: false
       - key: CORS_ORIGINS        # the web app's https:// origin(s)
@@ -30,6 +36,9 @@ services:
       # The owner's decision, so it is asked for at setup and the API will not start without it: "false" until
       # a DSE data licence is held (Data Vending Policy v1.2, cl. 4.5 and 23.1; docs/COMPLIANCE_NOTES.md).
       - key: DSE_PUBLIC_DISPLAY
+        sync: false
+      # SECRET, required: the same random value (32+ characters) as INTERNAL_PROXY_SECRET on the Vercel project.
+      - key: INTERNAL_PROXY_SECRET
         sync: false
       # Optional. SECRET: research copilot provider key; without it the copilot answers AI_UNAVAILABLE.
       - key: ANTHROPIC_API_KEY

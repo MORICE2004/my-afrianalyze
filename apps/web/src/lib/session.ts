@@ -1,7 +1,7 @@
 // Server-side only (imported by route handlers under src/app/api/). Holds the sign-in token in an httpOnly
 // cookie on the web app's own domain and forwards it to the API as a Bearer token. Browser JavaScript
 // never sees the token, and the browser never calls the API's signed-in endpoints directly.
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
 
 export const SESSION_COOKIE = "afriedge_session";
@@ -43,10 +43,26 @@ export async function clearSession(): Promise<void> {
 }
 
 // Calls the API and passes its status and body straight back, so the page sees the API's own messages.
+// The visitor's address, as the hosting platform reports it. Vercel sets x-real-ip and the right of
+// x-forwarded-for itself; a visitor cannot change those values on Vercel.
+async function visitorIp(): Promise<string | null> {
+  const h = await headers();
+  const xff = h.get("x-forwarded-for");
+  return h.get("x-real-ip") ?? (xff ? xff.split(",").pop()!.trim() : null);
+}
+
 export async function forward(path: string, init: RequestInit = {}, token?: string): Promise<NextResponse> {
   const headers = new Headers(init.headers);
   if (init.body) headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
+  // Requests reach the API from this server, so tell the API who the visitor is, with the shared secret that
+  // proves the header came from here (without it the API would rate-limit every visitor as one).
+  const secret = process.env.INTERNAL_PROXY_SECRET;
+  const ip = await visitorIp();
+  if (secret && ip) {
+    headers.set("x-afriedge-client-ip", ip);
+    headers.set("x-afriedge-proxy-key", secret);
+  }
   try {
     const res = await fetch(`${API}${path}`, { ...init, headers, cache: "no-store" });
     if (res.status === 204) return new NextResponse(null, { status: 204 });

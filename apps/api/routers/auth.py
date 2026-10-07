@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import re
 import secrets
+import threading
 from datetime import datetime, timedelta, timezone
 
 from argon2 import PasswordHasher
@@ -103,15 +104,36 @@ def signup(body: SignUp, session: Session = Depends(get_session)) -> dict:
     return _issue(session, user)
 
 
+# Failed sign-ins per email, in this process: stops password guessing against one account however many
+# addresses an attacker uses. Resets on restart (documented in docs/SECURITY_MODEL.md).
+MAX_FAILURES, FAILURE_WINDOW = 5, timedelta(minutes=15)
+_failures: dict[str, list[datetime]] = {}
+_failures_lock = threading.Lock()
+
+
+def _recent_failures(email: str) -> list[datetime]:
+    cutoff = _now() - FAILURE_WINDOW
+    with _failures_lock:
+        recent = [t for t in _failures.get(email, []) if t > cutoff]
+        _failures[email] = recent
+        return recent
+
+
 @router.post("/login")
 def login(body: Credentials, session: Session = Depends(get_session)) -> dict:
+    if len(_recent_failures(body.email)) >= MAX_FAILURES:
+        raise HTTPException(429, "Too many failed sign-ins for this account. Try again in 15 minutes.")
     user = session.query(User).filter_by(email=body.email).first()
     try:
         _hasher.verify(user.password_hash if user else _DUMMY_HASH, body.password)
     except (VerificationError, InvalidHashError):
         user = None
     if user is None:
+        with _failures_lock:
+            _failures.setdefault(body.email, []).append(_now())
         raise HTTPException(401, "Email or password is incorrect.")
+    with _failures_lock:
+        _failures.pop(body.email, None)
     if _hasher.check_needs_rehash(user.password_hash):
         user.password_hash = _hasher.hash(body.password)
         session.commit()

@@ -34,6 +34,16 @@ class Settings(BaseSettings):
     SENTRY_DSN: str = ""
     # Requests per minute per client for the expensive endpoints (report and PDF builds).
     EXPENSIVE_REQUESTS_PER_MINUTE: int = 30
+    # Where the real client address comes from, for the per-client limits. A client can write anything into the
+    # LEFT of X-Forwarded-For, so it is never read from there. CLIENT_IP_HEADER names a header the edge sets and
+    # overwrites (Render is fronted by Cloudflare: cf-connecting-ip); otherwise TRUSTED_PROXY_HOPS counts the
+    # proxies that append to X-Forwarded-For from the right. Neither set = the connecting socket (local use).
+    CLIENT_IP_HEADER: str = ""
+    TRUSTED_PROXY_HOPS: int = 0
+    # SECRET shared by the web app (Vercel) and the API. Sign-in and portfolio requests reach the API from the web
+    # server, so without this every user would share the web server's address and one rate-limit bucket. With it,
+    # the web server passes the visitor's address in x-afriedge-client-ip, which the API trusts only alongside this.
+    INTERNAL_PROXY_SECRET: str = ""
     # Whether DSE prices and index levels may be shown to visitors. The DSE Data Vending Policy v1.2 prohibits
     # redistributing market data taken from its website (cl. 23.1) and treats anyone giving end-of-day data to
     # end users as a licensed Distributor (cl. 4.5(ii)). This is the owner's decision, so PRODUCTION refuses to
@@ -71,6 +81,9 @@ class Settings(BaseSettings):
             problems.append("DSE_PUBLIC_DISPLAY must be set to true or false: showing DSE market data publicly "
                             "needs a DSE data licence (Data Vending Policy v1.2, cl. 4.5 and 23.1); "
                             "see docs/COMPLIANCE_NOTES.md")
+        if len(self.INTERNAL_PROXY_SECRET) < 32:
+            problems.append("INTERNAL_PROXY_SECRET (at least 32 random characters, the same value on the web app) is "
+                            "required: without it every signed-in request shares one rate-limit bucket")
         if self.POSTHOG_API_KEY and len(self.ANALYTICS_SALT) < 16:
             problems.append("ANALYTICS_SALT (at least 16 random characters) is required when POSTHOG_API_KEY is set")
         if problems:

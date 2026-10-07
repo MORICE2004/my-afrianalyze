@@ -18,7 +18,8 @@ from packages.database.models import DataSourceStatus, PriceBar, Security, Sourc
 from packages.database.session import get_session
 
 GOOD = {"APP_ENV": "PRODUCTION", "DATABASE_URL": "postgresql://u:p@db.example.net/afri",
-        "CORS_ORIGINS": "https://afriedge.example", "DSE_PUBLIC_DISPLAY": "false"}
+        "CORS_ORIGINS": "https://afriedge.example", "DSE_PUBLIC_DISPLAY": "false",
+        "INTERNAL_PROXY_SECRET": "x" * 32}
 
 
 # ------------------------------------------------------------------ settings
@@ -204,3 +205,33 @@ def test_with_display_off_no_dse_number_leaves_the_api(db, monkeypatch):
     tz = client.get("/api/v1/markets/overview").json()["markets"][0]["index"]
     assert tz["status"] == "BLOCKED" and "23.1" in tz["reason"]
     assert "2070" not in body and "2000" not in body
+
+
+
+# ------------------------------------------------------------------ client address for rate limits
+
+def _req(headers: dict, peer="10.0.0.5"):
+    from starlette.requests import Request
+    return Request({"type": "http", "headers": [(k.lower().encode(), v.encode()) for k, v in headers.items()],
+                    "client": (peer, 1234), "method": "GET", "path": "/"})
+
+
+def test_the_client_cannot_choose_its_own_address(monkeypatch):
+    monkeypatch.setattr(api.settings, "CLIENT_IP_HEADER", "")
+    monkeypatch.setattr(api.settings, "TRUSTED_PROXY_HOPS", 0)
+    monkeypatch.setattr(api.settings, "INTERNAL_PROXY_SECRET", "s" * 32)
+    spoof = {"X-Forwarded-For": "6.6.6.6"}
+    assert api.client_ip(_req(spoof)) == "10.0.0.5"                         # no proxy configured: the socket
+    monkeypatch.setattr(api.settings, "TRUSTED_PROXY_HOPS", 1)
+    assert api.client_ip(_req({"X-Forwarded-For": "6.6.6.6, 203.0.113.9"})) == "203.0.113.9"   # rightmost hop
+    monkeypatch.setattr(api.settings, "CLIENT_IP_HEADER", "cf-connecting-ip")
+    assert api.client_ip(_req({"CF-Connecting-IP": "198.51.100.7", **spoof})) == "198.51.100.7"
+    fwd = {"x-afriedge-client-ip": "192.0.2.44"}
+    assert api.client_ip(_req({**fwd, "CF-Connecting-IP": "198.51.100.7"})) == "198.51.100.7"      # no key: ignored
+    assert api.client_ip(_req({**fwd, "x-afriedge-proxy-key": "wrong", "CF-Connecting-IP": "198.51.100.7"})) == "198.51.100.7"
+    assert api.client_ip(_req({**fwd, "x-afriedge-proxy-key": "s" * 32})) == "192.0.2.44"    # our web server
+
+
+def test_production_requires_the_internal_proxy_secret():
+    with pytest.raises(ValueError, match="INTERNAL_PROXY_SECRET"):
+        Settings(**{**GOOD, "INTERNAL_PROXY_SECRET": "short"})
