@@ -13,7 +13,7 @@ const ROUTES: { path: string; name: string; expectText: RegExp }[] = [
   { path: "/dashboard", name: "dashboard", expectText: /Sign in to see your portfolios/i },
   { path: "/login", name: "login", expectText: /Sign in to AfriEdge/i },
   { path: "/health", name: "health", expectText: /dse_prices/i },
-  { path: "/research-chat", name: "research-chat", expectText: /not available|switched off|disabled/i },
+  { path: "/research-chat", name: "research-chat", expectText: /Every number in an answer is checked/i },
 ];
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
@@ -193,4 +193,31 @@ test("the technical tab shows computed indicators and says what it cannot comput
   await expect(t).toContainText("200-day average");
   await expect(t).toContainText("not stored yet");          // ATR, ADX, VWAP need data we do not hold
   await expect(t).toContainText("not trading signals");
+});
+
+test("the copilot asks for sign-in, then answers honestly without an AI provider", async ({ browser }) => {
+  test.skip(!!process.env.OFFLINE, "needs the API");
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+  await page.goto("/research-chat", { waitUntil: "networkidle" });
+  await page.getByLabel("Question").fill("Why is this company valued this way?");
+  await page.getByRole("button", { name: "Ask" }).click();
+  await expect(page.getByText("to ask the copilot")).toBeVisible();
+
+  const email = `e2e-copilot-${Date.now()}@afriedge.test`;
+  await page.goto("/login", { waitUntil: "networkidle" });
+  await page.getByRole("tab", { name: "Create account" }).click();
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill(`e2e-only-${Date.now()}`);
+  await page.getByRole("button", { name: "Create account" }).last().click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+
+  await page.goto("/research-chat", { waitUntil: "networkidle" });
+  await page.getByLabel("Question").fill("Why is this company valued this way?");
+  await page.getByRole("button", { name: "Ask" }).click();
+  // No provider key is configured in local testing: the page must say so, not invent an answer.
+  const reply = page.getByTestId("copilot-reply");
+  await expect(reply).toHaveAttribute("data-status", "AI_UNAVAILABLE");
+  await expect(reply).toContainText("research report itself is unaffected");
+  await ctx.close();
 });

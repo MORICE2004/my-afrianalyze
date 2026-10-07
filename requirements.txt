@@ -29,4 +29,5 @@ celery
 redis
 tenacity
 litellm
+anthropic==1.11.0        # research copilot (packages/copilot)
 argon2-cffi==25.1.0      # password hashing (Argon2id) for sign-in

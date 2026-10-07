@@ -283,6 +283,36 @@ def get_report_pdf(security_id: str, session: Session = Depends(get_session)) ->
                     headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
+# ------------------------------------------------------------------ research copilot
+
+class CopilotQuestion(BaseModel):
+    security_id: str = Field(max_length=32)
+    question: str = Field(min_length=3, max_length=1000)
+
+
+# Questions per user per day, in this process. Enough to stop one account running up the AI bill; it resets
+# on restart and is per instance (docs/COST_MODEL.md).
+_copilot_counts: dict[tuple[int, date], int] = {}
+_copilot_lock = threading.Lock()
+
+
+@app.post("/api/v1/copilot/ask")
+def copilot_ask(body: CopilotQuestion, user=Depends(auth_router.current_user),
+                session: Session = Depends(get_session)) -> dict:
+    from packages.copilot.assistant import ask
+    from packages.research.engine import to_wire
+
+    key = (user.id, datetime.now(timezone.utc).date())
+    with _copilot_lock:
+        if _copilot_counts.get(key, 0) >= settings.COPILOT_DAILY_QUESTIONS:
+            raise HTTPException(429, f"You have asked {settings.COPILOT_DAILY_QUESTIONS} questions today, the daily "
+                                     f"limit. The reports themselves remain available.")
+        _copilot_counts[key] = _copilot_counts.get(key, 0) + 1
+    # The same report a reader sees: the approved snapshot in production (403 if none), a live build otherwise.
+    report = get_report(body.security_id, session)
+    return ask(body.question.strip(), to_wire(report))
+
+
 # ------------------------------------------------------------------ research runs
 
 def _visible_runs(session: Session, security_id: str | None):

@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     # end users as a licensed Distributor (cl. 4.5(ii)). This is the owner's decision, so PRODUCTION refuses to
     # start until it is set explicitly. Unset outside production means "show" (local research use).
     DSE_PUBLIC_DISPLAY: bool | None = None
+    # Research copilot. The provider key itself is read by the Anthropic SDK from ANTHROPIC_API_KEY (a SECRET,
+    # set in the host's dashboard); without it the copilot answers AI_UNAVAILABLE and nothing else changes.
+    COPILOT_MODEL: str = "claude-opus-5-5"
+    COPILOT_DAILY_QUESTIONS: int = 20       # per signed-in user, per day: every question costs money
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

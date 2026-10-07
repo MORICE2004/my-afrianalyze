@@ -197,3 +197,31 @@ def test_unknown_or_uncovered_security():
     assert client.get("/api/v1/reports/DSE:NOPE").status_code == 404
     r = client.get("/api/v1/reports/NSE:SCOM")  # in the security master, no reports ingested
     assert r.status_code == 404 and "No research report" in r.json()["detail"]
+
+
+def test_the_copilot_needs_sign_in_has_a_daily_cap_and_degrades_to_ai_unavailable(monkeypatch):
+    from types import SimpleNamespace
+
+    import apps.api.main as api_main
+    from apps.api.routers.auth import current_user
+
+    q = {"security_id": "DSE:NMB", "question": "Why is ROE high?"}
+    assert client.post("/api/v1/copilot/ask", json=q).status_code == 401
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
+    app.dependency_overrides[current_user] = lambda: SimpleNamespace(id=987654, email="t@example.com")
+    monkeypatch.setattr(api_main.settings, "COPILOT_DAILY_QUESTIONS", 2)
+    api_main._copilot_counts.clear()
+    try:
+        first = client.post("/api/v1/copilot/ask", json=q)
+        second = client.post("/api/v1/copilot/ask", json=q)
+        third = client.post("/api/v1/copilot/ask", json=q)
+    finally:
+        app.dependency_overrides.pop(current_user, None)
+        api_main._copilot_counts.clear()
+    assert first.status_code == 200 and first.json()["status"] == "AI_UNAVAILABLE"
+    assert first.json()["security_id"] == "DSE:NMB"
+    assert second.status_code == 200 and third.status_code == 429
+    # The deterministic report is unaffected by the AI being unavailable.
+    assert client.get("/api/v1/reports/DSE:NMB").status_code == 200
