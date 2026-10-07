@@ -20,7 +20,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, text
 from sqlalchemy.orm import Session
 
-from packages.core.config import REPO_ROOT, AppEnvironment, settings
+from packages.core.config import (DSE_ATTRIBUTION, DSE_DISPLAY_BLOCKED, REPO_ROOT, AppEnvironment,
+                                  dse_display_allowed, settings)
 from packages.database.models import DataSourceStatus, MacroObservation, PriceBar, Security, SourceDocument
 from packages.database.session import get_session
 from apps.api.routers import auth as auth_router
@@ -298,14 +299,16 @@ def markets_overview(session: Session = Depends(get_session)) -> dict:
     out = []
     for code, m in MARKETS.items():
         bars = (session.query(PriceBar).filter_by(instrument_id=m["index"])
-                .order_by(PriceBar.trade_date.desc()).limit(2).all())
+                .order_by(PriceBar.trade_date.desc()).limit(2).all()) if dse_display_allowed() else []
         if len(bars) == 2:
             last, prev = bars
             index = {"available": True, "id": m["index"], "value": last.close,
-                     "trade_date": last.trade_date.isoformat(),
+                     "trade_date": last.trade_date.isoformat(), "attribution": DSE_ATTRIBUTION,
                      "change": (last.close - prev.close) / prev.close}
         else:
-            if m["exchange"] == "DSE":
+            if m["exchange"] == "DSE" and not dse_display_allowed():
+                reason, idx_status = DSE_DISPLAY_BLOCKED, "BLOCKED"
+            elif m["exchange"] == "DSE":
                 reason = "No index data loaded" + (f" ({status.detail})" if status else "")
                 idx_status = "INSUFFICIENT_DATA"
             else:

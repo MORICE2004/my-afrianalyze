@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     SENTRY_DSN: str = ""
     # Requests per minute per client for the expensive endpoints (report and PDF builds).
     EXPENSIVE_REQUESTS_PER_MINUTE: int = 30
+    # Whether DSE prices and index levels may be shown to visitors. The DSE Data Vending Policy v1.2 prohibits
+    # redistributing market data taken from its website (cl. 23.1) and treats anyone giving end-of-day data to
+    # end users as a licensed Distributor (cl. 4.5(ii)). This is the owner's decision, so PRODUCTION refuses to
+    # start until it is set explicitly. Unset outside production means "show" (local research use).
+    DSE_PUBLIC_DISPLAY: bool | None = None
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
@@ -52,6 +57,10 @@ class Settings(BaseSettings):
             problems.append("DATABASE_URL must be a PostgreSQL URL (SQLite is for local development only)")
         if any(h in self.CORS_ORIGINS for h in ("localhost", "127.0.0.1")) or "*" in self.CORS_ORIGINS:
             problems.append("CORS_ORIGINS must list the web app's real domain, not localhost or *")
+        if self.DSE_PUBLIC_DISPLAY is None:
+            problems.append("DSE_PUBLIC_DISPLAY must be set to true or false: showing DSE market data publicly "
+                            "needs a DSE data licence (Data Vending Policy v1.2, cl. 4.5 and 23.1); "
+                            "see docs/COMPLIANCE_NOTES.md")
         if problems:
             raise ValueError("Refusing to start in PRODUCTION: " + "; ".join(problems))
         return self
@@ -66,3 +75,16 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+DSE_ATTRIBUTION = ("End-of-day data published by the Dar es Salaam Stock Exchange. Not live and not real-time; "
+                   "shown with the date it applies to.")
+DSE_DISPLAY_BLOCKED = ("DSE market data is not shown: displaying it publicly needs a data licence from the "
+                       "Dar es Salaam Stock Exchange (Data Vending Policy v1.2, clauses 4.5 and 23.1), and none "
+                       "is held yet.")
+
+
+def dse_display_allowed() -> bool:
+    """False only when the owner has set DSE_PUBLIC_DISPLAY=false. Read at call time so tests can change it."""
+    return settings.DSE_PUBLIC_DISPLAY is not False
+

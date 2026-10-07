@@ -29,7 +29,7 @@ from packages.analysis.cost_of_equity import cost_of_equity, cost_of_equity_grid
 from packages.analysis.line_items import analyse_series
 from packages.analysis.notes import line_note
 from packages.analysis.recommendation import confidence, recommend
-from packages.core.config import settings
+from packages.core.config import DSE_ATTRIBUTION, DSE_DISPLAY_BLOCKED, dse_display_allowed, settings
 from packages.database.models import (
     DataSourceStatus,
     ExtractionConflict,
@@ -210,13 +210,18 @@ def build_report(session: Session, security_id: str) -> dict | None:
         ratio_rows.append({"code": code, "label": label, "values": values})
 
     # ------------------------------------------------------------ price
+    # Exchange data is only used when the owner allows it to be shown (DSE Data Vending Policy, see config).
+    dse_shown = dse_display_allowed()
     price_bars = (session.query(PriceBar).filter_by(instrument_id=security_id)
-                  .order_by(PriceBar.trade_date).all())
+                  .order_by(PriceBar.trade_date).all()) if dse_shown else []
     if price_bars:
         last = price_bars[-1]
         pdoc = session.get(SourceDocument, last.source_document_id)
         price = {"available": True, "value": last.close, "trade_date": last.trade_date.isoformat(),
-                 "currency": sec.currency, "source": _doc_ref(pdoc, None)}
+                 "currency": sec.currency, "source": _doc_ref(pdoc, None), "attribution": DSE_ATTRIBUTION}
+    elif not dse_shown:
+        price = Unavailable(DSE_DISPLAY_BLOCKED, BLOCKED).to_dict()
+        gaps.append("Share price and everything calculated from it: " + DSE_DISPLAY_BLOCKED)
     else:
         status = session.get(DataSourceStatus, "dse_prices")
         price = Unavailable("No DSE price data loaded. " + (status.detail if status else ""),
@@ -252,7 +257,8 @@ def build_report(session: Session, security_id: str) -> dict | None:
         ref_value("EM_BANK_INDUSTRY_DE_RATIO"), ref_value("EM_BANK_INDUSTRY_TAX_RATE"),
         target_de, ref_value("TZ_CORPORATE_TAX_RATE"))
     index_id = "DSE:DSEI"
-    index_bars = session.query(PriceBar).filter_by(instrument_id=index_id).order_by(PriceBar.trade_date).all()
+    index_bars = (session.query(PriceBar).filter_by(instrument_id=index_id)
+                  .order_by(PriceBar.trade_date).all()) if dse_shown else []
     if price_bars and index_bars:
         stock = corporate_actions.adjust_prices({b.trade_date: b.close for b in price_bars}, splits)
         index = {b.trade_date: b.close for b in index_bars}

@@ -1,52 +1,240 @@
 {
-  "_note": "Every source AfriEdge covers or plans to cover. Static facts (licensing, whether a loader exists) live here and are reviewed by hand; live facts (last success, last failure) come from the data_source_status table that each loader writes. 'probe' is the last run of pipelines.probe_sources. A source with parser_state NOT_BUILT can never show a last success. Licensing words: LICENSE_REVIEW_REQUIRED (terms restrict use or are unread), PUBLIC_WITH_ATTRIBUTION, PUBLIC_STATISTICS (government open data), API_TERMS (free API with its own terms). Evidence: docs/DATA_SOURCE_MATRIX.md, docs/COMPLIANCE_NOTES.md.",
-  "sources": [
-    {"id": "dse", "name": "Dar es Salaam Stock Exchange", "country": "TZ", "datasets": "Daily prices and volume (NMB, CRDB); DSEI index",
-     "status_keys": ["dse_prices", "dse_index"], "coverage": "V1", "parser_state": "IMPLEMENTED",
-     "licensing": "LICENSE_REVIEW_REQUIRED", "licensing_note": "Data Vending Policy restricts redistribution; owner accepted the risk for use on 2026-09-19; public display undecided",
-     "probe": {"result": "WORKING", "checked_at": "2026-09-25"}},
-    {"id": "bank_reports", "name": "Issuer annual reports (NMB, CRDB investor relations)", "country": "TZ", "datasets": "Audited annual reports FY2021-FY2025",
-     "status_keys": ["nmb_annual_reports", "crdb_annual_reports"], "coverage": "V1", "parser_state": "IMPLEMENTED",
-     "licensing": "PUBLIC_WITH_ATTRIBUTION", "licensing_note": "Published by the issuers; republishing our stored copies is an open question",
-     "probe": null},
-    {"id": "bot", "name": "Bank of Tanzania", "country": "TZ", "datasets": "Treasury bond yields; Central Bank Rate",
-     "status_keys": ["bot_tbonds", "bot_cbr"], "coverage": "V1", "parser_state": "IMPLEMENTED",
-     "licensing": "PUBLIC_STATISTICS", "licensing_note": "", "probe": {"result": "REACHABLE", "checked_at": "2026-09-25"}},
-    {"id": "nbs", "name": "National Bureau of Statistics (Tanzania)", "country": "TZ", "datasets": "Headline CPI inflation",
-     "status_keys": ["nbs_cpi"], "coverage": "V1", "parser_state": "IMPLEMENTED",
-     "licensing": "PUBLIC_STATISTICS", "licensing_note": "", "probe": {"result": "REACHABLE", "checked_at": "2026-09-25"}},
-    {"id": "damodaran", "name": "Damodaran Online (NYU Stern)", "country": "GLOBAL", "datasets": "Country risk premium; emerging-market bank industry beta",
-     "status_keys": ["damodaran_crp", "damodaran_industry_beta"], "coverage": "V1", "parser_state": "IMPLEMENTED",
-     "licensing": "PUBLIC_WITH_ATTRIBUTION", "licensing_note": "", "probe": null},
-    {"id": "world_bank", "name": "World Bank API", "country": "GLOBAL", "datasets": "Macro indicators",
-     "status_keys": [], "coverage": "COMING", "parser_state": "NOT_BUILT",
-     "licensing": "API_TERMS", "licensing_note": "CC BY 4.0 for most indicators", "probe": {"result": "WORKING", "checked_at": "2026-09-25"}},
-    {"id": "imf", "name": "IMF DataMapper API", "country": "GLOBAL", "datasets": "Macro indicators and forecasts",
-     "status_keys": [], "coverage": "COMING", "parser_state": "NOT_BUILT",
-     "licensing": "API_TERMS", "licensing_note": "", "probe": {"result": "WORKING", "checked_at": "2026-09-25"}},
-    {"id": "ecb", "name": "ECB Data API", "country": "GLOBAL", "datasets": "Reference exchange rates",
-     "status_keys": [], "coverage": "COMING", "parser_state": "NOT_BUILT",
-     "licensing": "API_TERMS", "licensing_note": "", "probe": {"result": "WORKING", "checked_at": "2026-09-25"}},
-    {"id": "un_comtrade", "name": "UN Comtrade (public preview)", "country": "GLOBAL", "datasets": "Trade flows",
-     "status_keys": [], "coverage": "COMING", "parser_state": "NOT_BUILT",
-     "licensing": "API_TERMS", "licensing_note": "Preview endpoint is rate-limited; full API needs a key", "probe": {"result": "WORKING", "checked_at": "2026-09-25"}},
-    {"id": "nse", "name": "Nairobi Securities Exchange", "country": "KE", "datasets": "Prices, index (planned)",
-     "status_keys": [], "coverage": "COMING", "parser_state": "NOT_BUILT",
-     "licensing": "LICENSE_REVIEW_REQUIRED", "licensing_note": "Terms not yet read", "probe": {"result": "REACHABLE", "checked_at": "2026-09-25"}},
-    {"id": "cbk", "name": "Central Bank of Kenya", "country": "KE", "datasets": "T-bills, bonds, policy rate (planned)",
-     "status_keys": [], "coverage": "COMING", "parser_state": "NOT_BUILT",
-     "licensing": "LICENSE_REVIEW_REQUIRED", "licensing_note": "Terms not yet read", "probe": {"result": "REACHABLE", "checked_at": "2026-09-25"}},
-    {"id": "knbs", "name": "Kenya National Bureau of Statistics", "country": "KE", "datasets": "CPI (planned)",
-     "status_keys": [], "coverage": "COMING", "parser_state": "NOT_BUILT",
-     "licensing": "LICENSE_REVIEW_REQUIRED", "licensing_note": "Terms not yet read", "probe": {"result": "UNAVAILABLE", "checked_at": "2026-09-25", "detail": "TLS certificate fails verification; not bypassed"}},
-    {"id": "use", "name": "Uganda Securities Exchange", "country": "UG", "datasets": "Prices, index (planned)",
-     "status_keys": [], "coverage": "COMING", "parser_state": "NOT_BUILT",
-     "licensing": "LICENSE_REVIEW_REQUIRED", "licensing_note": "Terms not yet read", "probe": {"result": "REACHABLE", "checked_at": "2026-09-25"}},
-    {"id": "bou", "name": "Bank of Uganda", "country": "UG", "datasets": "T-bills, bonds, policy rate (planned)",
-     "status_keys": [], "coverage": "COMING", "parser_state": "NOT_BUILT",
-     "licensing": "LICENSE_REVIEW_REQUIRED", "licensing_note": "Terms not yet read", "probe": {"result": "REACHABLE", "checked_at": "2026-09-25"}},
-    {"id": "ubos", "name": "Uganda Bureau of Statistics", "country": "UG", "datasets": "CPI (planned)",
-     "status_keys": [], "coverage": "COMING", "parser_state": "NOT_BUILT",
-     "licensing": "LICENSE_REVIEW_REQUIRED", "licensing_note": "Terms not yet read", "probe": {"result": "UNAVAILABLE", "checked_at": "2026-09-25", "detail": "TLS certificate fails verification; not bypassed"}}
-  ]
+ "_note": "Every source AfriEdge covers or plans to cover. Static facts (licensing, whether a loader exists) live here and are reviewed by hand; live facts (last success, last failure) come from the data_source_status table that each loader writes. 'probe' is the last run of pipelines.probe_sources. A source with parser_state NOT_BUILT can never show a last success. Licensing words (owner's directive of 2026-10-07): PUBLIC (terms read and reuse allowed), LICENSE_REQUIRED, LICENSE_REVIEW_REQUIRED (terms not yet read or unclear), RESTRICTED (terms prohibit the use without a licence). Evidence: docs/DATA_SOURCE_MATRIX.md, docs/COMPLIANCE_NOTES.md.",
+ "sources": [
+  {
+   "id": "dse",
+   "name": "Dar es Salaam Stock Exchange",
+   "country": "TZ",
+   "datasets": "Daily prices and volume (NMB, CRDB); DSEI index",
+   "status_keys": [
+    "dse_prices",
+    "dse_index"
+   ],
+   "coverage": "V1",
+   "parser_state": "IMPLEMENTED",
+   "licensing": "RESTRICTED",
+   "licensing_note": "DSE Data Vending Policy v1.2 (checked 2026-10-07): cl. 23.1 prohibits reproducing or redistributing market data from the DSE website without written licensing authorization; cl. 4.5(ii) makes anyone providing end-of-day data to end users a Distributor needing a data agreement and fees. Path: LICENSE_REQUIRED (EOD distributor agreement, data@dse.co.tz). Used internally by the owner's decision of 2026-09-19; public display controlled by DSE_PUBLIC_DISPLAY",
+   "probe": {
+    "result": "WORKING",
+    "checked_at": "2026-09-25"
+   }
+  },
+  {
+   "id": "bank_reports",
+   "name": "Issuer annual reports (NMB, CRDB investor relations)",
+   "country": "TZ",
+   "datasets": "Audited annual reports FY2021-FY2025",
+   "status_keys": [
+    "nmb_annual_reports",
+    "crdb_annual_reports"
+   ],
+   "coverage": "V1",
+   "parser_state": "IMPLEMENTED",
+   "licensing": "PUBLIC",
+   "licensing_note": "Published by the issuers for investors; figures are extracted with page citations. Republishing our stored PDF copies is a separate open question (LICENSE_REVIEW_REQUIRED)",
+   "probe": null
+  },
+  {
+   "id": "bot",
+   "name": "Bank of Tanzania",
+   "country": "TZ",
+   "datasets": "Treasury bond yields; Central Bank Rate",
+   "status_keys": [
+    "bot_tbonds",
+    "bot_cbr"
+   ],
+   "coverage": "V1",
+   "parser_state": "IMPLEMENTED",
+   "licensing": "PUBLIC",
+   "licensing_note": "Official statistics published on bot.go.tz",
+   "probe": {
+    "result": "REACHABLE",
+    "checked_at": "2026-09-25"
+   }
+  },
+  {
+   "id": "nbs",
+   "name": "National Bureau of Statistics (Tanzania)",
+   "country": "TZ",
+   "datasets": "Headline CPI inflation",
+   "status_keys": [
+    "nbs_cpi"
+   ],
+   "coverage": "V1",
+   "parser_state": "IMPLEMENTED",
+   "licensing": "PUBLIC",
+   "licensing_note": "Official statistics published on nbs.go.tz",
+   "probe": {
+    "result": "REACHABLE",
+    "checked_at": "2026-09-25"
+   }
+  },
+  {
+   "id": "damodaran",
+   "name": "Damodaran Online (NYU Stern)",
+   "country": "GLOBAL",
+   "datasets": "Country risk premium; emerging-market bank industry beta",
+   "status_keys": [
+    "damodaran_crp",
+    "damodaran_industry_beta"
+   ],
+   "coverage": "V1",
+   "parser_state": "IMPLEMENTED",
+   "licensing": "PUBLIC",
+   "licensing_note": "Published free for use with attribution (pages.stern.nyu.edu/~adamodar)",
+   "probe": null
+  },
+  {
+   "id": "world_bank",
+   "name": "World Bank API",
+   "country": "GLOBAL",
+   "datasets": "Macro indicators",
+   "status_keys": [],
+   "coverage": "COMING",
+   "parser_state": "NOT_BUILT",
+   "licensing": "LICENSE_REVIEW_REQUIRED",
+   "licensing_note": "API reachable; its terms of use have not been read yet; World Bank indicators are mostly CC BY 4.0",
+   "probe": {
+    "result": "WORKING",
+    "checked_at": "2026-09-25"
+   }
+  },
+  {
+   "id": "imf",
+   "name": "IMF DataMapper API",
+   "country": "GLOBAL",
+   "datasets": "Macro indicators and forecasts",
+   "status_keys": [],
+   "coverage": "COMING",
+   "parser_state": "NOT_BUILT",
+   "licensing": "LICENSE_REVIEW_REQUIRED",
+   "licensing_note": "API reachable; its terms of use have not been read yet",
+   "probe": {
+    "result": "WORKING",
+    "checked_at": "2026-09-25"
+   }
+  },
+  {
+   "id": "ecb",
+   "name": "ECB Data API",
+   "country": "GLOBAL",
+   "datasets": "Reference exchange rates",
+   "status_keys": [],
+   "coverage": "COMING",
+   "parser_state": "NOT_BUILT",
+   "licensing": "LICENSE_REVIEW_REQUIRED",
+   "licensing_note": "API reachable; its terms of use have not been read yet",
+   "probe": {
+    "result": "WORKING",
+    "checked_at": "2026-09-25"
+   }
+  },
+  {
+   "id": "un_comtrade",
+   "name": "UN Comtrade (public preview)",
+   "country": "GLOBAL",
+   "datasets": "Trade flows",
+   "status_keys": [],
+   "coverage": "COMING",
+   "parser_state": "NOT_BUILT",
+   "licensing": "LICENSE_REVIEW_REQUIRED",
+   "licensing_note": "API reachable; its terms of use have not been read yet",
+   "probe": {
+    "result": "WORKING",
+    "checked_at": "2026-09-25"
+   }
+  },
+  {
+   "id": "nse",
+   "name": "Nairobi Securities Exchange",
+   "country": "KE",
+   "datasets": "Prices, index (planned)",
+   "status_keys": [],
+   "coverage": "COMING",
+   "parser_state": "NOT_BUILT",
+   "licensing": "LICENSE_REVIEW_REQUIRED",
+   "licensing_note": "Terms not yet read",
+   "probe": {
+    "result": "REACHABLE",
+    "checked_at": "2026-09-25"
+   }
+  },
+  {
+   "id": "cbk",
+   "name": "Central Bank of Kenya",
+   "country": "KE",
+   "datasets": "T-bills, bonds, policy rate (planned)",
+   "status_keys": [],
+   "coverage": "COMING",
+   "parser_state": "NOT_BUILT",
+   "licensing": "LICENSE_REVIEW_REQUIRED",
+   "licensing_note": "Terms not yet read",
+   "probe": {
+    "result": "REACHABLE",
+    "checked_at": "2026-09-25"
+   }
+  },
+  {
+   "id": "knbs",
+   "name": "Kenya National Bureau of Statistics",
+   "country": "KE",
+   "datasets": "CPI (planned)",
+   "status_keys": [],
+   "coverage": "COMING",
+   "parser_state": "NOT_BUILT",
+   "licensing": "LICENSE_REVIEW_REQUIRED",
+   "licensing_note": "Terms not yet read",
+   "probe": {
+    "result": "UNAVAILABLE",
+    "checked_at": "2026-09-25",
+    "detail": "TLS certificate fails verification; not bypassed"
+   }
+  },
+  {
+   "id": "use",
+   "name": "Uganda Securities Exchange",
+   "country": "UG",
+   "datasets": "Prices, index (planned)",
+   "status_keys": [],
+   "coverage": "COMING",
+   "parser_state": "NOT_BUILT",
+   "licensing": "LICENSE_REVIEW_REQUIRED",
+   "licensing_note": "Terms not yet read",
+   "probe": {
+    "result": "REACHABLE",
+    "checked_at": "2026-09-25"
+   }
+  },
+  {
+   "id": "bou",
+   "name": "Bank of Uganda",
+   "country": "UG",
+   "datasets": "T-bills, bonds, policy rate (planned)",
+   "status_keys": [],
+   "coverage": "COMING",
+   "parser_state": "NOT_BUILT",
+   "licensing": "LICENSE_REVIEW_REQUIRED",
+   "licensing_note": "Terms not yet read",
+   "probe": {
+    "result": "REACHABLE",
+    "checked_at": "2026-09-25"
+   }
+  },
+  {
+   "id": "ubos",
+   "name": "Uganda Bureau of Statistics",
+   "country": "UG",
+   "datasets": "CPI (planned)",
+   "status_keys": [],
+   "coverage": "COMING",
+   "parser_state": "NOT_BUILT",
+   "licensing": "LICENSE_REVIEW_REQUIRED",
+   "licensing_note": "Terms not yet read",
+   "probe": {
+    "result": "UNAVAILABLE",
+    "checked_at": "2026-09-25",
+    "detail": "TLS certificate fails verification; not bypassed"
+   }
+  }
+ ]
 }

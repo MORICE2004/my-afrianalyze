@@ -219,7 +219,7 @@ export interface Report {
   capital_basis: "bank" | "consolidated" | null;
   security: Security;
   header: {
-    price: Maybe<{ value: number; trade_date: string; currency: string; source: DocRef }>;
+    price: Maybe<{ value: number; trade_date: string; currency: string; source: DocRef; attribution?: string }>;
     recommendation: Maybe<{
       model_view: "Undervalued" | "Fairly valued" | "Overvalued";
       // Only present when the SHOW_TRADE_LABELS setting is on (section 71).

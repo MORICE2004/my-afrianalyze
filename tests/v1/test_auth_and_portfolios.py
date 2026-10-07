@@ -201,3 +201,14 @@ def test_malformed_quantities_are_refused(client, quantity):
     r = client.post("/api/v1/portfolios", json={"name": "x", "holdings": [
         {"security_id": "DSE:TEST", "quantity": quantity}]}, headers=a)
     assert r.status_code == 422
+
+
+def test_with_dse_display_off_holdings_are_blocked_not_valued(client, monkeypatch):
+    from packages.core import config
+
+    a = _signup(client, "a@example.com")
+    monkeypatch.setattr(config.settings, "DSE_PUBLIC_DISPLAY", False)
+    p = _portfolio(client, a)
+    h = p["holdings"][0]
+    assert h["price"]["status"] == "BLOCKED" and "Data Vending Policy" in h["price"]["reason"]
+    assert "market_value" not in h and p["totals"]["market_value"] is None

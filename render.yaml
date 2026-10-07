@@ -27,3 +27,7 @@ services:
         sync: false
       - key: SENTRY_DSN          # optional; empty keeps error reporting off
         sync: false
+      # The owner's decision, so it is asked for at setup and the API will not start without it: "false" until
+      # a DSE data licence is held (Data Vending Policy v1.2, cl. 4.5 and 23.1; docs/COMPLIANCE_NOTES.md).
+      - key: DSE_PUBLIC_DISPLAY
+        sync: false

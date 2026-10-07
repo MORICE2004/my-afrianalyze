@@ -14,11 +14,11 @@ from sqlalchemy.orm import sessionmaker
 import apps.api.main as api
 from packages.core.config import Settings
 from packages.database.base import Base
-from packages.database.models import DataSourceStatus, Security
+from packages.database.models import DataSourceStatus, PriceBar, Security, SourceDocument
 from packages.database.session import get_session
 
 GOOD = {"APP_ENV": "PRODUCTION", "DATABASE_URL": "postgresql://u:p@db.example.net/afri",
-        "CORS_ORIGINS": "https://afriedge.example"}
+        "CORS_ORIGINS": "https://afriedge.example", "DSE_PUBLIC_DISPLAY": "false"}
 
 
 # ------------------------------------------------------------------ settings
@@ -171,3 +171,36 @@ def test_money_round_trips_exactly_on_postgres():
         got = conn.execute(select(_Money.value)).scalar_one()
     _B.metadata.drop_all(engine)
     assert isinstance(got, Decimal) and got == exact
+
+
+# ------------------------------------------------------------------ DSE data licence
+
+def test_production_will_not_start_until_the_dse_display_decision_is_made():
+    with pytest.raises(ValueError, match="DSE_PUBLIC_DISPLAY"):
+        Settings(**{k: v for k, v in GOOD.items() if k != "DSE_PUBLIC_DISPLAY"})
+
+
+def test_with_display_off_no_dse_number_leaves_the_api(db, monkeypatch):
+    """DSE Data Vending Policy cl. 23.1: no reproduction of website market data without a licence."""
+    from packages.core import config
+
+    _seed_security(db)
+    with db() as s:
+        doc = SourceDocument(kind="public_price_file", title="t", publisher="DSE", url="https://dse.co.tz",
+                             retrieved_at=datetime.now(timezone.utc))
+        s.add(doc)
+        s.flush()
+        for iid in ("DSE:TEST", "DSE:DSEI"):
+            for day, close in ((date(2026, 10, 5), "2000.00"), (date(2026, 10, 6), "2070.00")):
+                s.add(PriceBar(instrument_id=iid, trade_date=day, close=Decimal(close), volume=Decimal("1"),
+                               source_document_id=doc.id))
+        s.commit()
+    client = TestClient(api.app)
+    shown = client.get("/api/v1/markets/overview").json()["markets"][0]["index"]
+    assert shown["available"] and "Dar es Salaam Stock Exchange" in shown["attribution"]
+
+    monkeypatch.setattr(config.settings, "DSE_PUBLIC_DISPLAY", False)
+    body = client.get("/api/v1/markets/overview").text
+    tz = client.get("/api/v1/markets/overview").json()["markets"][0]["index"]
+    assert tz["status"] == "BLOCKED" and "23.1" in tz["reason"]
+    assert "2070" not in body and "2000" not in body

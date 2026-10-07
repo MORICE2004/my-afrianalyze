@@ -12,7 +12,7 @@ import { fmtDate, fmtPct, fmtPerShare } from "@/lib/format";
 // component only formats; it never does financial arithmetic of its own.
 
 type Price =
-  | { available: true; value: string; date: string; status: DataStatus; source_document_id: number }
+  | { available: true; value: string; date: string; status: DataStatus; source_document_id: number; attribution?: string }
   | { available: false; status: DataStatus; reason: string };
 
 interface Holding {
@@ -176,6 +176,10 @@ function PortfolioCard({ p, onDelete }: { p: Portfolio; onDelete: () => void }) 
         {(t.status === "PARTIAL" || t.status === "NO_DATA") && <p>{TOTAL_WORD[t.status]}</p>}
         {t.stale_prices.length > 0 && <p>Stale prices: {t.stale_prices.join(", ")}. The last stored close is older than its freshness limit.</p>}
         <p>{t.note}</p>
+        {(() => {
+          const a = p.holdings.find((h) => h.price.available && h.price.attribution);
+          return a && a.price.available ? <p>{a.price.attribution}</p> : null;
+        })()}
       </footer>
     </section>
   );

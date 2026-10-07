@@ -43,7 +43,10 @@ export function ReportView({ report }: { report: Report }) {
           {header.price.available ? (
             <>
               <div className="text-3xl font-mono">{sec.currency} {fmtPerShare(header.price.value)}</div>
-              <div className="text-xs text-neutral-500">Last trade {header.price.trade_date}</div>
+              <div className="text-xs text-neutral-500">Close on {header.price.trade_date} (end of day, not live)</div>
+              {header.price.attribution && (
+                <div className="text-xs text-neutral-500 mt-1 max-w-xs" data-testid="price-attribution">{header.price.attribution}</div>
+              )}
             </>
           ) : (
             <div className="max-w-sm">

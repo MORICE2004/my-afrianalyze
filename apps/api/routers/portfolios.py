@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from apps.api.routers.auth import current_user
 from packages.database.models import DataSourceStatus, PortfolioHolding, PriceBar, SavedPortfolio, Security, User
+from packages.core.config import DSE_ATTRIBUTION, DSE_DISPLAY_BLOCKED, dse_display_allowed
 from packages.database.session import get_session
 
 MAX_PORTFOLIOS = 20
@@ -90,11 +91,13 @@ def _view(session: Session, p: SavedPortfolio) -> dict:
     for h in sorted(p.holdings, key=lambda x: x.asset_id):
         sec = session.get(Security, h.asset_id)
         bar = (session.query(PriceBar).filter_by(instrument_id=h.asset_id)
-               .order_by(PriceBar.trade_date.desc()).first())
+               .order_by(PriceBar.trade_date.desc()).first()) if dse_display_allowed() else None
         row = {"security_id": h.asset_id, "name": sec.name if sec else h.asset_id,
                "quantity": h.quantity, "cost_per_share": h.cost_basis,
                "purchase_date": h.purchase_date.date().isoformat() if h.purchase_date else None}
-        if bar is None:
+        if bar is None and not dse_display_allowed():
+            row["price"] = {"available": False, "status": "BLOCKED", "reason": DSE_DISPLAY_BLOCKED}
+        elif bar is None:
             row["price"] = {"available": False, "status": "INSUFFICIENT_DATA",
                             "reason": "No stored price for this security."}
         else:
@@ -102,7 +105,7 @@ def _view(session: Session, p: SavedPortfolio) -> dict:
             value = h.quantity * bar.close
             priced_total += value
             row["price"] = {"available": True, "value": bar.close, "date": bar.trade_date.isoformat(),
-                            "source_document_id": bar.source_document_id,
+                            "source_document_id": bar.source_document_id, "attribution": DSE_ATTRIBUTION,
                             "status": "STALE" if stale else "VERIFIED"}
             row["market_value"] = value
             if h.cost_basis is not None:

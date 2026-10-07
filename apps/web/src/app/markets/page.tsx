@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 type Overview = {
   markets: {
     market: string; name: string; exchange: string; currency: string; securities_in_master: number;
-    index: { available: boolean; id: string; value?: number; trade_date?: string; change?: number; reason?: string };
+    index: { available: boolean; id: string; value?: number; trade_date?: string; change?: number; reason?: string; attribution?: string };
   }[];
   commentary: { available: boolean; reason: string };
   movers: { available: boolean; reason: string };
@@ -39,6 +39,7 @@ export default async function MarketsPage() {
                   <div className="font-mono">
                     <div className="text-2xl">{m.index.value.toLocaleString()}</div>
                     <div className="text-sm">{fmtSignedPct(m.index.change ?? 0, 2)} · {m.index.trade_date}</div>
+                    {m.index.attribution && <div className="mt-1 text-xs text-neutral-500">{m.index.attribution}</div>}
                   </div>
                 ) : (
                   <NotAvailable reason={m.index.reason ?? ""} />

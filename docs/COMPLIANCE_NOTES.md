@@ -17,6 +17,35 @@ Last updated: 2026-09-20.
 The questions below remain open. A written confirmation from the CMSA, or a lawyer's opinion, would document the
 licensing position if it is ever questioned.
 
+## DSE market data: what the DSE's own policy says (read 2026-10-07)
+
+Source: *DSE Data Vending Policy*, English, version 1.2,
+<https://dse.co.tz/storage/extras/Data%20Vending%20Policy%20EN%201.2-1.pdf>. Quoted, not interpreted:
+
+- **Cl. 23.1:** market data content from the website "may be printed for personal use but should not be used
+  for commercial purposes without first obtaining the necessary written and licensing authorization from the
+  DSE. The reproduction, redistribution, alteration and transmission of any Market Data contained in the
+  website are strictly prohibited."
+- **Cl. 4.5(ii):** a person who provides the DSE's end-of-day market statistics to end users after the close
+  "will be treated as a Distributor of End of Day market Statistics and must enter into the required data
+  agreement with the DSE and pay the relevant data fees".
+- **Derived data** ("New Original Works": values calculated from DSE data that cannot be reverse-engineered to
+  it) is a licensed use category, with an attribution next to the derived data (cl. 21).
+- **Cl. 16.3.3:** purchased historical data may not be redistributed without the DSE's written permission.
+- **Cl. 17:** students and educational institutions may request data at an agreed rate (data@dse.co.tz).
+
+**Classification:** for showing DSE prices or index levels on a public website, `RESTRICTED` today, with
+`LICENSE_REQUIRED` (an end-of-day distributor agreement) as the way to make it allowed. Internal use for the
+owner's own research follows the owner's decision of 2026-09-19.
+
+**What the code does:** the API will not start in PRODUCTION until `DSE_PUBLIC_DISPLAY` is set to `true` or
+`false`. With `false`, no DSE price or index level leaves the API: the report shows the share price and
+everything calculated from it as `BLOCKED` with the clause as the reason, portfolio holdings are not valued,
+and the markets page shows the DSE index as `BLOCKED` (tested: `test_with_display_off_no_dse_number_leaves_the_api`,
+`test_with_dse_display_off_holdings_are_blocked_not_valued`). With `true`, every price carries the attribution
+"End-of-day data published by the Dar es Salaam Stock Exchange. Not live and not real-time". The site never
+claims live data. Setting `true` before a licence is held is the owner's accepted risk, not a cleared use.
+
 ## What the product does today (facts for the reviewer)
 
 - It publishes research reports on listed Tanzanian companies (first: NMB Bank Plc). The reports contain

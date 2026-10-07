@@ -16,6 +16,17 @@ const ROUTES: { path: string; name: string; expectText: RegExp }[] = [
   { path: "/research-chat", name: "research-chat", expectText: /not available|switched off|disabled/i },
 ];
 
+const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
+
+async function nmbClose(): Promise<number> {
+  const r = await fetch(`${API}/api/v1/reports/DSE:NMB`);
+  return Number((await r.json()).header.price.value);
+}
+
+function money(n: number): string {
+  return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 function watchErrors(page: Page): string[] {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
@@ -53,7 +64,10 @@ test("report shows the review state, statuses, a model view and the disclaimer",
   await expect(page.getByTestId("review-banner")).toContainText("Draft, not reviewed");
   await expect(page.getByTestId("data-as-of")).toContainText("31 Dec 2025");
   await expect(page.getByTestId("model-view")).toContainText("Model view");
-  await expect(page.getByTestId("price")).toContainText("TZS 2,070.00");   // the DSE's last trade
+  // The DSE's last stored close, read from the API (it changes with every data refresh).
+  const close = await nmbClose();
+  await expect(page.getByTestId("price")).toContainText(`TZS ${money(close)}`);
+  await expect(page.getByTestId("price-attribution")).toContainText("Not live");
   await expect(page.getByTestId("status-counts")).toContainText("VERIFIED");
   // A trade label is allowed (owner's decision 2026-09-19) but only beside the model view, and the
   // disclaimer must always be on the page.
@@ -132,8 +146,8 @@ test("a portfolio is private to the account that saved it", async ({ browser }) 
   await a.page.getByRole("button", { name: "Save portfolio" }).click();
   const card = a.page.getByTestId("portfolio-card");
   await expect(card).toContainText("E2E holdings");
-  // 10 shares x the stored close of TZS 2,070.00
-  await expect(card).toContainText("20,700.00");
+  // 10 shares x the stored close, whatever the latest refresh stored
+  await expect(card).toContainText(money((await nmbClose()) * 10));
   const ids: number[] = await a.page.evaluate(async () =>
     (await (await fetch("/api/portfolios")).json()).portfolios.map((p: { id: number }) => p.id));
   expect(a.errors).toEqual([]);
