@@ -18,12 +18,14 @@ import hashlib
 import shutil
 import sys
 from datetime import datetime, timezone
+from decimal import Decimal
 from pathlib import Path
 
 import pandas as pd
 
-from packages.database.models import DataSourceStatus, PriceBar, SourceDocument
+from packages.database.models import DataSourceStatus, SourceDocument
 from packages.database.session import SessionLocal
+from pipelines.dse.merge import merge_bars
 
 STORE = Path("data/raw/dse/licensed")
 
@@ -71,12 +73,14 @@ def main(argv: list[str]) -> int:
                              sha256=sha, retrieved_at=now)
         s.add(doc)
         s.flush()
-        s.query(PriceBar).filter_by(instrument_id=args.instrument).delete()
-        for i in range(len(df)):
-            s.add(PriceBar(instrument_id=args.instrument, trade_date=dates.iloc[i].date(),
-                           close=float(closes.iloc[i]),
-                           volume=None if vols is None or pd.isna(vols.iloc[i]) else float(vols.iloc[i]),
-                           source_document_id=doc.id))
+        # Exact decimals from the file's own text (a float would be refused by the money column), merged
+        # without deleting stored history (pipelines/dse/merge.py).
+        new = {dates.iloc[i].date(): (Decimal(str(df[args.close_col].iloc[i]).replace(",", "").strip()),
+                                      None if vols is None or pd.isna(vols.iloc[i])
+                                      else Decimal(str(df[args.volume_col].iloc[i]).replace(",", "").strip()))
+               for i in range(len(df))}
+        merged = merge_bars(s, args.instrument, new, doc.id)
+        print(f"Merge: {merged.summary()}.")
         s.merge(DataSourceStatus(source="dse_prices", last_success_at=now, last_attempt_at=now, status="ok",
                                  max_age_hours=24 * 3,
                                  detail=f"Imported {len(df)} rows for {args.instrument} from licensed file {stored.name}"))

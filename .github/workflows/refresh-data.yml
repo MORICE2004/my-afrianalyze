@@ -1,12 +1,13 @@
 name: Refresh data
 
-# Weekday refresh of DSE prices and the macro inputs (BoT, NBS, Damodaran) into the PRODUCTION database.
-# It does nothing until the owner stores the Neon connection string as the secret PRODUCTION_DATABASE_URL
-# in the GitHub environment "production" (Settings > Environments). Never put the URL in this file.
+# Weekday refresh of DSE prices, the DSEI index and the macro inputs (BoT, NBS, Damodaran) into the
+# PRODUCTION database. It does nothing until the owner stores the Neon connection string as the secret
+# PRODUCTION_DATABASE_URL in the GitHub environment "production" (Settings > Environments). Never put the
+# URL in this file. GitHub runs scheduled workflows only from the default branch (master).
 #
-# The DSE index is deliberately NOT refreshed here: pipelines/dse/import_public_index.py replaces the whole
-# series from its download file, and a fresh runner holds only the newest days, so it would erase ten
-# years of history. It needs an update-in-place mode first (docs/KNOWN_GAPS.md).
+# Every importer MERGES (pipelines/dse/merge.py): new days are added, stored days are never deleted, and a
+# past close the source revises is kept and reported (the run then fails so a person looks). Proven by
+# tests/v1/test_refresh_preserves_history.py, which fails against the old delete-and-replace importers.
 on:
   schedule:
     - cron: "0 15 * * 1-5"     # 18:00 in Dar es Salaam, after the DSE close
@@ -46,16 +47,24 @@ jobs:
         if: env.SKIP != '1'
         run: pip install -r requirements-api.txt requests==2.34.2 xlrd==2.0.2 pypdfium2==5.13.0
 
-      - name: DSE prices (full ten-year download each run, so the replace-all import keeps history)
+      - name: DSE prices (last 30 days, merged into the stored history)
         if: env.SKIP != '1'
         run: |
           set -euo pipefail
           for code in NMB CRDB; do
             curl -fsS --retry 3 -A "$UA" -o "${code}.json" \
-              "https://dse.co.tz/api/get/market/prices/for/range/duration?security_code=${code}&days=3650&class=EQUITY"
-            # Refuses a file for the wrong company or with an unexplained jump; the run then fails visibly.
-            python -m pipelines.dse.import_public_prices --instrument "DSE:${code}" --file "${code}.json"
+              "https://dse.co.tz/api/get/market/prices/for/range/duration?security_code=${code}&days=30&class=EQUITY"
+            # Refuses a wrong-company file or an unexplained jump (checked against the last stored day).
+            python -m pipelines.dse.import_public_prices --instrument "DSE:${code}" --file "${code}.json" --days 30
           done
+
+      - name: DSE index (only the dates after the last stored level, one request per date)
+        if: env.SKIP != '1'
+        run: |
+          set -euo pipefail
+          python -m pipelines.dse.fetch_public_index --from auto --to today --delay 1
+          # Each new level must follow the previous one (the first is checked against the stored level).
+          python -m pipelines.dse.import_public_index --code DSEI --instrument DSE:DSEI
 
       - name: Macro inputs (BoT bond yields and policy rate, NBS CPI, Damodaran)
         if: env.SKIP != '1'

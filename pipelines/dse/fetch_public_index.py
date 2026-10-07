@@ -34,7 +34,7 @@ from pathlib import Path
 
 OUT = Path("data/raw/dse/public/dsei_daily.jsonl")
 URL = "https://dse.co.tz/get/last/traded/indices?from={day}"
-UA = "Mozilla/5.0 (my-afrianalyze research backfill)"
+UA = "Mozilla/5.0 (AfriEdge research refresh)"
 
 
 def _fetch(day: date, timeout: float) -> list[dict]:
@@ -60,14 +60,29 @@ def already_done(path: Path) -> set[str]:
 
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--from", dest="start", required=True, help="First date, YYYY-MM-DD")
-    ap.add_argument("--to", dest="end", required=True, help="Last date, YYYY-MM-DD")
+    ap.add_argument("--from", dest="start", required=True,
+                    help="First date, YYYY-MM-DD, or 'auto': the day after the last level stored for --instrument")
+    ap.add_argument("--to", dest="end", required=True, help="Last date, YYYY-MM-DD, or 'today'")
+    ap.add_argument("--instrument", default="DSE:DSEI", help="Used by --from auto")
     ap.add_argument("--delay", type=float, default=0.75, help="Seconds between requests (default 0.75)")
     ap.add_argument("--timeout", type=float, default=30.0)
     args = ap.parse_args(argv)
 
-    start = date.fromisoformat(args.start)
-    end = date.fromisoformat(args.end)
+    end = date.today() if args.end == "today" else date.fromisoformat(args.end)
+    if args.start == "auto":
+        from packages.database.models import PriceBar
+        from packages.database.session import SessionLocal
+
+        with SessionLocal() as s:
+            last = (s.query(PriceBar.trade_date).filter_by(instrument_id=args.instrument)
+                    .order_by(PriceBar.trade_date.desc()).first())
+        if last is None:
+            print(f"No stored levels for {args.instrument}; give --from a date for the first backfill.")
+            return 1
+        start = last[0] + timedelta(days=1)
+        print(f"Last stored {args.instrument} level: {last[0]}. Fetching from {start}.")
+    else:
+        start = date.fromisoformat(args.start)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     done = already_done(OUT)
     if done:

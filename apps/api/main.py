@@ -278,13 +278,14 @@ def get_source_file(document_id: int, session: Session = Depends(get_session)) -
     doc = session.get(SourceDocument, document_id)
     if doc is None or not doc.file_path:
         raise HTTPException(404, "Source file not stored")
+    if doc.kind in {"licensed_price_file", "public_price_file", "public_index_file"}:
+        # Exchange price data is used to calculate, not republished: the DSE's own terms restrict
+        # redistribution, and the report already shows the address it came from. Checked before the disk,
+        # so the answer is the same whether or not the file is present.
+        raise HTTPException(403, "Exchange price data files are not redistributed")
     path = (REPO_ROOT / doc.file_path).resolve()
     if not path.is_file() or REPO_ROOT.resolve() not in path.parents:
         raise HTTPException(404, "Source file missing on disk")
-    if doc.kind in {"licensed_price_file", "public_price_file", "public_index_file"}:
-        # Exchange price data is used to calculate, not republished: the DSE's own terms restrict
-        # redistribution, and the report already shows the address it came from.
-        raise HTTPException(403, "Exchange price data files are not redistributed")
     return FileResponse(path, media_type="application/pdf", filename=Path(doc.file_path).name,
                         content_disposition_type="inline")
 

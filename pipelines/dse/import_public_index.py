@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import shutil
 import sys
 from datetime import date, datetime, timezone
 from decimal import Decimal
@@ -27,8 +28,10 @@ from pathlib import Path
 from packages.database.models import DataSourceStatus, PriceBar, Security, SourceDocument
 from packages.database.session import SessionLocal
 from pipelines.dse.import_public_prices import TERMS_NOTE
+from pipelines.dse.merge import merge_bars, stored_bars
 
 SRC = Path("data/raw/dse/public/dsei_daily.jsonl")
+STORE = Path("data/raw/dse/public")
 TOLERANCE = Decimal("0.02")   # the published levels are rounded to two decimals
 
 
@@ -56,17 +59,26 @@ def read_levels(path: Path, code: str) -> tuple[dict[date, tuple[Decimal, Decima
     return levels, problems
 
 
-def reconcile(levels: dict[date, tuple[Decimal, Decimal]]) -> tuple[dict[date, Decimal], list[str]]:
-    """Keep only the days whose published change agrees with the move in the level."""
+def reconcile(levels: dict[date, tuple[Decimal, Decimal]],
+              stored: dict[date, Decimal] | None = None) -> tuple[dict[date, Decimal], list[str]]:
+    """Keep only the days whose published change agrees with the move in the level.
+
+    `stored` holds levels already in the database. A refresh file starts after them, so its first day is
+    checked against the last stored level before it, instead of being let through unchecked."""
+    stored = stored or {}
     days = sorted(levels)
     good: dict[date, Decimal] = {}
     bad: list[str] = []
     for i, day in enumerate(days):
         level, change = levels[day]
         if i == 0:
-            good[day] = level            # nothing before it to check against
-            continue
-        previous = levels[days[i - 1]][0]
+            before = [d for d in stored if d < day]
+            if not before:
+                good[day] = level        # nothing before it to check against
+                continue
+            previous = stored[max(before)]
+        else:
+            previous = levels[days[i - 1]][0]
         if abs((previous + change) - level) <= TOLERANCE:
             good[day] = level
         else:
@@ -79,6 +91,8 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--code", default="DSEI", help="Index code in the DSE answer (DSEI, TSI, BI ...)")
     ap.add_argument("--instrument", default="DSE:DSEI", help="Instrument id to store it under")
     ap.add_argument("--file", default=str(SRC))
+    ap.add_argument("--accept-revisions", action="store_true",
+                    help="Overwrite stored levels that the file reports differently (check them first)")
     ap.add_argument("--allow-unreconciled", action="store_true",
                     help="Load days whose published change does not follow the previous level")
     args = ap.parse_args(argv)
@@ -92,7 +106,9 @@ def main(argv: list[str]) -> int:
     if not levels:
         print(f"No {args.code} levels in {path}.")
         return 1
-    good, bad = reconcile(levels)
+    with SessionLocal() as s:
+        already = {d: v[0] for d, v in stored_bars(s, args.instrument).items()}
+    good, bad = reconcile(levels, already)
     kept = {d: v[0] for d, v in levels.items()} if args.allow_unreconciled else good
 
     print(f"{len(levels)} dates read, {len(kept)} loaded.")
@@ -108,12 +124,19 @@ def main(argv: list[str]) -> int:
 
     content = path.read_bytes()
     sha = hashlib.sha256(content).hexdigest()
+    # Keep our own copy under its hash, so the record does not depend on where the download happened to be
+    # (a refresh runner's working folder disappears when the run ends).
+    STORE.mkdir(parents=True, exist_ok=True)
+    stored_file = STORE / f"{args.instrument.replace(':', '_')}_index_{sha[:12]}.jsonl"
+    if stored_file.resolve() != path.resolve():
+        shutil.copyfile(path, stored_file)
     now = datetime.now(timezone.utc)
     flat = sorted(set(kept.values()))
     with SessionLocal() as s:
         doc = s.query(SourceDocument).filter_by(kind="public_index_file", sha256=sha).first()
         if doc is not None:                  # the same collected file again: keep one record
             doc.retrieved_at = now
+            doc.file_path = stored_file.as_posix()
         else:
             doc = SourceDocument(
                 security_id=args.instrument if s.get(Security, args.instrument) else None,
@@ -122,24 +145,31 @@ def main(argv: list[str]) -> int:
                 publisher="Dar es Salaam Stock Exchange",
                 url="https://dse.co.tz/get/last/traded/indices?from=<date>, one date per request",
                 listing_url="https://dse.co.tz/market/data/overview",
-                file_path=path.as_posix(), sha256=sha,
+                file_path=stored_file.as_posix(), sha256=sha,
                 published_on=max(kept), retrieved_at=now, terms_note=TERMS_NOTE)
             s.add(doc)
         s.flush()
-        s.query(PriceBar).filter_by(instrument_id=args.instrument).delete()
-        for day, level in sorted(kept.items()):
-            s.add(PriceBar(instrument_id=args.instrument, trade_date=day, close=level,
-                           volume=None, source_document_id=doc.id))
+        merged = merge_bars(s, args.instrument, {d: (lvl, None) for d, lvl in kept.items()}, doc.id,
+                            accept_revisions=args.accept_revisions)
+        s.flush()
+        total = s.query(PriceBar).filter_by(instrument_id=args.instrument).count()
+        first, last = (s.query(PriceBar.trade_date).filter_by(instrument_id=args.instrument)
+                       .order_by(PriceBar.trade_date).first()[0],
+                       s.query(PriceBar.trade_date).filter_by(instrument_id=args.instrument)
+                       .order_by(PriceBar.trade_date.desc()).first()[0])
+        held_back = merged.revisions and not args.accept_revisions
         s.merge(DataSourceStatus(
             source="dse_index", last_success_at=now, last_attempt_at=now,
-            status="ok" if not bad and not problems else "partial", max_age_hours=24 * 5,
-            detail=f"{len(kept)} days of {args.code} ({min(kept)} to {max(kept)}); "
+            status="ok" if not (bad or problems or held_back) else "partial", max_age_hours=24 * 5,
+            detail=f"{total} days of {args.code} stored ({first} to {last}). Last refresh: {merged.summary()}; "
                    f"{len(bad)} did not reconcile, {len(problems)} were not fetched. "
                    f"Source: DSE published index levels."))
         s.commit()
-    print(f"Loaded {len(kept)} days of {args.code} as {args.instrument}: {min(kept)} to {max(kept)}, "
-          f"levels {flat[0]} to {flat[-1]} (sha256 {sha[:16]}).")
-    return 0
+    print(f"Read {len(kept)} days of {args.code} ({min(kept)} to {max(kept)}, levels {flat[0]} to {flat[-1]}, "
+          f"sha256 {sha[:16]}).\nMerge into {args.instrument}: {merged.summary()}.")
+    for day, old, new in merged.revisions[:10]:
+        print(f"  revised by the source: {day} stored {old}, file says {new}")
+    return 2 if held_back else 0
 
 
 if __name__ == "__main__":

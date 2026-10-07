@@ -35,6 +35,7 @@ from sqlalchemy import func
 from packages.analysis import corporate_actions
 from packages.database.models import DataSourceStatus, PriceBar, Security, SourceDocument
 from packages.database.session import SessionLocal
+from pipelines.dse.merge import merge_bars, stored_bars
 
 STORE = Path("data/raw/dse/public")
 API = ("https://dse.co.tz/api/get/market/prices/for/range/duration"
@@ -48,7 +49,7 @@ TERMS_NOTE = ("Downloaded from the Dar es Salaam Stock Exchange's public website
 JUMP = Decimal("0.30")      # a one-day move bigger than this is treated as suspicious, not as a return
 
 
-def unexplained_jumps(bars: dict, instrument: str) -> list[tuple]:
+def unexplained_jumps(bars: dict, instrument: str, only_after: date | None = None) -> list[tuple]:
     """One-day moves too large to be a real return, unless a recorded split explains them.
 
     NMB's 1:10 split published as a 90% fall is the reason this exists: a split read as a return would
@@ -60,6 +61,8 @@ def unexplained_jumps(bars: dict, instrument: str) -> list[tuple]:
     out = []
     days = sorted(bars)
     for previous, day in zip(days, days[1:]):
+        if only_after is not None and day <= only_after:
+            continue                        # both days already stored and checked when they were loaded
         before, after = bars[previous][0], bars[day][0]
         if not before:
             continue
@@ -77,6 +80,8 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--file", required=True, help="JSON file downloaded from the DSE website")
     ap.add_argument("--class", dest="klass", default="EQUITY", help="EQUITY (default) or INDEX")
     ap.add_argument("--days", default="3650", help="The days= value used when downloading (for the record)")
+    ap.add_argument("--accept-revisions", action="store_true",
+                    help="Overwrite stored closes that the download reports differently (check them first)")
     ap.add_argument("--allow-unexplained-jumps", action="store_true",
                     help="Import even if a one-day move of more than 30% has no recorded corporate action")
     args = ap.parse_args(argv)
@@ -110,7 +115,14 @@ def main(argv: list[str]) -> int:
         print("No rows carried a closing price; nothing imported.")
         return 1
 
-    unexplained = unexplained_jumps(bars, args.instrument)
+    # Check the download joined to what is already stored, so the first new day is compared with the last
+    # stored one. Days before the download (already checked when they were loaded) are not checked again.
+    with SessionLocal() as s:
+        stored = stored_bars(s, args.instrument)
+    combined = {**stored, **{d: v for d, v in bars.items() if d not in stored}}
+    last_stored = max(stored) if stored else None
+    unexplained = unexplained_jumps(combined, args.instrument,
+                                    only_after=None if last_stored is None else min(min(bars), last_stored))
     if unexplained and not args.allow_unexplained_jumps:
         print(f"Refusing to import {args.instrument}: {len(unexplained)} one-day move(s) of more than "
               f"{int(JUMP * 100)}% that no recorded corporate action explains.\n")
@@ -123,8 +135,8 @@ def main(argv: list[str]) -> int:
 
     sha = hashlib.sha256(content).hexdigest()
     STORE.mkdir(parents=True, exist_ok=True)
-    stored = STORE / f"{args.instrument.replace(':', '_')}_{sha[:12]}.json"
-    shutil.copyfile(src, stored)
+    stored_file = STORE / f"{args.instrument.replace(':', '_')}_{sha[:12]}.json"
+    shutil.copyfile(src, stored_file)
 
     now = datetime.now(timezone.utc)
     url = API.format(code=code, days=args.days, klass=args.klass)
@@ -140,29 +152,34 @@ def main(argv: list[str]) -> int:
                 title=f"DSE published end-of-day prices: {args.instrument}",
                 publisher="Dar es Salaam Stock Exchange", url=url,
                 listing_url="https://dse.co.tz/market/data/overview",
-                file_path=stored.as_posix(), sha256=sha,
+                file_path=stored_file.as_posix(), sha256=sha,
                 published_on=max(bars), retrieved_at=now, terms_note=TERMS_NOTE)
             s.add(doc)
         s.flush()
-        s.query(PriceBar).filter_by(instrument_id=args.instrument).delete()
-        for day, (close, volume) in sorted(bars.items()):
-            s.add(PriceBar(instrument_id=args.instrument, trade_date=day, close=close, volume=volume,
-                           source_document_id=doc.id))
+        merged = merge_bars(s, args.instrument, bars, doc.id, accept_revisions=args.accept_revisions)
         traded = sum(1 for _, v in bars.values() if v)
         s.flush()
         # One status row covers the source, so describe every instrument that now has prices.
         loaded = (s.query(PriceBar.instrument_id, func.count(), func.min(PriceBar.trade_date),
                           func.max(PriceBar.trade_date))
                   .group_by(PriceBar.instrument_id).order_by(PriceBar.instrument_id).all())
+        held_back = merged.revisions and not args.accept_revisions
+        latest = max(hi for *_, hi in loaded)
         s.merge(DataSourceStatus(
-            source="dse_prices", last_success_at=now, last_attempt_at=now, status="ok", max_age_hours=24 * 5,
+            source="dse_prices", last_success_at=now, last_attempt_at=now,
+            status="partial" if held_back else "ok", max_age_hours=24 * 5,
             detail="; ".join(f"{iid} {n} days ({lo} to {hi})" for iid, n, lo, hi in loaded)
-                   + ". Source: DSE published prices."))
+                   + f". Latest trading day stored: {latest}. Source: DSE published prices."
+                   + (f" {args.instrument}: {len(merged.revisions)} past close(s) revised by the source and not "
+                      f"applied; review them." if held_back else "")))
         s.commit()
-    print(f"Imported {len(bars)} days for {args.instrument}: {min(bars)} to {max(bars)}, "
+    print(f"Read {len(bars)} days for {args.instrument}: {min(bars)} to {max(bars)}, "
           f"{len(bars) - traded} days without a trade ({(len(bars) - traded) / len(bars):.1%}). "
-          f"Stored {stored} (sha256 {sha[:16]}).")
-    return 0
+          f"Stored {stored_file} (sha256 {sha[:16]}).\nMerge: {merged.summary()}.")
+    for day, old, new in merged.revisions[:10]:
+        print(f"  revised by the source: {day} stored {old}, download says {new}")
+    # A held-back revision is a failure a person must look at, so scheduled runs go red.
+    return 2 if held_back else 0
 
 
 if __name__ == "__main__":

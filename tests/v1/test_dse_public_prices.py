@@ -31,6 +31,7 @@ def db(tmp_path, monkeypatch):
     monkeypatch.setattr(prices, "SessionLocal", maker)
     monkeypatch.setattr(idx, "SessionLocal", maker)
     monkeypatch.setattr(prices, "STORE", tmp_path / "store")
+    monkeypatch.setattr(idx, "STORE", tmp_path / "store")
     return maker
 
 
