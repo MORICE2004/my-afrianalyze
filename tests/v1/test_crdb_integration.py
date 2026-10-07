@@ -149,3 +149,15 @@ def test_documents_and_risks(db):
     for r in db["risks"]:
         assert r.quote and r.quote in page_text(db["docs"][r.document_id].file_path, r.page).replace("￾", "-") \
             or re.sub(r"\s+", " ", r.quote)[:60] in page_text(db["docs"][r.document_id].file_path, r.page)
+
+
+def test_each_statement_line_appears_once():
+    """CRDB's profile reads gross loans and ECL with two patterns each; the report must still show one row
+    per line (duplicate rows also made React drop or repeat rows in the browser)."""
+    from packages.report.builder import build_report
+
+    with SessionLocal() as s:
+        report = build_report(s, SECURITY)
+    for st in report["statements"]:
+        codes = [r["item_code"] for r in st["rows"]]
+        assert len(codes) == len(set(codes)), f"{st['code']}: {sorted({c for c in codes if codes.count(c) > 1})}"

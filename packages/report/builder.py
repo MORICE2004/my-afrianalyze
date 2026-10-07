@@ -28,7 +28,7 @@ from packages.analysis.common import (
 from packages.analysis.cost_of_equity import cost_of_equity, cost_of_equity_grid
 from packages.analysis.line_items import analyse_series
 from packages.analysis.notes import line_note
-from packages.analysis.recommendation import confidence, recommend
+from packages.analysis.recommendation import confidence, recommend, INCONCLUSIVE_VIEW, robust_view
 from packages.core.config import DSE_ATTRIBUTION, DSE_DISPLAY_BLOCKED, dse_display_allowed, settings
 from packages.database.models import (
     DataSourceStatus,
@@ -135,7 +135,14 @@ def build_report(session: Session, security_id: str) -> dict | None:
 
     # ------------------------------------------------------------ statements
     statements = {}
-    order = [(s.statement, s, i) for s in profile.all_sections for i in s.items]
+    # A profile may list one item under several patterns, because a bank prints the same table differently
+    # in different years (CRDB's loan note). Extraction needs every pattern; the statement shows one row.
+    order, shown = [], set()
+    for s in profile.all_sections:
+        for i in s.items:
+            if (s.statement, i.code) not in shown:
+                shown.add((s.statement, i.code))
+                order.append((s.statement, s, i))
     order.append(("NOTE", None, None))  # dps
     for statement, section, spec in order:
         code = spec.code if spec else "dps"
@@ -339,6 +346,26 @@ def build_report(session: Session, security_id: str) -> dict | None:
 
     # ------------------------------------------------------------ recommendation
     recommendation = recommend(price, valuation, coe, rec_cfg, settings.SHOW_TRADE_LABELS)
+    # The same valuation under each alternative cost-of-equity treatment, so the page can show how much the
+    # answer depends on that choice, and withhold a definite view when it flips (recommendation.robust_view).
+    coe_alternatives = []
+    for alt in coe_cfg.get("alternative_treatments", []):
+        alt_method = {**coe_cfg, **{k: v for k, v in alt.items() if k != "name"}}
+        alt_coe = cost_of_equity(coe_inputs, selected, alt_method)
+        row = {"treatment": alt["name"], "formula": alt_coe.get("formula"),
+               "cost_of_equity": alt_coe.get("value")}
+        if alt_coe["available"]:
+            alt_val = run_scenarios(facts, fact_years, alt_coe["value"], val_cfg, share_factor)
+            if alt_val.get("available"):
+                row["fair_value"] = alt_val["fair_value"]
+                row["target_price_12m"] = alt_val["target_price_12m"]
+                alt_rec = recommend(price, alt_val, alt_coe, rec_cfg, False)
+                row["model_view"] = alt_rec.get("model_view")
+        coe_alternatives.append(row)
+    if rec_cfg.get("require_robust_view", True):
+        recommendation = robust_view(recommendation, coe_alternatives)
+        if recommendation.get("model_view") == INCONCLUSIVE_VIEW:
+            gaps.append("Model view: " + recommendation["inconclusive_reason"])
     # When the model lands a long way from the traded price, the model is the more likely to be wrong:
     # it extrapolates a few years of growth, while the price is what buyers and sellers actually agreed.
     # Say so on the report rather than letting a large upside stand as though it were a finding.
@@ -429,7 +456,8 @@ def build_report(session: Session, security_id: str) -> dict | None:
         "statements": [{"code": k, "title": STATEMENT_TITLES[k], "rows": v} for k, v in statements.items()],
         "ratios": ratio_rows,
         "beta": beta_block,
-        "cost_of_equity": {"inputs": coe_inputs, "method": coe_cfg, "result": coe, "sensitivity": coe_grid},
+        "cost_of_equity": {"inputs": coe_inputs, "method": coe_cfg, "result": coe, "sensitivity": coe_grid,
+                           "alternatives": coe_alternatives},
         "valuation": {"result": valuation, "sensitivity": sensitivity, "base_drivers": drivers,
                       "config": {k: val_cfg[k] for k in ("horizon_years", "history_window_years",
                                                          "terminal_growth", "method_weights", "scenarios")}},

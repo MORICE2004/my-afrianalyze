@@ -94,7 +94,11 @@ def test_a_trade_label_appears_only_when_there_is_a_valuation_behind_it(report):
     if rec["available"]:
         assert report["header"]["target_price"]["available"] is True
         assert report["header"]["fair_value_range"]["available"] is True
-        assert rec["model_view"] in {"Undervalued", "Fairly valued", "Overvalued"}
+        assert rec["model_view"] in {"Undervalued", "Fairly valued", "Overvalued", "Inconclusive"}
+        if rec["model_view"] == "Inconclusive":
+            # The view flips with the cost-of-equity method, so no label at all (robust_view).
+            assert "trade_label" not in rec and rec["inconclusive_reason"]
+            return
         assert rec["trade_label"] in {"BUY", "HOLD", "SELL"}
         # The label must follow the model view, never contradict it.
         assert (rec["trade_label"] == "BUY") == (rec["model_view"] == "Undervalued")

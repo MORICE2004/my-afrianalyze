@@ -221,7 +221,10 @@ export interface Report {
   header: {
     price: Maybe<{ value: number; trade_date: string; currency: string; source: DocRef; attribution?: string }>;
     recommendation: Maybe<{
-      model_view: "Undervalued" | "Fairly valued" | "Overvalued";
+      model_view: "Undervalued" | "Fairly valued" | "Overvalued" | "Inconclusive";
+      // Set when the view flips with the cost-of-equity method: the configured method's view, and why.
+      selected_model_view?: "Undervalued" | "Fairly valued" | "Overvalued";
+      inconclusive_reason?: string;
       // Only present when the SHOW_TRADE_LABELS setting is on (section 71).
       trade_label?: "BUY" | "HOLD" | "SELL";
       expected_total_return: number;
@@ -251,12 +254,15 @@ export interface Report {
     method: { subtract_default_spread: boolean; crp_scaling: string; sensitivity_betas: number[]; risk_free_series: string };
     result: { available: boolean; value?: number; formula?: string; reason?: string; status?: DataStatus; steps?: { label: string; value: number; ref?: string }[] };
     sensitivity: { available: boolean; rows?: { beta: number; cost_of_equity: number }[]; reason?: string };
+    alternatives?: { treatment: string; formula?: string; cost_of_equity?: number | string | null; fair_value?: number;
+      target_price_12m?: number; model_view?: string | null }[];
   };
   valuation: {
     result: { available: boolean; reason?: string; status?: DataStatus; fair_value?: number; target_price_12m?: number; expected_dps_12m?: number;
       fair_value_range?: { low: number; high: number }; scenarios?: Record<string, Scenario>; target_formula?: string;
       structure?: Record<string, number> };
-    sensitivity: { available: boolean; reason?: string; rows?: { beta: number; cost_of_equity: number; fair_value: number; range_low: number; range_high: number }[] };
+    // Decimals arrive as strings; coerce with Number() before numeric methods such as toFixed.
+    sensitivity: { available: boolean; reason?: string; rows?: { beta: number | string; cost_of_equity: number; fair_value: number; range_low: number; range_high: number }[] };
     base_drivers: Record<string, { available: boolean; value?: number; reason?: string; basis: string; formula?: string; inputs?: Record<string, number> }>;
     config: {
       horizon_years: number;

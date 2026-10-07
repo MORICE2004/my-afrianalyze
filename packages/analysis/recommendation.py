@@ -71,3 +71,32 @@ def confidence(completeness: float, open_conflicts: int, beta: dict, stale_input
     score = max(0.0, min(100.0, score))
     level = "High" if score >= c["high_at"] else "Medium" if score >= c["medium_at"] else "Low"
     return {"score": score, "level": level, "notes": notes}
+
+
+INCONCLUSIVE_VIEW = "Inconclusive"
+
+
+def robust_view(selected: dict, alternatives: list[dict]) -> dict:
+    """Withhold a definite view when it depends on which defensible cost-of-equity treatment is used.
+
+    `selected` is the output of recommend() under the configured treatment. `alternatives` are rows
+    {"treatment", "formula", "cost_of_equity", "fair_value", "target_price_12m", "model_view"} computed the
+    same way under each treatment listed in config/valuation.json. If every available row agrees with the
+    selected view, the view stands and the rows are attached as evidence. If any disagrees, the view becomes
+    Inconclusive and no trade label is shown: a BUY that turns into a SELL under an equally standard method
+    is not a finding (owner's directive of 2026-10-07, section 16)."""
+    if not selected.get("available"):
+        return selected
+    rows = [r for r in alternatives if r.get("model_view")]
+    views = {selected["model_view"], *(r["model_view"] for r in rows)}
+    out = dict(selected, robustness={"treatments": rows, "agree": len(views) == 1})
+    if len(views) == 1:
+        return out
+    out["selected_model_view"] = selected["model_view"]
+    out["model_view"] = INCONCLUSIVE_VIEW
+    out.pop("trade_label", None)
+    out["inconclusive_reason"] = (
+        "The view changes with the cost-of-equity method: "
+        + "; ".join(f"{r['treatment']} gives {r['model_view']}" for r in rows)
+        + f" (configured method: {selected['model_view']}). No definite view is given until the method is settled.")
+    return out

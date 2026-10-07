@@ -57,7 +57,20 @@
       0.8,
       1.0,
       1.2
-    ]
+    ],
+    "alternative_treatments": [
+      {
+        "name": "Additive country risk",
+        "subtract_default_spread": true,
+        "crp_scaling": "additive"
+      },
+      {
+        "name": "Local yield, country risk scaled by beta",
+        "subtract_default_spread": false,
+        "crp_scaling": "beta"
+      }
+    ],
+    "_alternatives_note": "Each alternative is a standard treatment of country risk for a local-currency cost of equity (Damodaran). The report values the bank under each; if the model view differs, it is shown as Inconclusive (config/recommendation.json require_robust_view). The configured treatment above stays the owner's choice."
   },
   "beta_selection": {
     "thin_trading_threshold": 0.1,

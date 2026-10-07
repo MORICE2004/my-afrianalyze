@@ -168,3 +168,19 @@ test("a portfolio is private to the account that saved it", async ({ browser }) 
   await a.ctx.close();
   await b.ctx.close();
 });
+
+// Every tab of both reports, opened one by one. A tab that throws takes the whole page down, and the
+// tests above only look at the first tab (the Valuation tab crashed this way until 2026-10-07).
+for (const id of ["DSE:NMB", "DSE:CRDB"]) {
+  test(`every tab of the ${id} report opens without errors`, async ({ page }) => {
+    const errors = watchErrors(page);
+    await page.goto(`/report/${encodeURIComponent(id)}`, { waitUntil: "networkidle" });
+    for (const name of ["Summary", "Financial statements", "Ratios", "Beta", "Valuation", "Scenarios", "Risks", "Sources"]) {
+      await page.getByRole("button", { name, exact: true }).click();
+      await expect(page.locator("main"), `${name} tab`).toBeVisible();
+      expect(errors, `errors after opening ${name}`).toEqual([]);
+    }
+    await page.getByRole("button", { name: "Valuation", exact: true }).click();
+    await expect(page.getByTestId("coe-alternatives")).toBeVisible();
+  });
+}

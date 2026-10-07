@@ -12,6 +12,15 @@ const INPUT_LABELS: Record<string, string> = {
   country_risk_premium: "Tanzania country risk premium",
 };
 
+// Exact decimals arrive as strings (the API never sends money as a float), so coerce before formatting.
+// "years" is a count, not a rate; values below 5 are rates, larger ones are TZS millions.
+function driverInput(key: string, v: number | string): string {
+  const n = Number(v);
+  if (Number.isNaN(n)) return String(v);
+  if (key === "years") return String(n);
+  return Math.abs(n) < 5 ? fmtPct(n, 2) : n.toLocaleString("en-US", { maximumFractionDigits: 0 });
+}
+
 // Shows the full chain from sourced inputs to cost of equity to fair value.
 export default function ValuationExplainer({ report }: { report: Report }) {
   const coe = report.cost_of_equity;
@@ -79,7 +88,7 @@ export default function ValuationExplainer({ report }: { report: Report }) {
                   <td className="px-3 py-2 text-right font-mono">{d.available && d.value !== undefined ? fmtPct(d.value) : <NotAvailable compact reason={d.reason ?? ""} />}</td>
                   <td className="px-3 py-2 text-xs text-neutral-600">
                     {d.basis}
-                    {d.inputs && <span className="block text-neutral-500">{Object.entries(d.inputs).map(([ik, iv]) => `${ik}: ${typeof iv === "number" ? (Math.abs(iv) < 5 ? fmtPct(iv, 2) : iv.toLocaleString()) : iv}`).join(" · ")}</span>}
+                    {d.inputs && <span className="block text-neutral-500">{Object.entries(d.inputs).map(([ik, iv]) => `${ik}: ${driverInput(ik, iv)}`).join(" · ")}</span>}
                   </td>
                 </tr>
               ))}
@@ -107,11 +116,43 @@ export default function ValuationExplainer({ report }: { report: Report }) {
       </section>
 
       <section>
-        <h3 className="font-semibold text-neutral-900 mb-2">4. Sensitivity to beta</h3>
+        <h3 className="font-semibold text-neutral-900 mb-2">4. Sensitivity to the cost of equity</h3>
         <p className="text-xs text-neutral-600 mb-2">
-          Beta has not been measured, so these rows show how the valuation would change for a range of betas
-          ({coe.method.sensitivity_betas.join(", ")}). They are a sensitivity, not a forecast or a target.
+          The fair value depends heavily on the discount rate. First, how it changes with the method used to put
+          Tanzania&apos;s country risk into the cost of equity; then, with beta ({coe.method.sensitivity_betas.join(", ")}).
+          These are sensitivities, not forecasts or targets.
         </p>
+        {coe.alternatives && coe.alternatives.length > 0 && (
+          <div className="overflow-x-auto border border-neutral-200 bg-white mb-4">
+            <table className="w-full text-sm" data-testid="coe-alternatives">
+              <thead className="bg-neutral-50 text-xs uppercase tracking-wider text-neutral-500">
+                <tr>
+                  <th className="text-left px-3 py-2">Country-risk method</th>
+                  <th className="text-right px-3 py-2">Cost of equity</th>
+                  <th className="text-right px-3 py-2">Fair value (TZS)</th>
+                  <th className="text-left px-3 py-2">Model view</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100 font-mono">
+                <tr className="bg-neutral-50">
+                  <td className="px-3 py-2 font-sans">Configured: {coe.result.formula}</td>
+                  <td className="px-3 py-2 text-right">{coe.result.value !== undefined ? fmtPct(Number(coe.result.value), 2) : "–"}</td>
+                  <td className="px-3 py-2 text-right">{val.result.fair_value !== undefined ? fmtPerShare(val.result.fair_value) : "–"}</td>
+                  <td className="px-3 py-2 font-sans">{report.header.recommendation.available
+                    ? report.header.recommendation.selected_model_view ?? report.header.recommendation.model_view : "–"}</td>
+                </tr>
+                {coe.alternatives.map((a) => (
+                  <tr key={a.treatment}>
+                    <td className="px-3 py-2 font-sans">{a.treatment}: {a.formula}</td>
+                    <td className="px-3 py-2 text-right">{a.cost_of_equity != null ? fmtPct(Number(a.cost_of_equity), 2) : "–"}</td>
+                    <td className="px-3 py-2 text-right">{a.fair_value != null ? fmtPerShare(a.fair_value) : "–"}</td>
+                    <td className="px-3 py-2 font-sans">{a.model_view ?? "Not available"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
         {val.sensitivity.available && val.sensitivity.rows ? (
           <div className="overflow-x-auto border border-neutral-200 bg-white">
             <table className="w-full text-sm font-mono" data-testid="valuation-sensitivity">
@@ -126,7 +167,7 @@ export default function ValuationExplainer({ report }: { report: Report }) {
               <tbody className="divide-y divide-neutral-100">
                 {val.sensitivity.rows.map((r) => (
                   <tr key={r.beta}>
-                    <td className="px-3 py-2 text-right">{r.beta.toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right">{Number(r.beta).toFixed(2)}</td>
                     <td className="px-3 py-2 text-right">{fmtPct(r.cost_of_equity, 2)}</td>
                     <td className="px-3 py-2 text-right">{fmtPerShare(r.fair_value)}</td>
                     <td className="px-3 py-2 text-right">{fmtPerShare(r.range_low)} – {fmtPerShare(r.range_high)}</td>

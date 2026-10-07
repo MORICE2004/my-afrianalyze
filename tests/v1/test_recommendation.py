@@ -59,3 +59,38 @@ def test_confidence_score():
     # Penalties are capped: 20 conflicts cost 30, not 60; 9 stale inputs cost 15, not 45.
     c = confidence(1.0, 20, {"available": True, "r_squared": 0.01}, list("ABCDEFGHI"), CFG)
     assert c["score"] == pytest.approx(100 - 30 - 15 - 15)
+
+
+# ------------------------------------------------------------------ robustness to the cost-of-equity method
+
+from packages.analysis.recommendation import INCONCLUSIVE_VIEW, robust_view  # noqa: E402
+
+
+def _sel(view="Undervalued", label="BUY"):
+    return {"available": True, "model_view": view, "trade_label": label}
+
+
+def test_a_view_that_holds_under_every_treatment_stands():
+    out = robust_view(_sel(), [{"treatment": "Additive", "model_view": "Undervalued"},
+                               {"treatment": "Local yield", "model_view": "Undervalued"}])
+    assert out["model_view"] == "Undervalued" and out["trade_label"] == "BUY"
+    assert out["robustness"]["agree"] is True
+
+
+def test_a_view_that_flips_with_the_method_is_inconclusive_and_loses_its_label():
+    # NMB on 2026-10-07: Undervalued at 12.94%, Overvalued at 15.25% and 16.77%.
+    out = robust_view(_sel(), [{"treatment": "Additive", "model_view": "Overvalued"},
+                               {"treatment": "Local yield", "model_view": "Overvalued"}])
+    assert out["model_view"] == INCONCLUSIVE_VIEW and "trade_label" not in out
+    assert out["selected_model_view"] == "Undervalued"
+    assert "Additive gives Overvalued" in out["inconclusive_reason"]
+
+
+def test_an_alternative_that_could_not_be_valued_does_not_count_either_way():
+    out = robust_view(_sel(), [{"treatment": "Additive", "model_view": None}])
+    assert out["model_view"] == "Undervalued"
+
+
+def test_an_unavailable_view_is_passed_through():
+    unavailable = {"available": False, "reason": "no price", "status": "BLOCKED"}
+    assert robust_view(unavailable, [{"treatment": "x", "model_view": "Overvalued"}]) == unavailable

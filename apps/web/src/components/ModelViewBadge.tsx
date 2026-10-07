@@ -7,6 +7,7 @@ const COLORS = {
   Undervalued: "bg-green-100 text-green-900 border-green-300",
   "Fairly valued": "bg-amber-100 text-amber-900 border-amber-300",
   Overvalued: "bg-red-100 text-red-900 border-red-300",
+  Inconclusive: "bg-neutral-100 text-neutral-800 border-neutral-400",
 };
 
 // The model's view from the fixed rule in config/recommendation.json. It is the output of a
@@ -28,6 +29,11 @@ export function ModelViewBadge({
           </span>
           {recommendation.trade_label && (
             <span className="ml-2 text-xs font-mono text-neutral-600">Trade label: {recommendation.trade_label}</span>
+          )}
+          {recommendation.inconclusive_reason && (
+            <p className="mt-2 text-xs text-neutral-700" data-testid="inconclusive-reason">
+              {recommendation.inconclusive_reason} See Valuation, section 4.
+            </p>
           )}
           <p className="mt-2 text-xs text-neutral-600">
             Expected total return {fmtPct(recommendation.expected_total_return)} (price {fmtPct(recommendation.price_upside)} +
