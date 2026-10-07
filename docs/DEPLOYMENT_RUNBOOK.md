@@ -1,6 +1,6 @@
 # Deployment runbook
 
-Updated 2026-09-25. Architecture and why: `docs/PRODUCTION_ARCHITECTURE.md`. Variables:
+Updated 2026-10-07. Architecture and why: `docs/PRODUCTION_ARCHITECTURE.md`. Variables:
 `docs/ENVIRONMENT.md`. Database: `docs/DATABASE_RUNBOOK.md`. Status of each part:
 `docs/PRODUCTION_CERTIFICATION.md`.
 
@@ -8,19 +8,22 @@ Updated 2026-09-25. Architecture and why: `docs/PRODUCTION_ARCHITECTURE.md`. Var
 
 | Part | State |
 |---|---|
-| Web app on Vercel | Deployed as a **protected preview** (project `morice2004s-projects/web`, Root Directory `apps/web`, CLI deploys, no Git integration). No production deployment is live: three production attempts on 2026-09-24 failed with Error |
+| Web app on Vercel | **Protected previews** only (project `morice2004s-projects/web`, Root Directory `apps/web`, CLI deploys, no Git integration). No production deployment: it needs an API address, which needs Render. See `docs/PROGRESS.md` for the latest preview |
 | API on Render | Not created. `render.yaml` and `Dockerfile.api` are ready; CI builds and starts the image on every push |
 | Postgres on Neon | Not created |
-| Research reports | Both are unapproved drafts, so in production they return 403 |
+| Research reports | Runs RA-20261007-001 (NMB) and -002 (CRDB) executed, both `PARTIAL`, both unapproved drafts: production returns 403 |
+| Scheduled refresh | Workflow ready; inert until `PRODUCTION_DATABASE_URL` exists and `master` carries it |
 
 ## Decisions only the owner can make (before a public launch)
 
 1. **Approve the two research runs** under your own name (two commands each: `pipelines.review submit`,
    then `approve`; `pipelines.review list` shows the current ids). Settle the cost-of-equity question at the
-   top of `docs/KNOWN_GAPS.md` first: it decides whether NMB says BUY or SELL.
-2. **Publishing DSE figures on a public site.** You accepted the Data Vending Policy risk for use; public
-   display is the thing the policy restricts (`docs/COMPLIANCE_NOTES.md`). The raw price files are never
-   served (403).
+   top of `docs/KNOWN_GAPS.md` first. Today NMB's view changes with the cost-of-equity treatment, so the
+   report shows it as **Inconclusive** with no trade label; CRDB is Undervalued under all three treatments.
+2. **Publishing DSE figures on a public site** (`DSE_PUBLIC_DISPLAY`). The Data Vending Policy v1.2 forbids
+   redistributing website data without a written licence (cl. 23.1); the data is classified `RESTRICTED`.
+   Recommended: `false` until the DSE grants a licence (`docs/COMPLIANCE_NOTES.md`). The raw files are
+   never served (403) either way.
 3. **The annual-report PDFs.** Every figure links to its page in our stored copy. Hosting copies is an open
    rights question; until it is settled the production API has no PDFs and those links say "missing on disk".
 4. **Paid plans.** Render's free API sleeps after 15 idle minutes (about a minute to wake). `starter` avoids it.
@@ -50,16 +53,27 @@ Then load it from your machine (section 2 there).
    - `CORS_ORIGINS`: the web app's address, e.g. `https://web-morice2004s-projects.vercel.app` (exactly,
      no trailing slash; several separated by commas).
    - `ALLOWED_HOSTS`: the API's own host, e.g. `afrianalyze-api.onrender.com`.
-   - `SENTRY_DSN`: leave empty unless a Sentry project exists.
+   - `SENTRY_DSN`: leave empty unless a Sentry project exists (`docs/OBSERVABILITY.md`).
+   - `DSE_PUBLIC_DISPLAY`: **your decision** (decision 2 below). `false` until a DSE licence is held: DSE
+     prices and everything computed from them show as `BLOCKED`. The API refuses to start if it is unset.
+   - `INTERNAL_PROXY_SECRET`: a random value of 32+ characters. Generate it in a password manager (or
+     Render's "Generate" button), put the **same** value in Vercel (step 3), and nowhere else.
+   - `ANTHROPIC_API_KEY`: optional. Created at console.anthropic.com → API keys. Empty: the copilot
+     answers `AI_UNAVAILABLE`. Usage is billed by Anthropic (a paid service: your decision).
+   - `POSTHOG_API_KEY` and `ANALYTICS_SALT`: optional, together (`docs/OBSERVABILITY.md`).
 3. Wait for the deploy. The health check is `/ready`: it stays red (503) until the database is loaded,
    which is correct.
 4. Check: `https://<api>/ready` is 200; `https://<api>/docs` is 404 (off in production);
    `https://<api>/api/v1/securities?q=nmb` lists NMB.
+5. Check the visitor address header once: Render's logs show the client address the API used. If they show
+   Cloudflare or Render addresses instead of yours, `cf-connecting-ip` is not reaching the API: clear
+   `CLIENT_IP_HEADER` so it falls back to `TRUSTED_PROXY_HOPS`, and check again.
 
 ### 3. Web (Vercel)
 
 1. Vercel → project `web` → Settings → Environment Variables, **Production** only:
-   `NEXT_PUBLIC_API_URL` = `https://<api>`, and `API_URL_INTERNAL` = the same.
+   `NEXT_PUBLIC_API_URL` = `https://<api>`, `API_URL_INTERNAL` = the same, and `INTERNAL_PROXY_SECRET` =
+   the value set on Render (mark it Sensitive). Without it every signed-in visitor shares one rate limit.
 2. Deploy: from the repo root, `vercel deploy --prod`. The build refuses to run without an `https://` API
    address, so a misconfigured production deploy fails instead of shipping a broken site.
 3. Deployment Protection stays on until decisions 1 to 3 are made. Turning it off for production is the
@@ -84,6 +98,14 @@ Then load it from your machine (section 2 there).
 | `/robots.txt` | `Disallow: /` until `NEXT_PUBLIC_ALLOW_INDEXING=true` |
 | Browser console | no errors, no CORS failures |
 | 375 px wide | no sideways scrolling |
+
+### 6. Domain (when there is one)
+
+Plan: `app.<domain>` for the web app (Vercel → Domains) and `api.<domain>` for the API (Render → Custom
+Domains), each a CNAME at your DNS provider. Then update, in this order: Render `ALLOWED_HOSTS` (add
+`api.<domain>`), Render `CORS_ORIGINS` (add `https://app.<domain>`), Vercel `NEXT_PUBLIC_API_URL`,
+`API_URL_INTERNAL` and `NEXT_PUBLIC_SITE_URL`, then redeploy the web app (the API address is compiled into
+it). Keep the old addresses in the lists until the new ones answer. No domain is registered yet.
 
 ## Rolling back
 

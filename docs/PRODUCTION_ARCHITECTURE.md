@@ -1,6 +1,6 @@
 # Production architecture
 
-Decided 2026-09-25 after checking current provider limits (sources at the end). Chosen to fit the code
+Decided 2026-09-25, re-checked 2026-10-07, after checking current provider limits (sources at the end). Chosen to fit the code
 that exists with the least redesign. Status of each part: `docs/PRODUCTION_CERTIFICATION.md`.
 
 ```mermaid
@@ -11,8 +11,16 @@ flowchart LR
   R -->|TLS, pooled| N[(Neon Postgres<br/>eu-central-1)]
   W[Owner's workstation<br/>pipelines: download, extract,<br/>resolve, load, review] -->|TLS| N
   S[Public sources<br/>DSE, BoT, NBS, bank IR pages,<br/>Damodaran] --> W
+  G[GitHub Actions schedule<br/>refresh-data.yml, weekdays] -->|TLS| N
+  S --> G
   R -. errors, if SENTRY_DSN set .-> E[Sentry]
+  R -. allowlisted events, if POSTHOG_API_KEY set .-> P[PostHog EU]
+  R -. copilot questions with stored context, if ANTHROPIC_API_KEY set .-> A[Anthropic API]
 ```
+
+Signed-in requests go browser → Vercel route handler → API, never browser → API directly: the session token
+stays in an httpOnly cookie on the web app's domain. The web server passes the visitor's address with
+`INTERNAL_PROXY_SECRET` so the API can rate-limit per visitor (`docs/SECURITY_MODEL.md`).
 
 ## The parts
 
@@ -22,12 +30,17 @@ flowchart LR
 | API | Render, Docker, `render.yaml` | Runs a long-lived Python process from the existing Dockerfile; deploys only after CI passes (`autoDeployTrigger: checksPass`); Frankfurt is the region closest to both Tanzania and Vercel's fra1 |
 | Database | Neon Postgres | Free tier does not expire (0.5 GB against a 1.3 MB database); scales to zero and wakes in about 350 ms. Render's free Postgres was rejected: it is deleted 30 days (+14) after creation |
 | Extraction pipelines | The owner's machine | Docling, Camelot and PyTorch are several GB and take minutes per report. They run a few times a year per bank, when new annual reports come out. They write to Neon over TLS |
-| Error reporting | Sentry (optional, backend wired) | Inert until `SENTRY_DSN` is set |
+| Error reporting | Sentry (optional, API wired) | Inert until `SENTRY_DSN` is set; release = deployed commit |
+| Product analytics | PostHog EU (optional, API wired) | Server-side only, allowlisted events; inert until `POSTHOG_API_KEY` is set (`docs/OBSERVABILITY.md`) |
+| Research copilot | Anthropic API (`claude-opus-5-5`), called by the API | Only provider call in the system; answers grounded in stored data and checked before shown; `AI_UNAVAILABLE` without a key |
+| Scheduled refresh | GitHub Actions | Free; no extra service; writes through `PRODUCTION_DATABASE_URL` |
 
 ## What is deliberately not here
 
-- **No Redis and no Celery workers.** The v1 API does no background work: every request reads stored data,
-  and the heaviest (a PDF) takes 0.4 s. The pipelines are commands, not jobs. The legacy Celery code
+- **No Redis and no Celery workers** (re-checked 2026-10-07 after the research engine, portfolio analytics and
+  the copilot were added). Every request reads stored data and finishes within a page load: a PDF about 0.4 s,
+  a research run (ten stages over stored data) under a second, portfolio risk under a second; the copilot
+  is one provider call bounded by its own timeout, with no queue needed at 20 questions per account per day. The pipelines are commands, not jobs. The legacy Celery code
   (`apps/api/tasks`, `apps/api/core/celery_app.py`) is not used by the live API. Adding a broker and a
   worker would add two services and a failure mode for no work. Revisit when a request needs to start work
   that takes longer than a page load (for example, a user asking for a new company's report).
@@ -40,10 +53,14 @@ flowchart LR
 ## Refreshing data
 
 Chosen 2026-10-02: a **GitHub Actions schedule** (`.github/workflows/refresh-data.yml`), weekdays at 18:00 in
-Dar es Salaam, refreshing DSE prices and the macro inputs. It costs nothing and needs no extra service. The
-database password is stored as a secret of the `production` environment, which the owner adds; until then
-every run stops at its first step with a notice. A Render cron job was the alternative and is a paid
-feature. The DSE index is not refreshed yet (its importer replaces the whole series).
+Dar es Salaam: the last 30 days of prices for every share already loaded (`pipelines.dse.refresh_prices`),
+the DSE index from the day after the last stored level, and the macro inputs. Every import **merges**: new
+days are added, nothing stored is deleted, and a changed past close is held for review and fails the run
+(`pipelines/dse/merge.py`, `tests/v1/test_refresh_preserves_history.py`). A source outage fails the run and
+is shown on `/health`. It costs nothing and needs no extra service. The database password is a secret of the
+`production` environment, which the owner adds; until then every run stops at its first step with a notice.
+GitHub runs schedules only from the default branch (`master`), so it also waits on `master` being updated.
+A Render cron job was the alternative and is a paid feature.
 
 ## Sources checked
 

@@ -56,13 +56,17 @@ Current truth: `docs/MY_AFRIANALYZE_MASTER_AUDIT.md`. Proof of each step: `docs/
 
 | Path | What it is |
 |---|---|
-| `apps/api/main.py` | FastAPI app: `/ready` (platform health check, 503 when it cannot serve), `/health` (data-health report plus the source registry), securities, reports (+ `/pdf`), source files, markets, fixed income, portfolio proposal |
+| `apps/api/main.py` | FastAPI app: `/ready` (platform health check, 503 when it cannot serve), `/health` (data-health report plus the source registry), securities, reports (+ `/pdf`; production serves the published frozen snapshot), research runs, copilot, source files, markets (breadth, movers, World Bank macro), fixed income (duration, convexity), funds, portfolio proposal. `client_ip()` decides the visitor address for rate limits |
 | `apps/api/routers/auth.py`, `portfolios.py` | Sign-in (Argon2id, hashed session tokens) and per-user saved portfolios. Every portfolio query filters on the session's user |
 | `apps/web/src/lib/session.ts`, `src/app/api/session/*`, `src/app/api/portfolios/*` | The web server holds the session in an httpOnly cookie and forwards it to the API; same-origin checks on every write |
-| `config/source_registry.json` | Every data source (15), its licensing and whether a loader exists; merged with live status on `/health` |
+| `config/source_registry.json` | Every data source (16), its licensing word (`PUBLIC`, `LICENSE_REQUIRED`, `LICENSE_REVIEW_REQUIRED`, `RESTRICTED`) and whether a loader exists; merged with live status on `/health` |
+| `packages/research/engine.py` | Research run: ten stages, execution state, frozen snapshot + SHA-256 |
+| `packages/copilot/` | Grounded copilot: context from stored data, Anthropic call, deterministic grounding check |
+| `packages/analysis/technical.py`, `portfolio_risk.py`, `bonds.py` | Technical indicators with liquidity gates; portfolio risk, minimum variance, stress; bond maths |
+| `packages/core/telemetry.py` | Sentry scrubbing and release; allowlisted server-side PostHog events |
 | `apps/web/` | Next.js 16 App Router frontend (`src/app/*` routes, `src/lib/api.ts` client, `src/components/report/*`) |
 | `packages/database/` | SQLAlchemy models (`models.py`), `ExactDecimal` type (`types.py`), session (`session.py`) |
-| `packages/analysis/` | Deterministic engines: ratios, line items, beta (5 methods + rule), cost of equity, bank valuation, model view, notes |
+| `packages/analysis/` | Deterministic engines: ratios, line items, beta (5 methods + rule), cost of equity (three treatments), bank valuation, model view (robust across treatments), notes |
 | `packages/report/` | `builder.py` assembles the report payload with statuses; `pdf.py` renders the PDF |
 | `packages/core/config.py` | Settings (env vars below) |
 | `pipelines/` | Data jobs run as commands: security master, macro (BoT, NBS, Damodaran), bank reports, review, licensed price import |
@@ -89,7 +93,8 @@ cd apps\web; npm ci; cd ..\..
 
 ```powershell
 .venv\Scripts\python -m pipelines.load_security_master   # config/securities.json -> securities
-.venv\Scripts\python -m pipelines.macro                  # BoT bonds + CBR, NBS CPI, Damodaran CRP
+.venv\Scripts\python -m pipelines.dse.discover_securities  # other DSE-listed companies (adds only)
+.venv\Scripts\python -m pipelines.macro                  # BoT bonds + CBR, NBS CPI, Damodaran, World Bank
 # For each bank (--bank=nmb or --bank=crdb):
 .venv\Scripts\python -m pipelines.banks.download_reports --bank=crdb   # annual reports 2021-2025 + SHA-256 manifest
 .venv\Scripts\python -m pipelines.banks.extract --bank=crdb            # Camelot + Docling, ~5 min per report (years optional)
@@ -101,8 +106,9 @@ cd apps\web; npm ci; cd ..\..
 To add a bank: add a profile in `pipelines/banks/profiles.py`, run the four commands, and write
 `tests/v1/test_<bank>_integration.py` with figures checked by hand against the PDF pages.
 
+Execute a research run (freezes the report): `.venv\Scripts\python -m pipelines.research_run DSE:NMB DSE:CRDB`.
 Review and publish (section 72): `.venv\Scripts\python -m pipelines.review list`, then `submit`, `approve` or
-`reject` with `--by "Full Name" --note "..."`.
+`reject` with `--by "Full Name" --note "..."` (only an executed COMPLETED/PARTIAL run can be submitted).
 
 Share prices and the index (the DSE's public data; the owner's decision of 2026-09-19, see
 `docs/COMPLIANCE_NOTES.md`):
@@ -118,6 +124,10 @@ Invoke-WebRequest -UserAgent "Mozilla/5.0" -OutFile nmb_prices.json `
 .venv\Scripts\python -m pipelines.dse.fetch_public_index --from 2016-09-22 --to 2026-09-18
 .venv\Scripts\python -m pipelines.dse.import_public_index --code DSEI --instrument DSE:DSEI
 ```
+
+Top up every share already loaded (what the scheduled workflow runs; merges, never deletes):
+`.venv\Scripts\python -m pipelines.dse.refresh_prices 30`, and the index with
+`fetch_public_index --instrument DSE:DSEI --from auto --to today` then `import_public_index`.
 
 If a licensed file is ever obtained instead:
 `.venv\Scripts\python -m pipelines.dse.import_prices --instrument DSE:NMB --file ... --licence "..."`.
@@ -163,5 +173,6 @@ Playwright uses the installed Google Chrome (`PW_CHANNEL`, default `chrome`). Sc
 | `NEXT_PUBLIC_ALLOW_INDEXING` | unset | `true` lets search engines index the site; leave unset until reports are published |
 | `HF_HUB_DISABLE_SYMLINKS` | set to `1` by the extractor | Lets Docling download its models on Windows without symlink rights |
 
-`APP_ENV=PRODUCTION` refuses to start on SQLite or with localhost/`*` CORS, and turns off `/docs`. A Vercel
+`APP_ENV=PRODUCTION` refuses to start on SQLite, with localhost/`*` CORS, without `DSE_PUBLIC_DISPLAY` set,
+without a 32+ character `INTERNAL_PROXY_SECRET`, or with PostHog and no `ANALYTICS_SALT`; it turns off `/docs`. A Vercel
 production build refuses to run without an `https://` `NEXT_PUBLIC_API_URL`. Full list: `docs/ENVIRONMENT.md`.

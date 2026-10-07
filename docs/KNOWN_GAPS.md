@@ -1,6 +1,6 @@
 # Known gaps
 
-Last updated: 2026-09-25. Anything fake, partial, blocked or untested is listed here (ROADMAP rule 4).
+Last updated: 2026-10-07. Anything fake, partial, blocked or untested is listed here (ROADMAP rule 4).
 Full detail and evidence: `docs/MY_AFRIANALYZE_MASTER_AUDIT.md`.
 
 ## Owner decisions (2026-09-19)
@@ -15,30 +15,31 @@ Full detail and evidence: `docs/MY_AFRIANALYZE_MASTER_AUDIT.md`.
 | Legacy code | Delete only what is no longer useful | Deleted the Uganda connector and DSE price provider (invented values only), their two tests, and the mock sign-in (and the unused `next-auth` package). Kept the agents, the other connectors (they contain real fetch code) and the old engines |
 | Push | Yes | Branch pushed to GitHub |
 
-## Production readiness (2026-09-25)
+## Production readiness (2026-10-07)
 
-Full list with evidence: `docs/AFRIEDGE_PRODUCTION_AUDIT.md`; status per capability:
-`docs/PRODUCTION_CERTIFICATION.md` (overall `BLOCKED`).
+Status per capability: `docs/PRODUCTION_CERTIFICATION.md` (overall `BLOCKED`). Owner actions, in order:
 
-- **Two products on one repository.** `master` holds the "AfriEdge" line with invented figures, a hardcoded
-  sign-in and false certification claims (audit M-1 to M-5). Do not deploy or merge it as it stands. Owner
-  decision: which line is the product.
-- **Not deployed.** No Neon database, no Render API. Steps: `docs/DEPLOYMENT_RUNBOOK.md`.
-- **Prices and index are STALE** (loaded 2026-09-20). `refresh-data.yml` will refresh prices and macro once
-  `PRODUCTION_DATABASE_URL` is stored in the GitHub `production` environment. The DSE index needs its
-  importer changed to update in place before it can be scheduled.
-- BoT Central Bank Rate: fixed 2026-10-02 (now 6.25%, the July 2026 decision).
-- **No password reset or email verification** (needs an email service).
-- **Backups:** review history lives only in the database; `data/` is not backed up; dump/restore untested.
-- **Observability:** backend Sentry wired but not connected; frontend Sentry and PostHog MISSING.
-- CSP added 2026-10-02 (inline scripts still allowed). Playwright is not in CI.
+1. **Neon and Render accounts** (`DEPLOYMENT_RUNBOOK.md` steps 1-2), with `INTERNAL_PROXY_SECRET` set to the
+   same value on Render and Vercel.
+2. **`DSE_PUBLIC_DISPLAY`**: the DSE's policy forbids public redistribution without a licence (`RESTRICTED`).
+   Production will not start until you set it; `false` is the safe value.
+3. **Cost-of-equity treatment**, then review and approve the runs RA-20261007-001 (NMB) and -002 (CRDB).
+4. **Update `master`** to the canonical branch (needed for the scheduled refresh) and add
+   `PRODUCTION_DATABASE_URL` to the GitHub `production` environment.
+5. Optional: Sentry and PostHog projects; an Anthropic key for the copilot (paid); a domain.
+6. Read UTT AMIS's terms (unit trust prices) and decide; the IMF needs written permission.
+
+Still missing whatever the accounts: password reset and email verification (needs an email service); tested
+backups (`data/` is not backed up, dump/restore never run); Playwright in CI; browser-side error reporting.
 
 ## The one to look at first
 
-**The model says both banks are worth more than the market says.** NMB's fair value is 14% above the
-traded price; CRDB's is 79% above it, and the report now says so on the page and asks the reviewer to
-check before approving. When a model disagrees this strongly with a traded price, the model is usually
-the one that is wrong. Two things to weigh:
+**The answer for NMB depends on a method choice.** With the configured cost of equity (12.94%) NMB's fair
+value is TZS 2,354 against a price of 2,040; with the two other standard treatments (15.25% and 16.77%) it is
+1,706 and 1,433, below the price. Since 2026-10-07 the report computes all three and, because the view flips,
+shows NMB as **Inconclusive** with no trade label. CRDB is Undervalued under all three (5,026 / 3,624 / 3,035 against a price of 2,910; the base case is 73%
+above the market). When a model disagrees this strongly with a traded price, the model is usually the one
+that is wrong. Two things to weigh:
 
 - The projection extrapolates the last three years. CRDB's net loans grew 25.9% a year over 2022-2025,
   and the base case carries that forward. A bank cannot compound loans at 26% indefinitely.
@@ -67,7 +68,8 @@ price, opposite answer.
 - **Peer P/E and P/B** need prices for individual regional listed banks (NSE, USE), which are outside the v1
   scope. The `bottom_up` beta method (peer-by-peer, unlevered and relevered) stays BLOCKED for the same
   reason. The valuation does not depend on it: it uses the published industry average instead.
-- **Market movers and commentary** on the markets page: they would need the whole DSE board, not two banks.
+- **Market commentary** and a sector view: movers and breadth now cover 17 shares, but 26 of the 28 companies
+  are "Unclassified" until their sectors are checked by hand.
 - **Portfolio sizing**: prices exist now, but the weighting rules, board lots and minimum trade sizes are not
   in the system, so a proposal says so and shows no weights or amounts.
 
@@ -92,8 +94,8 @@ price, opposite answer.
 - **NMB FY2020 loans.** The 2021 report (p.324) does not add up for the 2020 column, so gross loans and the
   allowance are `CONFLICTING_SOURCE`. Cost of risk for FY2021 is therefore not shown. Needs a person to
   confirm (`config/source_issues.json`, `confirmed_by: null`).
-- **Bank of Tanzania CBR.** Read from the April 2026 MPC statement at a fixed URL; flagged STALE. Newer
-  statements are not discovered automatically.
+- **Bank of Tanzania CBR.** Fixed 2026-10-02: the newest MPC statement is found on the notices page each run
+  (6.25%, raised 2 July 2026).
 - **Damodaran** default spread, CRP and mature ERP are dated 2026-01-05. They are STALE under the 200-day rule
   and cost 15 confidence points. A mid-year update may exist; re-run `pipelines.macro` after checking.
 - The 7-year TZS bond was last auctioned in 2022. It is shown on the curve with that date.
@@ -103,7 +105,8 @@ price, opposite answer.
   (section 79). This gives 500,000,000 shares for FY2025, which matches the shareholder table (Arise B.V.
   174,500,000 shares = 34.90%, 2025 report p.113).
 - Large cash-flow restatements for FY2021 and FY2022 (restated comparatives are marked).
-- Only NMB and CRDB have reports ingested. The other DSE companies are not in the security master.
+- Only NMB and CRDB have reports ingested. The other 26 DSE companies are in the security master (discovered
+  2026-10-07), 15 of them with prices; their statements are not loaded.
 - **CRDB loan impairment FY2022 and FY2023**: the credit loss note is laid out differently in those reports
   and the readers disagree, so cost of risk and dividend payout are not shown for those years.
 - **CRDB EPS and interest detail for FY2020-2021**: only one reader found them, so they are not used.
@@ -111,26 +114,28 @@ price, opposite answer.
   Confirm which basis to show before publishing.
 - CRDB owners' equity for FY2020-2021 is derived from total equity because the report states the subsidiaries
   are 100% owned. The quote is stored with the figure.
-- T-bills and unit trust funds (v1 scope) are not ingested.
+- T-bills are not ingested. Unit trust funds are listed (`config/funds.json`) but their prices are
+  `BLOCKED` until UTT AMIS's terms are read.
 
 ## Not built yet
 
-- Scheduled ingestion (Celery beat), retries, failure alerts. Pipelines are run by hand (CLAUDE.md).
+- Scheduled ingestion runs as a GitHub Actions workflow (written and tested locally; inert until the
+  production database exists). Bank reports are still loaded by hand, by design.
 - Admin console: review queue, conflict queue, overrides with a logged reason and source, freshness dashboard.
 - Cash-flow tie check (cash movement) and full subtotal checks.
 - Report history and the public track record (section 76).
 - Report request queue: a user asks for a report, the system prepares it, the owner reviews it, the user
   sees it. Needs accounts (a request is tied to a person).
-- Accounts, roles, plans and gating. Payments wait for the owner.
-- Grounded copilot. `/research-chat` is switched off because the old version showed invented figures.
+- Roles, plans and gating (accounts exist since 2026-10-02). Payments wait for the owner.
+- Grounded copilot: built (2026-10-07), never run against the real model (no API key).
 - Methodology page, legal pages (drafts FOR LAWYER REVIEW), cookie consent.
-- Swahili, beginner mode, landing page, screener, compare, watchlist, alerts, portfolio tracker.
-- Observability, backups, staging, production deploy.
+- Swahili, beginner mode, screener, compare, watchlist, alerts.
+- Tested backups, staging, production deploy.
 
 ## Untested
 
-- `docker compose up`, both Dockerfiles, PostgreSQL (Docker not installed; everything ran on SQLite).
-- GitHub Actions CI (retargeted to `master` and Node 22; not yet run on GitHub).
+- `docker compose up` locally (Docker not installed). The API image and Postgres are tested in CI on every push.
+- The scheduled refresh workflow against a real production database.
 - Terraform (`infra/`).
 
 ## Skipped tests (declared)

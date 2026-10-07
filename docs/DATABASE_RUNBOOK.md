@@ -1,7 +1,8 @@
 # Database runbook
 
 Production database: Neon Postgres (docs/PRODUCTION_ARCHITECTURE.md). Local development: SQLite at
-`data/afrianalyze.db`. One migration today: `4b3dcb0cd928` (initial schema).
+`data/afrianalyze.db`. Three migrations (updated 2026-10-07): `4b3dcb0cd928` initial schema, `7c1e5a2f9d30`
+sign-in sessions and portfolio holdings, `9d4b2e7a1c58` research-run execution state and frozen snapshot.
 
 What is tested and where:
 
@@ -29,17 +30,25 @@ extraction files (`data/processed`) and the downloaded PDFs are only there.
 ```powershell
 $env:DATABASE_URL = "<paste the Neon connection string>"
 .venv\Scripts\python -m alembic upgrade head
-.venv\Scripts\python -m pipelines.load_security_master
-.venv\Scripts\python -m pipelines.macro
+.venv\Scripts\python -m pipelines.load_security_master          # NMB, CRDB (verified by hand)
+.venv\Scripts\python -m pipelines.dse.discover_securities       # the other DSE companies; never changes NMB/CRDB
+.venv\Scripts\python -m pipelines.macro                         # BoT, NBS, Damodaran, World Bank
 .venv\Scripts\python -m pipelines.banks.load --bank=nmb
 .venv\Scripts\python -m pipelines.banks.load --bank=crdb
+# Prices: one deliberate ten-year first load per share (CLAUDE.md shows the download), e.g.
 .venv\Scripts\python -m pipelines.dse.import_public_prices --instrument DSE:NMB --file nmb_prices.json
-.venv\Scripts\python -m pipelines.dse.import_public_prices --instrument DSE:CRDB --file crdb_prices.json
 .venv\Scripts\python -m pipelines.dse.import_public_index --code DSEI --instrument DSE:DSEI
+.venv\Scripts\python -m pipelines.research_run DSE:NMB DSE:CRDB  # executes and freezes each run
 Remove-Item Env:DATABASE_URL
 ```
 
-Then publish the reviewed runs (`pipelines.review`) against the same database, or the reports stay 403.
+The scheduled refresh (`refresh-data.yml`) only tops up shares that already have a history; a share's first
+load is always this deliberate command, so a share refused for unexplained jumps cannot slip in later.
+Copying the local SQLite data across instead of re-running the loaders is not supported (no tool for it).
+
+Then review and publish the runs (`pipelines.review submit`, then `approve`, under your own name) against the
+same database, or the reports stay 403. Only a run that executed `COMPLETED` or `PARTIAL` with a snapshot can be
+submitted.
 
 Check: `https://<api>/ready` returns 200 with `APP_HEALTHY` or `DEGRADED` (and the list of stale sources).
 
@@ -52,7 +61,9 @@ Check: `https://<api>/ready` returns 200 with `APP_HEALTHY` or `DEGRADED` (and t
   downgrade against production without a backup taken first. Nothing in the deploy process runs one.
 - **Bad data from a pipeline:** fix the input and re-run the loader. Checked in the code: the bank loader
   deletes and re-inserts that bank's facts, documents, checks and risks; the price and index importers
-  delete and re-insert that instrument's bars; the macro jobs and the security master upsert. A re-load
+  **merge** (add new days, keep stored ones, hold a changed past close for review; `--accept-revisions`
+  applies one after you have checked it) and never delete; the macro jobs and the security master upsert.
+  A published report is served from its frozen snapshot, so a re-load does not change what readers see. A re-load
   opens a new draft research run, which must be reviewed again. (What a re-load does to an
   already-published run has not been tested; check `pipelines.review list` afterwards.)
 

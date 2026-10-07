@@ -1,72 +1,72 @@
 # Production certification
 
-Date: 2026-09-25. Branch `m3-crdb-report`. Findings behind each row: `docs/AFRIEDGE_PRODUCTION_AUDIT.md`.
-This replaces nothing on `master`, whose certification of the same date is contradicted by the evidence
-(audit findings M-2 to M-5).
+Date: 2026-10-07. Branch `m3-crdb-report` (canonical). Earlier findings: `docs/AFRIEDGE_PRODUCTION_AUDIT.md`.
+`master` still holds the quarantined legacy line; nothing here certifies it.
 
 ## Overall: `BLOCKED`
 
-The code on this branch is in good order for what it does, and CI proves the parts that can be proved
-without accounts. It is not a production system yet, for three reasons outside the repository:
+The code on this branch does what it says, on real data, and the tests prove what can be proved without
+accounts. It is **not a running production system**, and no amount of local work changes that, because the
+remaining blockers are outside the repository:
 
-1. No API host or database exists (the owner's accounts).
-2. Both research reports are unapproved drafts, so production has nothing to show (the owner's review).
-3. Showing DSE figures and hosting the banks' PDFs publicly are open licensing questions.
+1. **No API host and no database exist** (Render and Neon accounts are the owner's to create).
+2. **Nothing is published.** Both research runs are unapproved drafts (owner's review, after the
+   cost-of-equity decision).
+3. **DSE data may not be shown publicly without a licence** (Data Vending Policy v1.2, cl. 23.1). Production
+   will run with `DSE_PUBLIC_DISPLAY=false` until one is held, which blanks every price-based figure.
 
-Statuses: `READY`, `READY_WITH_LIMITATIONS`, `BLOCKED` (needs something outside the repo),
-`INCONCLUSIVE`, `REJECTED` (not built, or fails the bar), `INSUFFICIENT_DATA`.
-Columns: **Real** = works on real data, not fixtures. **Deployed** = running on production infrastructure.
+Statuses: `READY`, `READY_WITH_LIMITATIONS`, `BLOCKED` (needs something outside the repo), `INCONCLUSIVE`,
+`INSUFFICIENT_DATA`, `REJECTED` (not built, or fails the bar). **Real** = runs on real data, not fixtures.
+**Deployed** = running on production infrastructure (nothing is).
 
-Evidence as of 2026-10-02, commit `aca2618`. CI run #37020058787, all 5 jobs passed: unit tests 183 passed,
-74 skipped (integration tests that need the downloaded reports); Postgres job 17 passed; gitleaks no leaks;
-pip-audit and npm audit clean. Local: Python 253 passed, 4 skipped; Playwright 32/32 (1440 and 375 px).
+Evidence, 2026-10-07: Python **358 passed, 4 skipped** (the 4 need `litellm` for the legacy agent layer, or
+skip themselves); Playwright **46/46** at 1440 and 375 px against the real local API and data; CI run
+37604066948 on `450bb0f`, all 5 jobs passed (unit tests, Postgres from zero, API Docker image, gitleaks,
+pip-audit and npm audit); local `pip-audit` and `npm audit --omit=dev` clean.
 
 | Capability | Implemented | Real | Tested | Deployed | Evidence | Status | Limitation |
 |---|---|---|---|---|---|---|---|
-| Frontend | yes | yes | tsc, eslint, build; Playwright 32/32 at 1440 and 375 px (2026-10-02); 8 pages at 320/375/390/430 px with no sideways scroll | preview only, protected | Vercel `web-1u7t6cvbb…` Ready (pre-rebrand build) | READY_WITH_LIMITATIONS | Playwright not in CI; the AfriEdge build is not deployed yet |
-| API | yes | yes | 222 local tests; CI serves it in PRODUCTION mode on Postgres | no | CI job "Postgres from zero" | BLOCKED | No host yet (O-1) |
-| PostgreSQL | yes | yes (CI Postgres 16) | migrations up/down/up; money round trip; image migrates on start | no | CI jobs "Postgres", "API image" | BLOCKED | Neon not created; full data load never run on Postgres |
-| Redis | no | n/a | n/a | n/a | Not needed by v1 (`PRODUCTION_ARCHITECTURE.md`) | READY_WITH_LIMITATIONS | Deliberately absent |
-| Background workers | no (by design) | n/a | n/a | n/a | No request starts background work; pipelines are commands. Scheduled refresh is a GitHub Actions workflow (`refresh-data.yml`) | READY_WITH_LIMITATIONS | Refresh inert until `PRODUCTION_DATABASE_URL` is stored; DSE index excluded until its importer updates in place |
-| Authentication | yes | yes | 25 API tests (`test_auth_and_portfolios.py`) and a browser journey | no | Argon2id hashes; 256-bit session tokens stored only as SHA-256; httpOnly SameSite cookie; logout revokes; 7-day expiry; 10 sign-in attempts per minute per client | READY_WITH_LIMITATIONS | No password reset or email verification (needs an email service); no account deletion yet |
-| Authorization | yes | yes | A cannot read, change or delete B's portfolio (API test and browser test); review gate 403 | no | every portfolio query filters on the session user; other users' ids answer 404 | READY | |
-| DSE | yes (prices, index) | yes | 13 importer tests; reconciliation | no | 2,473 days NMB/CRDB; 2,460 DSEI | READY_WITH_LIMITATIONS | STALE; `LICENSE_REVIEW_REQUIRED` for public display |
-| NSE | no (v1) | reachable | probe | n/a | `DATA_SOURCE_MATRIX.md` | REJECTED | Outside v1 scope |
-| USE | no (v1) | reachable | probe | n/a | as above | REJECTED | Outside v1 scope |
-| BoT | yes (bond yields, policy rate) | yes | `test_bot_cbr.py` (6); fixed income API test | no | CBR 6.25% from the 2 July 2026 MPC statement, found on bot.go.tz's notices page each run | READY_WITH_LIMITATIONS | No T-bills |
-| CBK | no | reachable | probe | n/a | as above | REJECTED | Outside v1 scope |
-| BoU | no | reachable | probe | n/a | as above | REJECTED | Outside v1 scope |
-| NBS | yes (CPI) | yes | range check in the loader; no loader test | no | August 2026 CPI | READY_WITH_LIMITATIONS | The loader has no test of its own |
-| KNBS | no | certificate fails | probe | n/a | as above | BLOCKED | Their TLS certificate |
-| UBOS | no | certificate fails | probe | n/a | as above | BLOCKED | Their TLS certificate |
-| IMF | no loader | API works | probe | n/a | Tanzania GDP growth parsed | REJECTED | No loader |
-| World Bank | no loader | API works | probe | n/a | Tanzania GDP parsed | REJECTED | No loader |
-| Company documents | yes | yes | SHA-256 manifests; integration tests | no | 10 annual reports (NMB, CRDB FY2021-25) | READY_WITH_LIMITATIONS | Two banks; PDF hosting rights open (O-7) |
-| PDF extraction | yes | yes | two-reader agreement; every figure on its page | workstation | 295 + 297 facts | READY_WITH_LIMITATIONS | Runs offline, not on the server |
-| Financial normalization | yes | yes | tie checks 41/42, 42/42 | no | `DATA_QUALITY.md` | READY | |
-| Financial calculations | yes | yes | hand-checked tests | no | `tests/v1/test_bank_ratios.py` etc. | READY | Banks only |
-| Valuation | yes | yes | hand-checked tests; sensitivity | no | Residual income, justified P/B, DDM; every input sourced | INCONCLUSIVE | Cost-of-equity treatment and CRDB growth unsettled; the view flips on the beta (O-3) |
-| Technical analysis | engine only (legacy) | no | legacy tests | no | Not on the v1 report | REJECTED | Not wired in v1 |
-| Market analysis | partial | yes | `test_markets_and_portfolios_do_not_invent_numbers` | no | DSEI level and movers from stored prices | READY_WITH_LIMITATIONS | Two securities priced; no breadth or sector view |
-| Fixed income | partial | yes | fixed-income test | no | BoT bond curve, real yield, 2y-10y spread | READY_WITH_LIMITATIONS | No T-bills, no duration/convexity |
-| Mutual funds | no | n/a | n/a | n/a | | REJECTED | Not built |
-| Portfolios | yes (save, value) | yes | API and browser tests | no | quantity x latest stored close in Decimal; unpriced holdings INSUFFICIENT_DATA; stale prices flagged | READY_WITH_LIMITATIONS | TZS only; no return history, risk or drift yet |
-| Optimization | legacy only | no | n/a | n/a | | REJECTED | Not built in v1 |
-| Stress testing | legacy only | no | n/a | n/a | | REJECTED | Not built in v1 |
-| Evidence lineage | yes | yes | every figure has source, page, status | no | `test_every_shown_figure_has_status_source_and_units` | READY_WITH_LIMITATIONS | Source links need the PDFs hosted (O-7) |
-| AI copilot | no | n/a | n/a | n/a | No LLM calls in v1 | REJECTED | Not built; needs sign-in and rate limits first |
-| Sentry | backend wired | no | inert without DSN | no | `apps/api/main.py` | BLOCKED | No Sentry project; frontend not wired |
-| PostHog | no | n/a | n/a | n/a | | REJECTED | Not built |
-| CI/CD | yes | yes | 5 CI jobs; scheduled refresh workflow | GitHub Actions | runs listed in PROGRESS | READY_WITH_LIMITATIONS | Render deploy gate (`checksPass`) configured, not yet exercised |
-| Security | yes | yes | tests, gitleaks, pip-audit, npm audit; CSRF and isolation tests; CSP checked in the browser | n/a | `SECURITY_MODEL.md` | READY_WITH_LIMITATIONS | CSP allows inline scripts (Next.js); no second-tool review yet |
-| Backups | documented | no | not tested | n/a | `DATABASE_RUNBOOK.md` | REJECTED | Dump/restore never run; `data/` not backed up |
-| Browser verification | yes | yes | Playwright 32/32 locally against the real API and data; manual journey with two accounts | preview only | 2026-10-02 | INCONCLUSIVE | Not run against a deployed API |
+| Frontend (Next.js 16) | yes | yes | tsc, eslint, build in CI; Playwright 46/46; every page at 320/375/390/430 px without sideways scroll | protected preview only | Vercel preview (`PROGRESS.md`) | READY_WITH_LIMITATIONS | Playwright not in CI; no production deploy until an API exists |
+| API (FastAPI) | yes | yes | Python suite; CI serves the image in PRODUCTION mode on Postgres | no | CI "API Docker image" | BLOCKED | No Render service (owner) |
+| PostgreSQL | yes | CI Postgres 16 | 3 migrations up/down/up; exact money round trip | no | CI "Postgres from zero" | BLOCKED | Neon not created; full load never run on Postgres |
+| Background workers / Redis | none, by decision | n/a | n/a | n/a | Every request finishes within a page load (`PRODUCTION_ARCHITECTURE.md`, re-checked 2026-10-07) | READY_WITH_LIMITATIONS | Rate limits in memory per process (one instance only) |
+| Scheduled refresh | yes | yes (run locally) | merge tests 7 (history never shrinks, revisions held, outage recorded) | no | `refresh-data.yml`; 2026-10-07 local refresh: 17 shares + DSEI to 2026-10-06 | BLOCKED | Needs `PRODUCTION_DATABASE_URL` and the code on `master` (schedules run only from the default branch) |
+| Authentication | yes | yes | API tests + browser journey; per-email lockout | no | Argon2id; hashed 256-bit session tokens; httpOnly cookie; per-visitor and per-email limits | READY_WITH_LIMITATIONS | No password reset, email verification or account deletion (needs an email service) |
+| Authorization | yes | yes | Two-account tests at API and in the browser | no | Every portfolio query filters on the session user; others' ids 404 | READY | |
+| DSE equities | yes | yes | importer, merge and discovery tests (9) | no | 28 companies listed; 17 shares priced to 2026-10-06; DSEI 2,472 days | READY_WITH_LIMITATIONS | `RESTRICTED`: public display needs a DSE licence; 8 shares refused (unexplained jumps), 3 not served |
+| BoT (bonds, CBR) | yes | yes | `test_bot_cbr.py`; bond pricing checked against BoT's published prices | no | 2Y-25Y yields (15Y auction 2026-09-30); CBR 6.25% | READY_WITH_LIMITATIONS | No T-bills; 7Y last auctioned 2022 |
+| NBS CPI | yes | yes | loader range check | no | 4.3% (August 2026) | READY_WITH_LIMITATIONS | No test of its own |
+| World Bank | yes | yes | `test_world_bank.py` (3) | no | 188 observations, TZ/KE/UG, to 2025 | READY | Annual data only |
+| IMF | no | n/a | n/a | n/a | Terms require permission for commercial redistribution | BLOCKED | `LICENSE_REQUIRED` (owner) |
+| NSE, USE, CBK, BoU, KNBS, UBOS | no | n/a | probe only | n/a | Kenya and Uganda outside v1; the schema already carries exchange and currency | REJECTED | Scope decision; KNBS and UBOS certificates fail |
+| Company documents | yes | yes | SHA-256 manifests; integration tests | no | NMB and CRDB annual reports FY2021-25 | READY_WITH_LIMITATIONS | Two banks; hosting the PDFs publicly is an open rights question |
+| PDF extraction | yes | yes | two-reader agreement; every figure on its page | workstation | 295 + 297 facts | READY_WITH_LIMITATIONS | Runs offline, by design |
+| Financial statement analysis | yes | yes | tie checks NMB 41/42 (fails inside NMB's own report), CRDB 41/41 + 1 not runnable | no | `DATA_QUALITY.md` | READY | Banks only |
+| Bank metrics | yes | yes | hand-checked tests | no | NIM, cost/income, cost of risk, NPL, ROE, capital | READY | Banks only |
+| Research run engine | yes | yes | `test_research_runs.py` (8) | no | 10 stages; COMPLETED/PARTIAL/FAILED/BLOCKED/INSUFFICIENT_DATA; frozen snapshot + SHA-256 served in production; NMB and CRDB runs `PARTIAL` | READY_WITH_LIMITATIONS | `PARTIAL` because of disclosed gaps (unchecked tie check, stale Damodaran inputs) |
+| Valuation | yes | yes | hand-checked tests; sensitivity; three cost-of-equity treatments | no | NMB fair value 2,354 / 1,706 / 1,433 TZS by treatment vs price 2,040 → **Inconclusive**, no label; CRDB Undervalued under all three | INCONCLUSIVE | The treatment is the owner's decision; CRDB's 26% loan growth is extrapolated |
+| Recommendation (BUY/HOLD/SELL) | yes | yes | `test_recommendation.py` | no | Shown only when the view survives every treatment (`require_robust_view`) | READY_WITH_LIMITATIONS | Labels on by owner decision; no published report yet |
+| Technical analysis | yes | yes | `test_technical.py` (11) | no | SMA/EMA/RSI/MACD/Bollinger/OBV with a liquidity gate per window (section 74) | READY_WITH_LIMITATIONS | ATR/ADX/VWAP `INSUFFICIENT_DATA` (no reliable intraday high/low) |
+| Market analysis | yes | yes | API + browser tests | no | DSEI, breadth, gainers/losers over 17 shares (no trade is not a move) | READY_WITH_LIMITATIONS | No sector view (26 companies "Unclassified") |
+| Fixed income | yes | yes | `test_bonds.py` (11) | no | Yield curve, price, duration, convexity, rate shocks; BoT prices reproduced to 0.0003 (5-25Y) | READY_WITH_LIMITATIONS | No T-bills; 2Y/20Y differ by 0.02-0.03 (BoT averages) |
+| Mutual funds | data model and page | no | API test | no | 6 UTT AMIS funds listed with sources, each `BLOCKED` | BLOCKED | Owner to read UTT AMIS terms before any price is loaded |
+| Portfolios | yes | yes | API + browser | no | Decimal valuation at the latest close; unpriced → `INSUFFICIENT_DATA`; stale flagged | READY_WITH_LIMITATIONS | TZS only |
+| Portfolio risk, optimisation, stress | yes | yes | `test_portfolio_risk.py` (10) | no | Weekly returns; volatility, drawdown, correlation; minimum variance only (no invented expected returns); historical and configured shocks | READY_WITH_LIMITATIONS | Thin trading (NMB had no trade on 35.6% of days) makes risk estimates noisy; no board-lot rules |
+| AI copilot | yes | no provider key | `test_copilot.py` (22) with a fake provider | no | Grounded context; deterministic number check withholds `UNGROUNDED`; `AI_UNAVAILABLE` on any failure; sign-in + 20/day | INCONCLUSIVE | Never run against the real model (no `ANTHROPIC_API_KEY`; a paid service) |
+| Evidence lineage | yes | yes | `test_every_shown_figure_has_status_source_and_units` | no | Every figure: source, page, status, retrieval | READY_WITH_LIMITATIONS | Source links need the PDFs hosted |
+| Data-quality UI | yes | yes | browser tests | no | `/health` (status, ages, licensing), per-figure status on reports | READY | |
+| Sentry | API wired | no | scrubber tests; `pipelines.sentry_check` | no | release = deployed commit | BLOCKED | No Sentry project (owner); browser errors not reported |
+| PostHog | API wired | no | `test_telemetry.py` (9) | no | Server-side, allowlisted events, salted ids, EU, no GeoIP | BLOCKED | No PostHog project (owner) |
+| CI/CD | yes | yes | 5 CI jobs | GitHub Actions | run 37604066948 green | READY_WITH_LIMITATIONS | Render's `checksPass` gate configured, not yet exercised |
+| Security | yes | yes | second pass 2026-10-07; gitleaks, pip-audit, npm audit | n/a | `SECURITY_MODEL.md` (2 rate-limit flaws found and fixed) | READY_WITH_LIMITATIONS | No independent reviewer yet; CSP allows inline scripts |
+| Backups | documented | no | not run | n/a | `DATABASE_RUNBOOK.md` | REJECTED | Dump/restore never run; `data/` not backed up |
+| Production smoke test | written | no | not run | no | `DEPLOYMENT_RUNBOOK.md` step 5 | BLOCKED | Needs a deployed API |
 
-## The directive's end-to-end journey
+## The end-to-end journey (locally, real data)
 
-Of the 24 steps in the directive's final user journey, the following work today (locally, against real
-data): search a listed company; open it; real company information; real financial statements; open a line
-item and see its source and page; ratios; valuation with assumptions and sensitivity; risks; the
-recommendation with its uncertainty and the rule behind it; source lineage; data quality and research
-status. Not built: sign-in, the copilot, technical analysis on the report, creating, analysing,
-stress-testing and saving a portfolio. None of it runs in production yet.
+Works: search a DSE company; open NMB or CRDB; real statements with every line's source page; ratios and bank
+metrics; valuation with assumptions, sensitivity and the cost-of-equity alternatives; technical indicators
+with their liquidity gates; risks; the recommendation with its uncertainty (NMB Inconclusive); the research
+run's stages and snapshot; sign up and sign in; create, value, analyse and stress-test a portfolio; markets
+breadth; bond analytics; the copilot's `AI_UNAVAILABLE` path. Not working: the copilot's answers (no key),
+unit trust prices (blocked on terms), anything in production.

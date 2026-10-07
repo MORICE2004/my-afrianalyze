@@ -1,6 +1,6 @@
 # Environment variables
 
-Every variable the live code reads, from `packages/core/config.py` and `apps/web` (checked 2026-09-25 by
+Every variable the live code reads, from `packages/core/config.py` and `apps/web` (checked 2026-10-07 by
 searching the code for `settings.` and `process.env.`). `.env.example` lists the same names with no values.
 
 Classes: `PUBLIC` (ends up in the browser), `SERVER_ONLY` (not secret, but only the server needs it),
@@ -18,6 +18,17 @@ Classes: `PUBLIC` (ends up in the browser), `SERVER_ONLY` (not secret, but only 
 | `SHOW_TRADE_LABELS` | SERVER_ONLY | `true` | BUY/HOLD/SELL next to the model view (owner decision 2026-09-19) |
 | `EXPENSIVE_REQUESTS_PER_MINUTE` | SERVER_ONLY, OPTIONAL | `30` | Per-client limit on report and PDF builds |
 | `SENTRY_DSN` | SERVER_ONLY, OPTIONAL | empty (off) | Where errors are reported. Not a password, but kept out of git |
+| `DSE_PUBLIC_DISPLAY` | SERVER_ONLY, REQUIRED_FOR_PRODUCTION | unset (shown in development) | The owner's licensing decision. `false`: DSE prices, index levels and everything computed from them are replaced by a `BLOCKED` notice. PRODUCTION refuses to start while unset |
+| `INTERNAL_PROXY_SECRET` | **SECRET**, REQUIRED_FOR_PRODUCTION | empty | 32+ random characters, the same value on Vercel. Proves the visitor-address header came from the web server; PRODUCTION refuses to start without it |
+| `CLIENT_IP_HEADER` | SERVER_ONLY | empty | Header the edge sets to the real visitor address (`cf-connecting-ip` on Render). Verify on first deploy |
+| `TRUSTED_PROXY_HOPS` | SERVER_ONLY | `0` | Proxies in front of the API that append to `X-Forwarded-For`; `1` on Render |
+| `ANTHROPIC_API_KEY` | **SECRET**, OPTIONAL | empty | Research copilot provider. Empty: answers `AI_UNAVAILABLE` |
+| `COPILOT_MODEL` | SERVER_ONLY | `claude-opus-5-5` | Model the copilot calls |
+| `COPILOT_DAILY_QUESTIONS` | SERVER_ONLY | `20` | Questions per account per day |
+| `POSTHOG_API_KEY` | SERVER_ONLY, OPTIONAL | empty (off) | Product analytics, sent from the API only |
+| `POSTHOG_HOST` | SERVER_ONLY | `https://eu.i.posthog.com` | PostHog region |
+| `ANALYTICS_SALT` | **SECRET**, required with PostHog in PRODUCTION | empty | 16+ random characters; people are salted hashes of their id |
+| `RENDER_GIT_COMMIT` | set by Render | | Used as the Sentry release |
 | `PORT` | SERVER_ONLY | `8000` | Set by Render; read by the Docker command |
 | `FIRECRAWL_API_KEY` | SECRET, OPTIONAL | empty | Read only by legacy connectors; the v1 code path does not use it |
 
@@ -27,6 +38,7 @@ Classes: `PUBLIC` (ends up in the browser), `SERVER_ONLY` (not secret, but only 
 |---|---|---|---|
 | `NEXT_PUBLIC_API_URL` | **PUBLIC**, REQUIRED_FOR_PRODUCTION | `http://localhost:8000` | The API address the browser calls. Compiled into the JavaScript. A Vercel production build fails unless it is `https://` |
 | `API_URL_INTERNAL` | SERVER_ONLY, OPTIONAL | `NEXT_PUBLIC_API_URL` | Address for server-side rendering (in Docker: `http://api:8000`) |
+| `INTERNAL_PROXY_SECRET` | **SECRET**, REQUIRED_FOR_PRODUCTION | unset | Same value as on Render. The web server sends it with the visitor's address so the API rate-limits per visitor. Never `NEXT_PUBLIC_` |
 | `NEXT_PUBLIC_SITE_URL` | PUBLIC, OPTIONAL | `http://localhost:3000` | The site's own address, used for share-card (OpenGraph) links. Set it to the production domain |
 | `NEXT_PUBLIC_ALLOW_INDEXING` | PUBLIC, OPTIONAL | unset | `true` lets search engines index the site. Leave unset until reports are published |
 | `VERCEL`, `VERCEL_ENV` | set by Vercel | | Used to skip the standalone bundle and to apply the production-build guard |
@@ -54,7 +66,7 @@ $env:DATABASE_URL = "<paste from Neon>"; .venv\Scripts\python -m alembic upgrade
 - Development, preview and production use different databases: development uses the local SQLite file,
   and the only production database is the one whose URL is typed into Render. Vercel preview builds call
   whatever `NEXT_PUBLIC_API_URL` their environment sets; point Preview at nothing, or at a staging API,
-  never at a production API that can be written to. (The API has no write endpoints today, which
-  limits the damage.)
-- Not used by the live code, so not listed: `SECRET_KEY`, `REDIS_URL`, `SUPABASE_*`, `S3_*`, LLM keys,
-  `POSTHOG_*`. Earlier documents listed them for systems that were never wired in.
+  never at a production API that can be written to. (The API has write endpoints for accounts and
+  portfolios since 2026-10-02, so this matters.)
+- Not used by the live code, so not listed: `SECRET_KEY`, `REDIS_URL`, `SUPABASE_*`, `S3_*`, `OPENAI_*`.
+  Earlier documents listed them for systems that were never wired in.

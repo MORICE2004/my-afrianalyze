@@ -4,6 +4,52 @@ Proof for each step (ROADMAP rule 3). Newest first. Plain-language summary at th
 
 ---
 
+## 2026-10-07: the research product completed locally, on real data; deployment still waits on accounts
+
+**In plain words:** everything the final directive asked for that needs no outside account is now built and
+tested on real data: a refresh that can only add to history, the DSE's own licensing terms applied in code,
+technical analysis that refuses to read thin trading as price signals, research runs with real states and a
+frozen snapshot, a valuation that admits when the method choice decides the answer (NMB is now
+"Inconclusive"), a copilot whose answers are checked by code before you see them, portfolio risk and stress
+tests, bond duration and convexity, the whole DSE board, World Bank data, and privacy-first error reporting
+and analytics. A security pass found and fixed two rate-limit flaws. Nothing is deployed: there is still no
+API host or database, and nothing is approved.
+
+**Commits** (13, `a9bf15a` to `78a4077`, all pushed; CI green on each through `450bb0f`, run 37604066948):
+
+| Commit | What | Tests |
+|---|---|---|
+| `a9bf15a` | Merge-safe refresh (`pipelines/dse/merge.py`): add new days, keep stored ones, hold a revised close for review (exit 2), never delete. Index refresh checks the first new day against the stored level | `test_refresh_preserves_history.py` (7 with the outage test) |
+| `95e7617` | DSE Data Vending Policy v1.2 read: cl. 23.1 forbids redistribution without a licence → `RESTRICTED`. `DSE_PUBLIC_DISPLAY` must be set on purpose in production; `false` blanks price-based figures | production-config tests |
+| `143e8cb` | Three cost-of-equity treatments on every report; the view is shown only if all agree. NMB: 2,354 / 1,706 / 1,433 vs price 2,040 → Inconclusive. Fixed the valuation-tab crash and a duplicated CRDB statement row | recommendation, CRDB integration |
+| `d1b681a` | Technical indicators with a liquidity gate per window (section 74); ATR/ADX/VWAP `INSUFFICIENT_DATA` | `test_technical.py` (11) |
+| `5a3d622` | Research runs: ten stages, COMPLETED/PARTIAL/FAILED/BLOCKED/INSUFFICIENT_DATA, frozen snapshot + SHA-256 that production serves. RA-20261007-001 (NMB) and -002 (CRDB): both PARTIAL, drafts | `test_research_runs.py` (8) |
+| `0a4c21f` | Copilot (`claude-opus-5-5`): context from stored data only; every number in an answer must be in the context or it is withheld (`UNGROUNDED`); `AI_UNAVAILABLE` on any failure; sign-in, 20/day | `test_copilot.py` (22), fake provider only |
+| `0cfe8bf` | Portfolio volatility, drawdown, correlation, minimum-variance weights (no invented expected returns), historical and configured stress tests. 1,000 NMB + 1,000 CRDB: volatility 32.3%, max drawdown −19.5% | `test_portfolio_risk.py` (10) |
+| `d68e9ba` | Bond price, duration, convexity, rate shocks; reproduces BoT's published prices to 0.0003 (5-25Y) | `test_bonds.py` (11) |
+| `9ddb7c9` | Sentry release + scrubber, `pipelines.sentry_check`; PostHog from the API only, allowlisted events, salted ids | `test_telemetry.py` (9) |
+| `20774d1` | 28 DSE companies discovered; 17 shares priced (8 refused for unexplained jumps, 3 not served); breadth and movers on the markets page | `test_dse_discovery.py` (9) |
+| `6f93188` | World Bank (188 observations); IMF `LICENSE_REQUIRED` and UTT AMIS `LICENSE_REVIEW_REQUIRED` from their own terms; funds page shows each fund `BLOCKED` | `test_world_bank.py` (3) |
+| `450bb0f` | Security pass: the API trusted a forgeable `X-Forwarded-For`, and all signed-in visitors shared Vercel's address. Fixed with `client_ip()`, `INTERNAL_PROXY_SECRET`, `--no-proxy-headers`, per-email lockout | production-config, auth tests |
+| `78a4077` | A DSE outage during the refresh is recorded on `/health`; history and last-success time untouched | outage test |
+
+**Real data refreshed today:** DSE prices for 17 shares and the DSEI to 2026-10-06 (by merge); BoT bonds
+(new 15Y auction 2026-09-30, 10.79%), CBR 6.25%, NBS CPI 4.3% (August), Damodaran (still dated 2026-01-05),
+World Bank.
+
+**Evidence:** Python 358 passed, 4 skipped; Playwright 46/46 (1440 and 375 px, real local API and data);
+pip-audit and npm audit clean; gitleaks clean in CI.
+
+**Not done, and why:** no deployment of the API or database (owner's Render and Neon accounts); no approval
+of either run (owner's review, after the cost-of-equity decision); copilot never run against the real model
+(no key; a paid service); Sentry and PostHog not connected (no projects); unit trust prices not loaded (UTT
+AMIS terms unread); scheduled refresh inert (no production database; schedules run only from `master`).
+Docs brought up to date: `PRODUCTION_CERTIFICATION.md`, `PRODUCTION_ARCHITECTURE.md`, `DATA_SOURCE_MATRIX.md`,
+`DATA_QUALITY.md`, `SECURITY_MODEL.md`, `OBSERVABILITY.md`, `DEPLOYMENT_RUNBOOK.md`, `DATABASE_RUNBOOK.md`,
+`ENVIRONMENT.md`, `KNOWN_GAPS.md`, `COST_MODEL.md`, `CLAUDE.md`.
+
+---
+
 ## 2026-10-02: one canonical AfriEdge codebase, sign-in, and the source-health layer
 
 **In plain words:** the owner made `m3-crdb-report` the canonical branch and asked for the AfriEdge name.
