@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from apps.api.routers.auth import current_user
 from packages.database.models import DataSourceStatus, PortfolioHolding, PriceBar, SavedPortfolio, Security, User
+from packages.core import telemetry
 from packages.core.config import DSE_ATTRIBUTION, DSE_DISPLAY_BLOCKED, dse_display_allowed
 from packages.database.session import get_session
 
@@ -177,6 +178,7 @@ def create_portfolio(body: PortfolioIn, user: User = Depends(current_user),
     _write_holdings(p, body)
     session.add(p)
     session.commit()
+    telemetry.track("portfolio_created", user.id, {"holdings_count": len(body.holdings)})
     return _view(session, p)
 
 
@@ -217,6 +219,7 @@ def analyse_portfolio(portfolio_id: int, user: User = Depends(current_user),
     from packages.database.models import MacroObservation
 
     p = _owned(session, user, portfolio_id)
+    telemetry.track("portfolio_analysis_started", user.id, {"holdings_count": len(p.holdings)})
     if not dse_display_allowed():
         return {"available": False, "status": "BLOCKED", "reason": DSE_DISPLAY_BLOCKED}
     holdings, history = [], {}

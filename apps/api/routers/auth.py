@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from packages.core import telemetry
 from packages.database.models import User, UserSession
 from packages.database.session import get_session
 
@@ -98,6 +99,7 @@ def signup(body: SignUp, session: Session = Depends(get_session)) -> dict:
     except IntegrityError:
         session.rollback()
         raise HTTPException(409, "An account with this email already exists. Sign in instead.")
+    telemetry.track("signup", user.id)
     return _issue(session, user)
 
 
@@ -113,6 +115,7 @@ def login(body: Credentials, session: Session = Depends(get_session)) -> dict:
     if _hasher.check_needs_rehash(user.password_hash):
         user.password_hash = _hasher.hash(body.password)
         session.commit()
+    telemetry.track("login", user.id)
     return _issue(session, user)
 
 

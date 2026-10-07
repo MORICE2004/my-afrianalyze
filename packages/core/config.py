@@ -43,6 +43,12 @@ class Settings(BaseSettings):
     # set in the host's dashboard); without it the copilot answers AI_UNAVAILABLE and nothing else changes.
     COPILOT_MODEL: str = "claude-opus-5-5"
     COPILOT_DAILY_QUESTIONS: int = 20       # per signed-in user, per day: every question costs money
+    # Product analytics, sent from the API only (packages/core/telemetry.py). Empty key = off.
+    POSTHOG_API_KEY: str = ""
+    POSTHOG_HOST: str = "https://eu.i.posthog.com"   # EU region
+    # Salt for the hashed user id sent to PostHog. A SECRET: user ids are small integers, so without a salt
+    # the hash could be reversed by hashing 1, 2, 3...
+    ANALYTICS_SALT: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
@@ -65,6 +71,8 @@ class Settings(BaseSettings):
             problems.append("DSE_PUBLIC_DISPLAY must be set to true or false: showing DSE market data publicly "
                             "needs a DSE data licence (Data Vending Policy v1.2, cl. 4.5 and 23.1); "
                             "see docs/COMPLIANCE_NOTES.md")
+        if self.POSTHOG_API_KEY and len(self.ANALYTICS_SALT) < 16:
+            problems.append("ANALYTICS_SALT (at least 16 random characters) is required when POSTHOG_API_KEY is set")
         if problems:
             raise ValueError("Refusing to start in PRODUCTION: " + "; ".join(problems))
         return self

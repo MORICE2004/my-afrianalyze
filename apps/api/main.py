@@ -28,18 +28,14 @@ from packages.database.models import (DataSourceStatus, MacroObservation, PriceB
 from packages.database.session import get_session
 from apps.api.routers import auth as auth_router
 from apps.api.routers import portfolios as portfolios_router
+from packages.core import telemetry
 from packages.report.builder import build_report
 
 log = logging.getLogger("afriedge.api")
 PRODUCTION = settings.APP_ENV == AppEnvironment.PRODUCTION
 
-if settings.SENTRY_DSN:
-    import sentry_sdk
-
-    # Errors only (no performance tracing, so no cost surprise), and no request bodies, cookies, IP
-    # addresses or user details (CLAUDE.md rule 10).
-    sentry_sdk.init(dsn=settings.SENTRY_DSN, environment=settings.APP_ENV.value.lower(),
-                    send_default_pii=False, traces_sample_rate=0.0, max_request_body_size="never")
+# Errors only, no tracing, scrubbed of bodies, cookies, auth headers and query strings (telemetry.py).
+telemetry.init_sentry()
 
 # The interactive API docs are for development; in production the web app is the interface.
 app = FastAPI(title="AfriEdge API", version="0.2.0",
@@ -269,7 +265,9 @@ def get_report(security_id: str, session: Session = Depends(get_session)) -> dic
         report["review"] = {**report.get("review", {}), "run_id": run.id, "status": run.status,
                             "reviewer": run.reviewer, "reviewed_at": run.reviewed_at.isoformat() if run.reviewed_at else None,
                             "snapshot_sha256": run.snapshot_sha256, "frozen": True}
+        telemetry.track("report_viewed", None, {"security_id": sec.id, "frozen": True})
         return report
+    telemetry.track("report_viewed", None, {"security_id": sec.id, "frozen": False})
     return build_report(session, sec.id)
 
 
@@ -279,6 +277,7 @@ def get_report_pdf(security_id: str, session: Session = Depends(get_session)) ->
 
     report = get_report(security_id, session)
     pdf = render_pdf(report)
+    telemetry.track("report_pdf_downloaded", None, {"security_id": report["security"]["id"]})
     name = f"AfriEdge_{report['security']['id'].replace(':', '_')}_{date.today():%Y%m%d}.pdf"
     return Response(pdf, media_type="application/pdf",
                     headers={"Content-Disposition": f'attachment; filename="{name}"'})
@@ -311,7 +310,9 @@ def copilot_ask(body: CopilotQuestion, user=Depends(auth_router.current_user),
         _copilot_counts[key] = _copilot_counts.get(key, 0) + 1
     # The same report a reader sees: the approved snapshot in production (403 if none), a live build otherwise.
     report = get_report(body.security_id, session)
-    return ask(body.question.strip(), to_wire(report))
+    answer = ask(body.question.strip(), to_wire(report))
+    telemetry.track("copilot_question", user.id, {"security_id": answer.get("security_id"), "status": answer["status"]})
+    return answer
 
 
 # ------------------------------------------------------------------ research runs

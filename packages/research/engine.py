@@ -27,6 +27,7 @@ from datetime import datetime, timedelta, timezone
 from pydantic import TypeAdapter
 from sqlalchemy.orm import Session
 
+from packages.core import telemetry
 from packages.core.config import settings
 from packages.database.models import (
     ExtractionConflict,
@@ -176,6 +177,7 @@ def execute(session: Session, security_id: str, actor: str = "pipeline") -> Rese
 
     run.execution_state, run.started_at = "RUNNING", _now()
     session.commit()
+    telemetry.track("research_started", None, {"security_id": security_id})
     report, wire, error = None, None, None
     try:
         report = build_report(session, security_id)
@@ -202,6 +204,7 @@ def execute(session: Session, security_id: str, actor: str = "pipeline") -> Rese
     for old in session.query(ResearchRun).filter(ResearchRun.security_id == security_id, ResearchRun.id != run.id,
                                                  ResearchRun.status.in_(["draft", "in_review"])):
         old.status, old.superseded_by = "superseded", run.id
+    telemetry.track("research_completed", None, {"security_id": security_id, "execution_state": run.execution_state})
     session.add(ReviewEvent(run_id=run.id, action="execute", actor=actor,
                             note=f"{run.execution_state}: " + "; ".join(f"{s['stage']} {s['state']}" for s in stages)))
     session.commit()

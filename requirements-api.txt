@@ -14,3 +14,4 @@ reportlab==5.0.1
 sentry-sdk==2.70.0
 argon2-cffi==25.1.0      # password hashing (Argon2id)
 anthropic==1.11.0         # research copilot (packages/copilot); inert without ANTHROPIC_API_KEY
+posthog==7.64.1           # product analytics from the API (packages/core/telemetry.py); inert without POSTHOG_API_KEY
