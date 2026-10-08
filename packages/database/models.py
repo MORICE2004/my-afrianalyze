@@ -375,3 +375,27 @@ class PortfolioHolding(Base):
     purchase_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     portfolio: Mapped[SavedPortfolio] = relationship(back_populates="holdings")
+
+
+class NewsItem(Base):
+    """One economic or market story from a whitelisted source (config/news_sources.json). Only the headline,
+    the canonical link, the publication time and, where the publisher allows it, its own short description are
+    stored; never the article. Relevance and links to markets, indicators and companies come from fixed rules in
+    packages/news/classify.py, each with the reason it applied."""
+
+    __tablename__ = "news_items"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)  # SHA-1 of the canonical URL
+    source_id: Mapped[str] = mapped_column(String(40), index=True)
+    title: Mapped[str] = mapped_column(Text)
+    url: Mapped[str] = mapped_column(Text)
+    language: Mapped[str] = mapped_column(String(8))
+    published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    countries: Mapped[list] = mapped_column(JSON, default=list)
+    categories: Mapped[list] = mapped_column(JSON, default=list)
+    relevance: Mapped[str] = mapped_column(String(16))  # HIGH, MEDIUM, LOW, NOT_ASSESSED
+    relevance_reason: Mapped[str] = mapped_column(Text)
+    related: Mapped[dict] = mapped_column(JSON, default=dict)
+    raw_sha256: Mapped[str] = mapped_column(String(64))

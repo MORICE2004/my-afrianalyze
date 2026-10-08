@@ -32,4 +32,5 @@ litellm
 anthropic==1.11.0        # research copilot (packages/copilot)
 posthog==7.64.1          # product analytics (packages/core/telemetry.py)
 argon2-cffi==25.1.0      # password hashing (Argon2id) for sign-in
+defusedxml==0.7.1        # news feeds are parsed without external entities (pipelines/news.py)
 openpyxl==3.1.5

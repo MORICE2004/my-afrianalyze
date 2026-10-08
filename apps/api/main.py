@@ -28,6 +28,7 @@ from packages.database.models import (DataSourceStatus, MacroObservation, PriceB
 from packages.database.session import get_session
 from apps.api.routers import auth as auth_router
 from apps.api.routers import market as market_router
+from apps.api.routers import news as news_router
 from apps.api.routers import portfolios as portfolios_router
 from packages.core import telemetry
 from packages.report.builder import build_report
@@ -402,6 +403,7 @@ def admin_data_health(_admin=Depends(auth_router.require_admin), session: Sessio
                                  "provider_b": r.provider_b, "close_b": r.close_b,
                                  "difference_pct": r.difference_pct, "status": r.status,
                                  "checked_at": r.checked_at.isoformat()} for r in recon],
+            "news_sources": news_router.source_health(session),
             "refresh_schedule": "Weekdays 18:00 Dar es Salaam (GitHub Actions, refresh-data.yml), after the DSE close"}
 
 
@@ -715,3 +717,4 @@ def portfolio_proposal(req: ProposalRequest, session: Session = Depends(get_sess
 app.include_router(auth_router.router)
 app.include_router(portfolios_router.router)
 app.include_router(market_router.router)
+app.include_router(news_router.router)

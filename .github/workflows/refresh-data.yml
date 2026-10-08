@@ -70,6 +70,11 @@ jobs:
         # Exits 1 if any job failed; the failure is also recorded in data_source_status and shown on /health.
         run: python -m pipelines.macro
 
+      - name: Economic news (official feeds only; headlines and links)
+        if: env.SKIP != '1'
+        # One failing source is recorded and the others still run; readers keep seeing cached stories.
+        run: python -m pipelines.news
+
       - name: Keep the downloaded source files as evidence (90 days)
         if: always() && env.SKIP != '1'
         uses: actions/upload-artifact@v4
