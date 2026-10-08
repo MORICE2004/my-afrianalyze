@@ -1,10 +1,11 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 import "./globals.css";
 import { AppLayout } from "@/components/layout/AppLayout";
 
-const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
+// IBM Plex: a sober, highly legible family with true tabular figures, made for dense numbers and tables.
+const plexSans = IBM_Plex_Sans({ variable: "--font-plex-sans", subsets: ["latin"], weight: ["400", "500", "600", "700"] });
+const plexMono = IBM_Plex_Mono({ variable: "--font-plex-mono", subsets: ["latin"], weight: ["400", "500"] });
 
 // Only claims the product can back today: Tanzania (DSE) research, every figure from a cited document.
 // icon.png, apple-icon.png, favicon.ico and opengraph-image.png in this folder are picked up by Next.
@@ -23,10 +24,25 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", title: "AfriEdge", description: DESCRIPTION },
 };
 
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f6f6f4" },
+    { media: "(prefers-color-scheme: dark)", color: "#0d0e10" },
+  ],
+};
+
+// Runs while the HTML is parsed, before the first paint, so a saved dark theme never flashes light
+// (node_modules/next/dist/docs/01-app/02-guides/preventing-flash-before-hydration.md). A fixed string:
+// nothing from a request or a user is interpolated into it.
+const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem("afriedge-theme");if(t!=="light"&&t!=="dark"){t=window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}document.documentElement.setAttribute("data-theme",t)}catch(e){}})()`;
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col">
+    <html lang="en" data-theme="light" suppressHydrationWarning className={`${plexSans.variable} ${plexMono.variable} h-full antialiased`}>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
+      <body className="min-h-full flex flex-col font-sans">
         <AppLayout>{children}</AppLayout>
       </body>
     </html>

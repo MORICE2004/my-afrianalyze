@@ -19,9 +19,9 @@ const ROWS: { key: string; label: string; show: (i: Ind) => React.ReactNode }[] 
   { key: "bollinger", label: "Bollinger bands (20, 2)", show: (i) => <>{fmtPerShare(n(i.lower))} – {fmtPerShare(n(i.upper))}{i.percent_b != null && <> · %B {n(i.percent_b).toFixed(2)}</>}</> },
   { key: "obv", label: "On-balance volume (60 days)", show: (i) => <>{n(i.change) >= 0 ? "+" : ""}{n(i.change).toLocaleString("en-US", { maximumFractionDigits: 0 })} shares</> },
   { key: "range_52w", label: "52-week range", show: (i) => <>{fmtPerShare(n(i.low))} – {fmtPerShare(n(i.high))} · {fmtPct(n(i.from_high))} from the high</> },
-  { key: "atr_14", label: "ATR (14)", show: () => null },
-  { key: "adx_14", label: "ADX (14)", show: () => null },
-  { key: "vwap", label: "VWAP", show: () => null },
+  { key: "atr_14", label: "Average true range (14)", show: (i) => <>TZS {fmtPerShare(n(i.value))} · {fmtPct(n(i.percent_of_price))} of the price</> },
+  { key: "adx_14", label: "ADX (14)", show: (i) => <>{n(i.value).toFixed(1)} · {String(i.trend_strength)} trend · +DI {n(i.plus_di).toFixed(1)} / −DI {n(i.minus_di).toFixed(1)}</> },
+  { key: "vwap", label: "VWAP (20 days)", show: (i) => <>TZS {fmtPerShare(n(i.value))} · price {String(i.price_vs)}</> },
 ];
 
 export function TechnicalPanel({ report }: { report: Report }) {
@@ -49,7 +49,7 @@ export function TechnicalPanel({ report }: { report: Report }) {
               return (
                 <tr key={key}>
                   <td className="px-3 py-2 font-medium">{label}</td>
-                  <td className="px-3 py-2 font-mono">{i.available ? show(i) : <NotAvailable compact reason={i.reason ?? ""} status={i.status} />}</td>
+                  <td className="px-3 py-2">{i.available ? show(i) : <NotAvailable compact reason={i.reason ?? ""} status={i.status} />}</td>
                   <td className="px-3 py-2 text-xs text-neutral-500">
                     {i.available ? <>{i.formula} · {i.window} days, {i.zero_volume_days} without a trade</> : i.reason}
                   </td>
@@ -59,7 +59,7 @@ export function TechnicalPanel({ report }: { report: Report }) {
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-neutral-500">{t.note} All arithmetic is deterministic Python on stored DSE closes.</p>
+      <p className="text-xs text-neutral-500">{t.note} All arithmetic is deterministic Python on the closes, highs, lows and turnover the DSE publishes.</p>
     </div>
   );
 }

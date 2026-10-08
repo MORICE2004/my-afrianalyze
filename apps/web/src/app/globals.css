@@ -1,17 +1,177 @@
 @import "tailwindcss";
 
-@theme inline {
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* Dark mode follows the data-theme attribute that the inline script in layout.tsx sets before first paint. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/*
+  AfriEdge design tokens. Colour carries meaning only: positive, negative, warning, neutral, selected.
+  Surfaces are near-white (light) or near-black (dark); there are no decorative gradients.
+*/
+:root {
+  --background: #f6f6f4;
+  --surface: #ffffff;
+  --surface-2: #f0f0ed;
+  --line: #e2e2de;
+  --line-strong: #c9c9c3;
+  --fg: #141414;
+  --muted: #5d5d58;
+  --faint: #8a8a84;
+  --pos: #0b7a3e;
+  --pos-bg: #e9f5ee;
+  --neg: #b42318;
+  --neg-bg: #fbecea;
+  --warn: #8a5300;
+  --warn-bg: #fdf3e1;
+  --info-bg: #eef1f6;
+  --selected: #141414;
+  --on-selected: #ffffff;
+  --chart-1: #141414;
+  --chart-2: #6b7280;
+  --chart-grid: #e6e6e2;
+  color-scheme: light;
 }
 
-/* The terminal uses a light palette in every colour scheme. */
+[data-theme="dark"] {
+  --background: #0d0e10;
+  --surface: #15171a;
+  --surface-2: #1c1f23;
+  --line: #2a2d32;
+  --line-strong: #3a3e45;
+  --fg: #ececea;
+  --muted: #a3a39d;
+  --faint: #76766f;
+  --pos: #44c17b;
+  --pos-bg: #10261a;
+  --neg: #f2786b;
+  --neg-bg: #2c1513;
+  --warn: #f0b45a;
+  --warn-bg: #2a2010;
+  --info-bg: #1a1f28;
+  --selected: #ececea;
+  --on-selected: #111214;
+  --chart-1: #ececea;
+  --chart-2: #8b919a;
+  --chart-grid: #26292e;
+  color-scheme: dark;
+
+  /*
+    Older components still use Tailwind's neutral, white and status palettes. Remapping those scales here
+    gives them a readable dark version without rewriting each one: light greys become dark greys, white
+    surfaces become the dark surface, and the status tints become their dark equivalents.
+  */
+  --color-white: #15171a;
+  --color-black: #ececea;
+  --color-neutral-50: #1a1c20;
+  --color-neutral-100: #22252a;
+  --color-neutral-200: #2a2d32;
+  --color-neutral-300: #3a3e45;
+  --color-neutral-400: #6f737a;
+  --color-neutral-500: #9a9ea5;
+  --color-neutral-600: #b4b7bc;
+  --color-neutral-700: #cfd1d4;
+  --color-neutral-800: #e2e3e5;
+  --color-neutral-900: #ececea;
+  --color-neutral-950: #f6f6f4;
+  --color-amber-50: #2a2010;
+  --color-amber-100: #33270f;
+  --color-amber-200: #5a4415;
+  --color-amber-300: #6e521a;
+  --color-amber-600: #f0b45a;
+  --color-amber-700: #f0b45a;
+  --color-amber-800: #f3c47c;
+  --color-amber-900: #f6d39a;
+  --color-red-50: #2c1513;
+  --color-red-200: #5c2620;
+  --color-red-300: #7a3128;
+  --color-red-600: #f2786b;
+  --color-red-700: #f2786b;
+  --color-red-800: #f59a8f;
+  --color-green-50: #10261a;
+  --color-green-200: #1d4a31;
+  --color-green-600: #44c17b;
+  --color-green-700: #44c17b;
+  --color-green-800: #6fd49b;
+  --color-emerald-50: #10261a;
+  --color-emerald-700: #44c17b;
+  --color-sky-50: #10202c;
+  --color-sky-300: #24506b;
+  --color-sky-700: #7cc4ec;
+  --color-sky-900: #a9d8f2;
+  --color-orange-50: #2c1a0e;
+  --color-orange-100: #3a2210;
+  --color-orange-200: #5c3415;
+  --color-orange-300: #74431b;
+  --color-orange-900: #f6c08f;
+  --color-blue-50: #121c2c;
+  --color-blue-100: #172440;
+  --color-blue-900: #a9c4f2;
+}
+
+@theme inline {
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-pos: var(--pos);
+  --color-pos-bg: var(--pos-bg);
+  --color-neg: var(--neg);
+  --color-neg-bg: var(--neg-bg);
+  --color-warn: var(--warn);
+  --color-warn-bg: var(--warn-bg);
+  --color-info-bg: var(--info-bg);
+  --color-selected: var(--selected);
+  --color-on-selected: var(--on-selected);
+}
+
+html {
+  background: var(--background);
+}
+
 body {
-  background: #f9f9f9;
-  color: #171717;
+  background: var(--background);
+  color: var(--fg);
+  /* Figures line up in columns everywhere: a financial product reads numbers down a table. */
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Keyboard focus is always visible; mouse clicks do not draw rings. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Skeletons for content whose shape is known before it arrives. */
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 0%, var(--line) 50%, var(--surface-2) 100%);
+  background-size: 200% 100%;
+  animation: skeleton-sweep 1.4s ease-in-out infinite;
+  border-radius: 4px;
+}
+@keyframes skeleton-sweep {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .skeleton { animation: none; }
 }
 
 @media print {
-  header, footer, .no-print { display: none !important; }
+  header, footer, nav, .no-print { display: none !important; }
   main { max-width: none !important; padding: 0 !important; }
+  [data-theme="dark"] { --background: #fff; --surface: #fff; --fg: #000; }
 }

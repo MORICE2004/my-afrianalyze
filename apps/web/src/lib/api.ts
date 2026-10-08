@@ -26,7 +26,8 @@ export async function apiGet<T>(path: string, init?: RequestInit): Promise<ApiRe
     return {
       ok: false,
       status: null,
-      error: `The data service at ${API_URL} is not reachable. No figures are shown while it is offline.`,
+      // Readers are not shown the service's address; the server log has the detail.
+      error: "The data service is not reachable right now. No figures are shown while it is offline.",
     };
   }
 }
@@ -59,6 +60,9 @@ export type Unavailable = { available: false; reason: string; status?: DataStatu
 export interface Security {
   id: string;
   exchange: string;
+  exchange_name?: string;
+  country?: string | null;
+  country_code?: string | null;
   ticker: string;
   isin: string | null;
   name: string;
@@ -299,3 +303,74 @@ export interface Report {
   };
   gaps: string[];
 }
+
+// ------------------------------------------------------------------ prices, markets, research stream
+
+type Num = number | string;
+
+// The latest stored close (apps/api/routers/market.py). timing is CURRENT or STALE, never LIVE.
+export type Quote =
+  | {
+      available: true; security_id: string; currency: string; status: DataStatus;
+      price: Num; trade_date: string; previous_close: Num | null; previous_date: string | null;
+      change: Num | null; change_pct: Num | null; traded: boolean; last_traded_date: string | null;
+      volume: Num | null; turnover: Num | null; high: Num | null; low: Num | null; market_cap: Num | null;
+      timing: "CURRENT" | "STALE"; public_label: string;
+      freshness: { age_days: number; latest_session: string; max_age_days: number; kind: string };
+      licensing: string; attribution: string | null;
+      source: { document_id: number; publisher: string; title: string; url: string; retrieved_at: string | null } | null;
+      reconciliation: { status: string; provider_a: string; close_a: Num; provider_b: string; close_b: Num;
+        difference_pct: Num; checked_at: string } | null;
+      split_adjusted_change: boolean;
+    }
+  | { available: false; security_id: string; currency: string; status: DataStatus; reason: string;
+      public_label: string; public_reason: string; licensing?: string };
+
+export type PriceSeries =
+  | { available: true; instrument_id: string; points: { date: string; close: Num; volume: Num | null }[];
+      notes: string[]; first: string | null; last: string | null; attribution: string }
+  | { available: false; instrument_id: string; status: DataStatus; reason: string; public_reason: string };
+
+export type IndexSummary =
+  | { id: string; name: string; available: true; value: Num; trade_date: string; change_1d: Num;
+      change_1m: Num | null; change_ytd: Num | null; change_1y: Num | null; excluded_days: number }
+  | { id: string; name: string; available: false; status: DataStatus; reason: string };
+
+export type Mover = { security_id: string; name: string; close: Num; change: Num; volume: Num };
+
+export interface MarketsOverview {
+  markets: {
+    market: string; name: string; exchange: string; currency: string; securities_in_master: number;
+    index: ({ available: true; id: string; value: Num; trade_date: string; change: Num; change_1m?: Num | null;
+      change_ytd?: Num | null; change_1y?: Num | null; attribution?: string })
+      | { available: false; id: string; status: DataStatus; reason: string; public_reason: string };
+    macro?: { available: boolean; reason?: string; attribution?: string;
+      rows?: { indicator: string; label: string; value: Num; unit: string; year: number }[] };
+  }[];
+  session: { exchange: string; latest_session: string | null; kind: string; note: string };
+  activity:
+    | { available: true; trade_date: string; currency: string; turnover: Num; volume: Num; securities_traded: number;
+        securities_stored: number; market_cap: Num; coverage: string; attribution: string }
+    | { available: false; status: DataStatus; reason: string; public_reason?: string };
+  sectors: { available: boolean; indices?: IndexSummary[]; basis?: string; reason?: string; public_reason?: string };
+  commentary: { available: boolean; reason: string };
+  movers: {
+    available: boolean; reason?: string; trade_date?: string; coverage?: string; attribution?: string; note?: string;
+    breadth?: { up: number; down: number; unchanged: number; no_trade: number; not_updated: number };
+    gainers?: Mover[]; losers?: Mover[];
+  };
+}
+
+export type ResearchStage = {
+  stage: string; state: string; detail: string; critical: boolean; duration_ms: number;
+  recorded?: boolean; executed_at?: string | null;
+};
+
+export type StreamEvent =
+  | { event: "step"; step: string; state: string; label: string; duration_ms: number }
+  | { event: "security"; data: Security }
+  | { event: "quote"; data: Quote }
+  | { event: "stage"; data: ResearchStage }
+  | { event: "report"; data: Report }
+  | { event: "unavailable"; status: string; reason: string }
+  | { event: "done"; total_ms: number };

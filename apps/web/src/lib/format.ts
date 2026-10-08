@@ -38,3 +38,31 @@ export function unitLabel(unit: string): string {
   if (unit === "TZS_millions") return "TZS millions";
   return unit;
 }
+
+// Large amounts in words a reader scans: 2.04 bn, 35.5 tn. Exact figures stay in tables and tooltips.
+export function fmtCompact(v: Num): string {
+  const n = Number(v);
+  const a = Math.abs(n);
+  const [d, s] = a >= 1e12 ? [1e12, " tn"] : a >= 1e9 ? [1e9, " bn"] : a >= 1e6 ? [1e6, " m"] : [1, ""];
+  return (n / d).toLocaleString("en-US", { maximumFractionDigits: d === 1 ? 0 : 2 }) + s;
+}
+
+export function fmtMoney(v: Num, currency: string, digits = 2): string {
+  return `${currency} ${Number(v).toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+}
+
+export function fmtNumber(v: Num, digits = 0): string {
+  return Number(v).toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
+// "pos" / "neg" / "flat" for colouring a change. Colour always comes with a sign, never alone.
+export function direction(v: Num | null | undefined): "pos" | "neg" | "flat" {
+  const n = Number(v);
+  if (v === null || v === undefined || Number.isNaN(n) || n === 0) return "flat";
+  return n > 0 ? "pos" : "neg";
+}
+
+export function fmtShortDate(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}

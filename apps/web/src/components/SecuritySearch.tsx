@@ -1,20 +1,36 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import React, { useEffect, useId, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import { apiGet, type Security } from "@/lib/api";
 
-export function SecuritySearch() {
+// Company search over AfriEdge's security master: name, ticker or ISIN, ranked by the API (exact ticker or ISIN,
+// prefixes, name words, then close spellings). It is a plain database lookup; nothing expensive runs until a
+// company is chosen and its research page opens.
+export function SecuritySearch({ size = "hero", autoFocus = false }: { size?: "hero" | "compact"; autoFocus?: boolean }) {
   const router = useRouter();
   const listId = useId();
+  const inputId = useId();
+  const wrap = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Security[]>([]);
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [error, setError] = useState("");
   const [active, setActive] = useState(0);
+  const [open, setOpen] = useState(false);
+  // Enter pressed before the results for the current text arrived: open the first result when they do.
+  const pendingEnter = useRef(false);
+
+  function choose(s: Security) {
+    setOpen(false);
+    setQuery("");
+    router.push(`/report/${encodeURIComponent(s.id)}`);
+  }
 
   const onChange = (value: string) => {
+    pendingEnter.current = false;
     setQuery(value);
+    setOpen(true);
     if (value.trim()) {
       setStatus("loading");
     } else {
@@ -28,87 +44,131 @@ export function SecuritySearch() {
     if (!q) return;
     let cancelled = false;
     const t = setTimeout(async () => {
-      const res = await apiGet<{ results: Security[] }>(`/api/v1/securities?q=${encodeURIComponent(q)}`);
+      const res = await apiGet<{ results: Security[] }>(`/api/v1/securities?limit=8&q=${encodeURIComponent(q)}`);
       if (cancelled) return; // a newer query replaced this one
       if (res.ok) {
         setResults(res.data.results);
         setStatus("done");
         setActive(0);
+        const first = res.data.results[0];
+        if (pendingEnter.current && first) {
+          pendingEnter.current = false;
+          setOpen(false);
+          setQuery("");
+          router.push(`/report/${encodeURIComponent(first.id)}`);
+        }
       } else {
         setResults([]);
-        setError(res.error);
+        setError("Search is not available right now. Please try again shortly.");
         setStatus("error");
       }
-    }, 150);
+    }, 120);
     return () => {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [query]);
+  }, [query, router]);
 
-  const open = (s: Security) => router.push(`/report/${encodeURIComponent(s.id)}`);
+  // Close the list when focus or a click goes elsewhere.
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      if (wrap.current && !wrap.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, []);
+
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
+      setOpen(true);
       setActive((a) => Math.min(a + 1, results.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActive((a) => Math.max(a - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      if (results[active]) open(results[active]);
+      if (status === "loading") pendingEnter.current = true;
+      else if (results[active]) choose(results[active]);
+    } else if (e.key === "Escape") {
+      setOpen(false);
     }
   };
 
-  const showList = query.trim().length > 0;
+  const showList = open && query.trim().length > 0;
+  const hero = size === "hero";
+  const optionId = (i: number) => `${listId}-opt-${i}`;
 
   return (
-    <div className="relative">
-      <label htmlFor="security-search" className="sr-only">Search listed companies by ticker or name</label>
-      <input
-        id="security-search"
-        type="search"
-        role="combobox"
-        aria-expanded={showList}
-        aria-controls={listId}
-        aria-autocomplete="list"
-        autoComplete="off"
-        value={query}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={onKeyDown}
-        placeholder="Search by ticker or company, e.g. NMB"
-        className="block w-full px-4 py-4 border border-neutral-300 bg-white text-lg font-mono placeholder-neutral-400 focus:outline-none focus:ring-1 focus:ring-black focus:border-black"
-      />
+    <div className="relative w-full" ref={wrap}>
+      <label htmlFor={inputId} className="sr-only">Search companies, tickers or ISINs</label>
+      <div className="relative">
+        <svg className={`pointer-events-none absolute top-1/2 -translate-y-1/2 text-faint ${hero ? "left-4" : "left-3"}`}
+          width={hero ? 18 : 15} height={hero ? 18 : 15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+          <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+        </svg>
+        <input
+          id={inputId}
+          type="search"
+          role="combobox"
+          aria-expanded={showList}
+          aria-controls={listId}
+          aria-autocomplete="list"
+          aria-activedescendant={showList && results[active] ? optionId(active) : undefined}
+          autoComplete="off"
+          spellCheck={false}
+          autoFocus={autoFocus}
+          value={query}
+          onChange={(e) => onChange(e.target.value)}
+          onFocus={() => setOpen(true)}
+          onKeyDown={onKeyDown}
+          placeholder="Search companies, tickers or ISINs"
+          data-testid={hero ? "search-hero" : "search-compact"}
+          className={`block w-full rounded-lg border border-line bg-surface text-fg placeholder:text-faint transition-colors focus:border-fg focus:outline-none ${
+            hero ? "h-14 pl-12 pr-4 text-base sm:text-lg shadow-sm" : "h-9 pl-9 pr-3 text-sm"}`}
+        />
+      </div>
       {showList && (
-        <div id={listId} role="listbox" className="absolute z-20 mt-1 w-full border border-neutral-300 bg-white shadow-md">
-          {status === "loading" && <div className="px-4 py-3 text-sm text-neutral-500">Searching…</div>}
-          {status === "error" && <div className="px-4 py-3 text-sm text-red-700">{error}</div>}
-          {status === "done" && results.length === 0 && (
-            <div className="px-4 py-3 text-sm text-neutral-600" data-testid="search-no-results">
-              No listed company matches “{query.trim()}”. Coverage is currently DSE, NSE and USE names in the security master.
+        <div id={listId} role="listbox" aria-label="Companies"
+          className="absolute z-40 mt-1.5 w-full overflow-hidden rounded-lg border border-line bg-surface shadow-lg">
+          {status === "loading" && results.length === 0 && (
+            <div className="space-y-2 p-3" aria-hidden>
+              {[0, 1, 2].map((i) => <div key={i} className="skeleton h-9" />)}
             </div>
           )}
-          {status === "done" &&
-            results.map((s, i) => (
-              <button
-                type="button"
-                role="option"
-                aria-selected={i === active}
-                key={s.id}
-                onMouseEnter={() => setActive(i)}
-                onClick={() => open(s)}
-                className={`flex w-full items-center justify-between px-4 py-3 text-left text-sm ${i === active ? "bg-neutral-100" : ""}`}
-              >
-                <span>
-                  <span className="font-mono font-semibold">{s.id}</span>
-                  <span className="ml-3 text-neutral-700">{s.name}</span>
+          {status === "error" && <div className="px-4 py-3 text-sm text-neg">{error}</div>}
+          {status === "done" && results.length === 0 && (
+            <div className="px-4 py-3 text-sm text-muted" data-testid="search-no-results">
+              No listed company matches “{query.trim()}”. AfriEdge covers companies listed in Tanzania today;
+              Kenya and Uganda are not yet connected.
+            </div>
+          )}
+          {results.map((s, i) => (
+            <div
+              role="option"
+              id={optionId(i)}
+              aria-selected={i === active}
+              key={s.id}
+              onMouseEnter={() => setActive(i)}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => choose(s)}
+              className={`flex cursor-pointer items-center justify-between gap-3 px-4 py-2.5 text-sm ${i === active ? "bg-surface-2" : ""}`}
+            >
+              <span className="min-w-0">
+                <span className="block truncate font-medium text-fg">{s.name}</span>
+                <span className="block truncate text-xs text-muted">
+                  <span className="font-mono">{s.ticker}</span> · {s.exchange}{s.country ? ` · ${s.country}` : ""}
                 </span>
-                <span className="text-xs text-neutral-500">
-                  {s.has_report ? "Report available" : "No report yet"}
-                </span>
-              </button>
-            ))}
+              </span>
+              <span className="flex shrink-0 items-center gap-2">
+                <span className="rounded border border-line px-1.5 py-0.5 font-mono text-[11px] text-muted">{s.currency}</span>
+                {s.has_report && (
+                  <span className="hidden rounded bg-surface-2 px-1.5 py-0.5 text-[11px] text-fg sm:inline">Research</span>
+                )}
+              </span>
+            </div>
+          ))}
         </div>
       )}
     </div>

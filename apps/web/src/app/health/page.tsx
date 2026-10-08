@@ -1,104 +1,95 @@
 import type { Metadata } from "next";
 import React from "react";
-import { ErrorState } from "@/components/ui/NotAvailable";
-import { apiGet, type Health, type RegistrySource, type RegistryState } from "@/lib/api";
+import { Empty, Panel, Pill } from "@/components/ui/kit";
+import { apiGet, type Health, type RegistrySource } from "@/lib/api";
 import { fmtDate } from "@/lib/format";
 
 export const metadata: Metadata = {
-  title: "Data health",
-  description: "Live status of the database and each data source, including stale and blocked sources.",
+  title: "Data sources",
+  description: "Where AfriEdge's figures come from, and how recently each source was updated.",
 };
 
-const BADGE: Record<string, string> = {
-  online: "bg-green-100 text-green-900", degraded: "bg-amber-100 text-amber-900", offline: "bg-red-100 text-red-900",
+// Readers' words for each source. The technical states (FAILED, NEVER_RUN, error text) are on the
+// administration page only.
+const STATE: Record<string, { label: string; tone: "good" | "warn" | "neutral" }> = {
+  OK: { label: "Updated", tone: "good" },
+  STALE: { label: "Delayed", tone: "warn" },
+  PARTIAL: { label: "Partly updated", tone: "warn" },
+  FAILED: { label: "Temporarily unavailable", tone: "warn" },
+  NEVER_RUN: { label: "Not loaded yet", tone: "neutral" },
+  COMING: { label: "Not yet connected", tone: "neutral" },
+  NOT_BUILT: { label: "Not yet connected", tone: "neutral" },
 };
 
-export default async function HealthPage() {
-  const res = await apiGet<Health>("/health");
+const LICENCE: Record<string, string> = {
+  PUBLIC: "Open data",
+  RESTRICTED: "Exchange terms apply",
+  LICENSE_REQUIRED: "Needs a licence",
+  LICENSE_REVIEW_REQUIRED: "Terms under review",
+};
+
+function Row({ r }: { r: RegistrySource }) {
+  const s = STATE[r.state] ?? { label: "Unknown", tone: "neutral" as const };
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold tracking-tight">Data health</h1>
-      {!res.ok ? (
-        <>
-          <p><span className={`px-2 py-1 text-sm font-semibold ${BADGE.offline}`}>Offline</span></p>
-          <ErrorState message={res.error} />
-        </>
-      ) : (
-        <>
-          <p>
-            <span className={`px-2 py-1 text-sm font-semibold capitalize ${BADGE[res.data.status]}`} data-testid="health-status">
-              {res.data.status}
-            </span>
-            <span className="ml-3 text-sm text-neutral-600">
-              Checked {fmtDate(res.data.checked_at)} · database {res.data.database.ok ? "reachable" : "unreachable"} · {res.data.summary}
-            </span>
-          </p>
-          <div className="overflow-x-auto border border-neutral-200 bg-white">
-            <table className="w-full text-sm">
-              <thead className="bg-neutral-50 text-xs text-neutral-500">
-                <tr><th className="text-left px-3 py-2">Source</th><th className="text-left px-3 py-2">Status</th><th className="text-left px-3 py-2">Last success</th><th className="text-left px-3 py-2">Detail</th></tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-100">
-                {res.data.sources.map((s) => (
-                  <tr key={s.source}>
-                    <td className="px-3 py-2 font-mono">{s.source}</td>
-                    <td className="px-3 py-2">{s.fresh ? "Fresh" : s.status === "blocked" ? "Blocked" : s.status === "ok" ? "Stale" : "Failed or stale"}</td>
-                    <td className="px-3 py-2 text-xs">{s.last_success_at ? `${fmtDate(s.last_success_at)} (${s.age_hours} h ago; limit ${s.max_age_hours} h)` : "Never"}</td>
-                    <td className="px-3 py-2 text-xs text-neutral-600">{s.detail}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {res.data.registry && <SourceRegistry rows={res.data.registry} />}
-        </>
-      )}
-    </div>
+    <tr>
+      <td className="py-3 pr-3">
+        <div className="font-medium">{r.name}</div>
+        <div className="text-xs text-muted">{r.datasets}</div>
+      </td>
+      <td className="px-3 py-3 text-xs text-muted">{r.country}</td>
+      <td className="px-3 py-3"><Pill tone={s.tone}>{s.label}</Pill></td>
+      <td className="px-3 py-3 text-xs text-muted">{r.last_success_at ? fmtDate(r.last_success_at) : "—"}</td>
+      <td className="py-3 pl-3 text-xs text-muted">{LICENCE[r.licensing] ?? r.licensing}</td>
+    </tr>
   );
 }
 
-const STATE_CLS: Record<RegistryState, string> = {
-  OK: "bg-green-100 text-green-900", STALE: "bg-amber-100 text-amber-900", PARTIAL: "bg-amber-100 text-amber-900",
-  FAILED: "bg-red-100 text-red-900", NEVER_RUN: "bg-neutral-100 text-neutral-700",
-  COMING: "bg-neutral-100 text-neutral-700", NOT_BUILT: "bg-neutral-100 text-neutral-700",
-};
-
-// Every source AfriEdge covers or plans to cover. A source marked COMING has no loader yet, so it has no
-// "last success" to show; that is the point of listing it.
-function SourceRegistry({ rows }: { rows: RegistrySource[] }) {
-  return (
-    <section className="space-y-3" data-testid="source-registry">
-      <h2 className="text-lg font-semibold">All sources</h2>
-      <p className="text-sm text-neutral-600">
-        Tanzania is live. Kenya, Uganda and the global macro sources are planned: they are shown here so it is clear
-        what is not integrated yet, and none of their data appears anywhere on the site.
-      </p>
-      <div className="overflow-x-auto border border-neutral-200 bg-white">
-        <table className="w-full text-sm">
-          <thead className="bg-neutral-50 text-xs text-neutral-500">
-            <tr>
-              <th className="text-left px-3 py-2">Source</th><th className="text-left px-3 py-2">State</th>
-              <th className="text-left px-3 py-2">Last success</th><th className="text-left px-3 py-2">Last failure</th>
-              <th className="text-left px-3 py-2">Licensing</th><th className="text-left px-3 py-2">Loader</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-neutral-100">
-            {rows.map((r) => (
-              <tr key={r.id}>
-                <td className="px-3 py-2"><div className="font-medium">{r.name}</div>
-                  <div className="text-xs text-neutral-500">{r.country} · {r.datasets}</div></td>
-                <td className="px-3 py-2"><span className={`px-2 py-0.5 text-xs font-semibold ${STATE_CLS[r.state]}`}>{r.state.replace("_", " ")}</span></td>
-                <td className="px-3 py-2 text-xs">{r.last_success_at ? fmtDate(r.last_success_at) : "None"}</td>
-                <td className="px-3 py-2 text-xs">{r.last_failure_at ? fmtDate(r.last_failure_at) : "None recorded"}</td>
-                <td className="px-3 py-2 text-xs"><span className="font-mono">{r.licensing}</span>
-                  {r.licensing_note && <div className="text-neutral-500">{r.licensing_note}</div>}</td>
-                <td className="px-3 py-2 text-xs">{r.parser_state === "IMPLEMENTED" ? "Built" : "Not built"}
-                  {r.probe && <div className="text-neutral-500">Probe {r.probe.checked_at}: {r.probe.result}{r.probe.detail ? ` (${r.probe.detail})` : ""}</div>}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+export default async function DataSourcesPage() {
+  const res = await apiGet<Health>("/health");
+  if (!res.ok) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-semibold tracking-tight">Data sources</h1>
+        <Empty title="The data service is not reachable">No figures are shown while it is offline. Please try again shortly.</Empty>
       </div>
-    </section>
+    );
+  }
+  const h = res.data;
+  const live = (h.registry ?? []).filter((r) => r.coverage === "V1");
+  const planned = (h.registry ?? []).filter((r) => r.coverage !== "V1");
+  const overall = h.status === "online" ? { label: "All sources up to date", tone: "good" as const }
+    : h.status === "degraded" ? { label: "Some information is delayed", tone: "warn" as const }
+    : { label: "Data service unavailable", tone: "warn" as const };
+  return (
+    <div className="space-y-6">
+      <header>
+        <h1 className="text-2xl font-semibold tracking-tight">Data sources</h1>
+        <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted">
+          <span data-testid="health-status" data-status={h.status}><Pill tone={overall.tone}>{overall.label}</Pill></span>
+          <span>Checked {fmtDate(h.checked_at)}</span>
+        </p>
+      </header>
+      <Panel title="Used today" testId="source-registry">
+        <div className="-my-3 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead><tr className="border-b border-line text-xs text-muted">
+              <th className="py-2 pr-3 text-left font-medium">Source</th><th className="px-3 py-2 text-left font-medium">Country</th>
+              <th className="px-3 py-2 text-left font-medium">Status</th><th className="px-3 py-2 text-left font-medium">Last updated</th>
+              <th className="py-2 pl-3 text-left font-medium">Terms</th>
+            </tr></thead>
+            <tbody className="divide-y divide-line">{live.map((r) => <Row key={r.id} r={r} />)}</tbody>
+          </table>
+        </div>
+      </Panel>
+      {planned.length > 0 && (
+        <Panel title="Planned">
+          <p className="mb-3 text-sm text-muted">Listed so it is clear what is not connected yet. None of their data appears anywhere on the site.</p>
+          <div className="-mb-3 overflow-x-auto">
+            <table className="w-full text-sm"><tbody className="divide-y divide-line">{planned.map((r) => <Row key={r.id} r={r} />)}</tbody></table>
+          </div>
+        </Panel>
+      )}
+      <p className="text-xs text-muted">Prices are end-of-day figures published after each trading session. Company figures come from audited annual reports.</p>
+    </div>
   );
 }

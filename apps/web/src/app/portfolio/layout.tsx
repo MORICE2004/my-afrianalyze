@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PortfolioTabs } from "@/components/account/PortfolioTabs";
 
 export const metadata: Metadata = {
   title: "Portfolio builder",
@@ -6,5 +7,10 @@ export const metadata: Metadata = {
 };
 
 export default function PortfolioLayout({ children }: LayoutProps<"/portfolio">) {
-  return children;
+  return (
+    <>
+      <PortfolioTabs />
+      {children}
+    </>
+  );
 }

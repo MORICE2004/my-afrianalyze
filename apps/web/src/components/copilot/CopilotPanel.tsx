@@ -116,7 +116,7 @@ export function CopilotPanel() {
 
       {error && (error.status === 401 ? (
         <p className="text-sm" role="alert">
-          <Link href="/login" className="underline font-semibold">Sign in</Link> to ask the copilot. Each question costs money
+          <Link href="/login" className="underline font-semibold">Sign in</Link> to ask the research assistant. Each question costs money
           to answer, so it is limited per account.
         </p>
       ) : (

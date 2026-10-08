@@ -38,7 +38,7 @@ export function StatusBadge({ status, title }: { status: DataStatus; title?: str
   return (
     <span
       title={title ? `${statusWord(status)}: ${title}` : `${statusWord(status)}: ${info.meaning}`}
-      className={`inline-block border px-1.5 py-0.5 text-[10px] leading-none font-mono uppercase tracking-wide whitespace-nowrap cursor-help ${info.cls}`}
+      className={`inline-block rounded border px-1.5 py-0.5 text-[10px] font-medium leading-none tracking-wide whitespace-nowrap cursor-help ${info.cls}`}
       data-status={status}
     >
       {statusWord(status)}
@@ -61,7 +61,7 @@ export function PartialMarker() {
 
 export function StatusLegend() {
   return (
-    <p className="text-xs text-neutral-500 flex flex-wrap items-center gap-x-3 gap-y-1">
+    <p className="text-xs text-muted flex flex-wrap items-center gap-x-3 gap-y-1">
       <span>Every number shown is VERIFIED unless marked</span>
       <span className="inline-flex items-center gap-1"><span className="text-sky-700 font-semibold">PV</span> = partly verified</span>
       <span>Missing figures show their status:</span>
