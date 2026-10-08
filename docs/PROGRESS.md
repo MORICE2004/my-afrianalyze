@@ -561,3 +561,8 @@ Confidence: 45 of 100 (Low). The deductions are:
   violations after darkening the faint text tokens and making scroll regions focusable.
 - Tests: Python 419 passed, 4 skipped; Playwright 88/88; 270 page views across 18 device configurations (12
   widths, 2 landscape, iPhone 13, Pixel 7, 200% text) with no overflow.
+- Protected Vercel preview of `b2208d9`: `https://web-5tw8als8r-morice2004s-projects.vercel.app` (Ready, preview,
+  fra1, SSO-protected; anonymous requests get 302 to Vercel sign-in). Checked with `vercel curl`: `/`, `/login`,
+  `/news`, `/cookies`, `/privacy`, `/terms`, the photo library and brand files answer 200; sign-in and footer text
+  present; no development indicator. The preview has no API, so market and news sections say the data service is
+  unavailable (honest degraded state). Not viewed in a signed-in browser (no Vercel session in the test browser).
