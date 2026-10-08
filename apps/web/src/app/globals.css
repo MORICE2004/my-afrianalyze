@@ -15,7 +15,7 @@
   --line-strong: #c9c9c3;
   --fg: #141414;
   --muted: #5d5d58;
-  --faint: #8a8a84;
+  --faint: #6b6b65;  /* 4.7-5.4:1 on light surfaces: WCAG AA for small text */
   --pos: #0b7a3e;
   --pos-bg: #e9f5ee;
   --neg: #b42318;
@@ -29,6 +29,9 @@
   --chart-2: #6b7280;
   --chart-grid: #e6e6e2;
   --auth-ground: #f3f1ec;
+  /* Older components use Tailwind's grey text scale; the two lightest text greys are darkened to meet WCAG AA. */
+  --color-neutral-400: #74746e;
+  --color-neutral-500: #66665f;
   color-scheme: light;
 }
 
@@ -40,7 +43,7 @@
   --line-strong: #3a3e45;
   --fg: #ececea;
   --muted: #a3a39d;
-  --faint: #76766f;
+  --faint: #939389;  /* 5.3-6.2:1 on dark surfaces */
   --pos: #44c17b;
   --pos-bg: #10261a;
   --neg: #f2786b;
@@ -156,6 +159,7 @@ body {
   background-size: 200% 100%;
   animation: skeleton-sweep 1.4s ease-in-out infinite;
   border-radius: 4px;
+  max-width: 100%;
 }
 @keyframes skeleton-sweep {
   from { background-position: 200% 0; }

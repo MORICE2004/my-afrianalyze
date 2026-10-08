@@ -1,11 +1,12 @@
 "use client";
 
 import * as Dropdown from "@radix-ui/react-dropdown-menu";
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import React, { useState } from "react";
+import { Logo } from "@/components/brand/Logo";
 import { CommandPalette } from "@/components/CommandPalette";
+import { CookieConsent } from "@/components/CookieConsent";
 import { SecuritySearch } from "@/components/SecuritySearch";
 import { ToastProvider } from "@/components/ui/Toast";
 import { refreshAccount, useAccount } from "@/lib/account";
@@ -25,10 +26,12 @@ export const MORE = [
   { href: "/watchlist", label: "Watchlist" },
   { href: "/settings", label: "Settings" },
 ];
-const LEGAL = [
-  ["/about", "About"], ["/methodology", "Data methodology"], ["/disclaimer", "Risk disclaimer"],
-  ["/privacy", "Privacy"], ["/privacy#cookies", "Cookies"],
-] as const;
+// Footer: short columns of secondary links. The main navigation is not repeated here.
+const FOOTER: { title: string; links: [string, string][] }[] = [
+  { title: "Product", links: [["/fixed-income", "Fixed income"], ["/funds", "Unit trusts"], ["/watchlist", "Watchlist"]] },
+  { title: "Company", links: [["/about", "About"], ["/methodology", "Data methodology"], ["/health", "Data sources"]] },
+  { title: "Legal", links: [["/disclaimer", "Risk disclaimer"], ["/privacy", "Privacy policy"], ["/cookies", "Cookie policy"], ["/terms", "Terms of use"]] },
+];
 
 function AccountMenu() {
   const { status, user } = useAccount();
@@ -93,20 +96,20 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }
   const moreActive = MORE.some((m) => pathname.startsWith(m.href));
   // The sign-in page is a full-screen composition of its own.
-  if (pathname === "/login") return <ToastProvider>{children}</ToastProvider>;
+  if (pathname === "/login") return <ToastProvider>{children}<CookieConsent /></ToastProvider>;
 
   return (
     <ToastProvider>
     <CommandPalette />
+    <CookieConsent />
     <div className="flex min-h-screen flex-col bg-background text-fg">
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[60] focus:rounded focus:bg-surface focus:px-3 focus:py-2">
         Skip to content
       </a>
       <header className="sticky top-0 z-40 border-b border-line bg-surface/95 backdrop-blur supports-[backdrop-filter]:bg-surface/85">
-        <div className="mx-auto flex h-14 max-w-[1320px] items-center gap-3 px-4 sm:px-6">
-          <Link href="/" className="flex shrink-0 items-center gap-2 text-[15px] font-semibold tracking-tight">
-            <Image src="/logo-mark.png" alt="" width={22} height={19} priority className="dark:invert" />
-            AfriEdge
+        <div className="mx-auto flex min-h-14 max-w-[1320px] flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2 sm:px-6">
+          <Link href="/" aria-label="AfriEdge home" className="flex shrink-0 items-center" data-testid="header-logo">
+            <Logo size={22} />
           </Link>
           <nav aria-label="Main" className="ml-4 hidden items-center gap-1 md:flex">
             {NAV.map((n) => {
@@ -172,15 +175,34 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         )}
       </header>
       <main id="main" className="mx-auto w-full max-w-[1320px] flex-1 px-4 py-6 sm:px-6 sm:py-8">{children}</main>
-      <footer className="border-t border-line" data-testid="site-footer">
-        <div className="mx-auto flex max-w-[1320px] flex-col gap-3 px-4 py-6 text-xs text-muted sm:flex-row sm:items-start sm:justify-between sm:px-6">
-          <div className="max-w-xl">
-            <span className="font-semibold text-fg">AfriEdge</span> · African financial intelligence
-            <p className="mt-1 text-faint">For research and education only. Not investment advice. Market data is end of day and is shown with the date it applies to.</p>
+      <footer className="border-t border-line bg-surface" data-testid="site-footer">
+        <div className="mx-auto max-w-[1320px] px-4 pb-6 pt-10 sm:px-6">
+          <div className="grid gap-10 md:grid-cols-[minmax(0,1.2fr)_minmax(0,2fr)]">
+            <div className="max-w-sm">
+              <Link href="/" aria-label="AfriEdge home" className="inline-flex"><Logo size={24} wordClass="text-base" /></Link>
+              <p className="mt-3 text-sm font-medium text-fg">African Financial Intelligence</p>
+              <p className="mt-1 text-sm leading-relaxed text-muted">Research on listed African companies, with every figure traced to its source.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-3">
+              {FOOTER.map((col) => (
+                <nav key={col.title} aria-label={col.title} className="min-w-0 break-words">
+                  <h2 className="text-xs font-semibold text-fg">{col.title}</h2>
+                  <ul className="mt-3 space-y-2 text-sm">
+                    {col.links.map(([h, l]) => <li key={h}><Link href={h} className="text-muted transition-colors hover:text-fg">{l}</Link></li>)}
+                  </ul>
+                </nav>
+              ))}
+            </div>
           </div>
-          <nav aria-label="Legal and information" className="flex flex-wrap gap-x-5 gap-y-2">
-            {LEGAL.map(([h, l]) => <Link key={h} href={h} className="hover:text-fg">{l}</Link>)}
-          </nav>
+          <div className="mt-10 flex flex-col gap-3 border-t border-line pt-5 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
+            <p>© {new Date().getFullYear()} AfriEdge. For research and education; not investment advice.</p>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+              <Link href="/privacy" className="hover:text-fg">Privacy</Link>
+              <Link href="/terms" className="hover:text-fg">Terms</Link>
+              <button type="button" onClick={() => window.dispatchEvent(new Event("afriedge:cookie-preferences"))}
+                className="hover:text-fg" data-testid="footer-cookie-preferences">Cookie preferences</button>
+            </div>
+          </div>
         </div>
       </footer>
     </div>

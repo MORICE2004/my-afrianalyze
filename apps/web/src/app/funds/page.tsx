@@ -26,7 +26,7 @@ export default async function FundsPage() {
             by the manager, but its site states no terms for reusing them, so AfriEdge does not show them yet. No figure
             here is estimated.
           </p>
-          <div className="overflow-x-auto border border-neutral-200 bg-white">
+          <div className="overflow-x-auto border border-neutral-200 bg-white" tabIndex={0} role="region" aria-label="Scrollable table">
             <table className="w-full text-sm" data-testid="funds">
               <thead className="bg-neutral-50 text-xs text-neutral-500">
                 <tr><th className="text-left px-3 py-2">Fund</th><th className="text-left px-3 py-2">Manager</th>

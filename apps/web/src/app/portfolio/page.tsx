@@ -88,7 +88,7 @@ export default function PortfolioBuilderPage() {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <h1 className="text-2xl font-bold">Portfolio builder</h1>
-      <ol className="flex gap-2 text-xs uppercase tracking-wider text-neutral-500">
+      <ol className="flex flex-wrap gap-2 text-xs uppercase tracking-wider text-muted">
         {["Market", "Capital", "Risk", "Horizon"].map((s, i) => (
           <li key={s} className={i === step ? "font-bold text-black" : ""}>{i + 1}. {s}</li>
         ))}

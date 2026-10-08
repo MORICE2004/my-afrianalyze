@@ -1,0 +1,242 @@
+{
+ "bank-of-tanzania": {
+  "file": "/media/library/bank-of-tanzania.jpg",
+  "width": 1920,
+  "height": 1026,
+  "caption": "Bank of Tanzania headquarters, Dar es Salaam",
+  "for": {
+   "news_source": [
+    "bot"
+   ]
+  },
+  "commons_title": "File:Bank of Tanzania.jpg",
+  "commons_page": "https://commons.wikimedia.org/wiki/File:Bank_of_Tanzania.jpg",
+  "author": "Fanny Schertzer",
+  "licence": "CC BY 2.5",
+  "licence_url": "https://creativecommons.org/licenses/by/2.5",
+  "description": "Bank of Tanzania in Dar es Salaam.",
+  "taken": "2007-10",
+  "retrieved_at": "2026-10-08T23:00:49+00:00",
+  "sha256": "f954c72dfa46596f9726dc114ea78b9bf0c4618deb5ab7973268c3c2871f1c0d"
+ },
+ "central-bank-of-kenya": {
+  "file": "/media/library/central-bank-of-kenya.jpg",
+  "width": 1920,
+  "height": 1280,
+  "caption": "Central Bank of Kenya Pension Towers, Nairobi",
+  "for": {
+   "news_source": [
+    "cbk"
+   ]
+  },
+  "commons_title": "File:Central Bank of Kenya Pensions Tower.jpg",
+  "commons_page": "https://commons.wikimedia.org/wiki/File:Central_Bank_of_Kenya_Pensions_Tower.jpg",
+  "author": "Omar David Sandoval Sida",
+  "licence": "CC BY-SA 4.0",
+  "licence_url": "https://creativecommons.org/licenses/by-sa/4.0",
+  "description": "Edificio de pensiones del banco central de Kenia",
+  "taken": "2025-08-04 10:05:49",
+  "retrieved_at": "2026-10-08T23:00:56+00:00",
+  "sha256": "f9093327da0b9fe649149609f2480353f960779ac0e8980b652097d02742089e"
+ },
+ "bank-of-uganda": {
+  "file": "/media/library/bank-of-uganda.jpg",
+  "width": 1920,
+  "height": 1440,
+  "caption": "Bank of Uganda, Kampala branch",
+  "for": {
+   "news_source": [
+    "bou"
+   ]
+  },
+  "commons_title": "File:Bank of Uganda Kampala Branch.jpg",
+  "commons_page": "https://commons.wikimedia.org/wiki/File:Bank_of_Uganda_Kampala_Branch.jpg",
+  "author": "B722N",
+  "licence": "CC BY-SA 4.0",
+  "licence_url": "https://creativecommons.org/licenses/by-sa/4.0",
+  "description": "Bank of Uganda Kampala Branch",
+  "taken": "2025-03-02 16:50:36",
+  "retrieved_at": "2026-10-08T23:01:03+00:00",
+  "sha256": "56089ee66477de39e46378a12507ea7b17daadc006b3a0e1e29943ddbef79fc1"
+ },
+ "nmb-mbeya": {
+  "file": "/media/library/nmb-mbeya.jpg",
+  "width": 1024,
+  "height": 768,
+  "caption": "NMB Bank branch in Mbeya, Tanzania",
+  "for": {
+   "security": [
+    "DSE:NMB"
+   ]
+  },
+  "commons_title": "File:NMB in Mbeya.jpg",
+  "commons_page": "https://commons.wikimedia.org/wiki/File:NMB_in_Mbeya.jpg",
+  "author": "Mapinduzi1",
+  "licence": "CC BY 2.0",
+  "licence_url": "https://creativecommons.org/licenses/by/2.0",
+  "description": "National Microfinance Bank (NMB) in Mbeya, Tanzania",
+  "taken": "2012-03-17",
+  "retrieved_at": "2026-10-08T23:01:11+00:00",
+  "sha256": "36f26275c5dbffb1a12c66df231a1b50b0808bc6e25ae611c4a21969a483806b"
+ },
+ "equity-centre": {
+  "file": "/media/library/equity-centre.jpg",
+  "width": 1920,
+  "height": 1280,
+  "caption": "Equity Centre, Equity Bank headquarters, Upper Hill, Nairobi",
+  "for": {
+   "security": [
+    "NSE:EQTY"
+   ]
+  },
+  "commons_title": "File:Equity Center.jpg",
+  "commons_page": "https://commons.wikimedia.org/wiki/File:Equity_Center.jpg",
+  "author": "Equity Bank",
+  "licence": "CC BY-SA 2.0",
+  "licence_url": "https://creativecommons.org/licenses/by-sa/2.0",
+  "description": "Equity Center, Equity Bank Headquarters building in Upper Hill, Nairobi.",
+  "taken": "2020-02-21 17:35:15",
+  "retrieved_at": "2026-10-08T23:01:19+00:00",
+  "sha256": "110ed502ddfa68bbde49ab1ad064d64b3146aa9b4af424d4624a4398919ccd61"
+ },
+ "dar-es-salaam": {
+  "file": "/media/library/dar-es-salaam.jpg",
+  "width": 1632,
+  "height": 818,
+  "caption": "Dar es Salaam skyline",
+  "for": {
+   "country": [
+    "TZ"
+   ]
+  },
+  "commons_title": "File:Dar es Salaam Skyline.jpg",
+  "commons_page": "https://commons.wikimedia.org/wiki/File:Dar_es_Salaam_Skyline.jpg",
+  "author": "Ali Damji",
+  "licence": "CC BY-SA 4.0",
+  "licence_url": "https://creativecommons.org/licenses/by-sa/4.0",
+  "description": "A view of the Dar es Salaam skyline",
+  "taken": "2007-10-20",
+  "retrieved_at": "2026-10-08T23:01:25+00:00",
+  "sha256": "ca61c2784e1465d1bc5b3667ebc1c118ddc1ac39ac33afbd60e825f57e884d2e"
+ },
+ "nairobi": {
+  "file": "/media/library/nairobi.jpg",
+  "width": 1920,
+  "height": 1440,
+  "caption": "Nairobi skyline from Upper Hill",
+  "for": {
+   "country": [
+    "KE"
+   ]
+  },
+  "commons_title": "File:Nairobi skyline P1000019.jpg",
+  "commons_page": "https://commons.wikimedia.org/wiki/File:Nairobi_skyline_P1000019.jpg",
+  "author": "Lmwangi",
+  "licence": "CC BY-SA 3.0",
+  "licence_url": "https://creativecommons.org/licenses/by-sa/3.0",
+  "description": "Nairobi skyline from Upperhill",
+  "taken": "19 April 2008 (accor",
+  "retrieved_at": "2026-10-08T23:01:32+00:00",
+  "sha256": "37752116e3f23954a0ebf7a6ec2ec8f9766f1f6e114c7cfeb616ed6dd2874169"
+ },
+ "kampala": {
+  "file": "/media/library/kampala.jpg",
+  "width": 1920,
+  "height": 1440,
+  "caption": "Kampala skyline",
+  "for": {
+   "country": [
+    "UG"
+   ]
+  },
+  "commons_title": "File:Kampala skyline.jpg",
+  "commons_page": "https://commons.wikimedia.org/wiki/File:Kampala_skyline.jpg",
+  "author": "Todd Huffman from Phoenix, AZ",
+  "licence": "CC BY 2.0",
+  "licence_url": "https://creativecommons.org/licenses/by/2.0",
+  "description": "The Kampala skyline across a railyard",
+  "taken": "2010-04-17 07:03",
+  "retrieved_at": "2026-10-08T23:01:39+00:00",
+  "sha256": "7feebc631f937bfb11b82c83ca85f61445b7e5ed6d586002baf05ad92f6dece2"
+ },
+ "central-bank-of-kenya-1973": {
+  "file": "/media/library/central-bank-of-kenya-1973.jpg",
+  "width": 937,
+  "height": 937,
+  "caption": "Central Bank of Kenya, Nairobi (photographed 1973)",
+  "for": {
+   "news_source": [
+    "cbk"
+   ]
+  },
+  "commons_title": "File:CBK Nairobi 1973.jpg",
+  "commons_page": "https://commons.wikimedia.org/wiki/File:CBK_Nairobi_1973.jpg",
+  "author": "mwanasimba from La Réunion",
+  "licence": "CC BY-SA 2.0",
+  "licence_url": "https://creativecommons.org/licenses/by-sa/2.0",
+  "description": "Central Bank of Kenya",
+  "taken": "1973-12",
+  "retrieved_at": "2026-10-08T23:01:46+00:00",
+  "sha256": "b3339c64659d7e065078165c4ea8695dfdc455d6c35bcefb644f579fa6f8b357"
+ },
+ "nairobi-2": {
+  "file": "/media/library/nairobi-2.jpg",
+  "width": 1920,
+  "height": 1440,
+  "caption": "Nairobi skyline",
+  "for": {
+   "country": [
+    "KE"
+   ]
+  },
+  "commons_title": "File:Nairobi skyline P1000020.jpg",
+  "commons_page": "https://commons.wikimedia.org/wiki/File:Nairobi_skyline_P1000020.jpg",
+  "author": "Lmwangi",
+  "licence": "CC BY-SA 3.0",
+  "licence_url": "https://creativecommons.org/licenses/by-sa/3.0",
+  "description": "Nairobi skyline from Upperhill",
+  "taken": "2008-04-19",
+  "retrieved_at": "2026-10-08T23:01:53+00:00",
+  "sha256": "fc6a2961065d1d832777aa7187ea87a60feda005814a71ad527fca941bf05a91"
+ },
+ "kampala-2": {
+  "file": "/media/library/kampala-2.jpg",
+  "width": 1920,
+  "height": 1280,
+  "caption": "Kampala skyline",
+  "for": {
+   "country": [
+    "UG"
+   ]
+  },
+  "commons_title": "File:Skyline of Kampala.jpg",
+  "commons_page": "https://commons.wikimedia.org/wiki/File:Skyline_of_Kampala.jpg",
+  "author": "Flöschen",
+  "licence": "CC BY-SA 3.0",
+  "licence_url": "https://creativecommons.org/licenses/by-sa/3.0",
+  "description": "View of Kampala, the capital of Uganda; on the right you see a typical taxi",
+  "taken": "2011-02-10",
+  "retrieved_at": "2026-10-08T23:02:12+00:00",
+  "sha256": "c3241d107ddb45350e0dfdae357cd7497ed6737066c5e2d6cc654c585afd8d5f"
+ },
+ "dar-es-salaam-2": {
+  "file": "/media/library/dar-es-salaam-2.jpg",
+  "width": 1024,
+  "height": 768,
+  "caption": "Dar es Salaam skyline",
+  "for": {
+   "country": [
+    "TZ"
+   ]
+  },
+  "commons_title": "File:Dar Es Salaam Skyline (34011488084).jpg",
+  "commons_page": "https://commons.wikimedia.org/wiki/File:Dar_Es_Salaam_Skyline_(34011488084).jpg",
+  "author": "David Stanley from Nanaimo, Canada",
+  "licence": "CC BY 2.0",
+  "licence_url": "https://creativecommons.org/licenses/by/2.0",
+  "description": "Increasing numbers of flashy highrise buildings financed by official agencies are popping up along the Dar es Salaam waterfront. A poor developing country, Tanzania still has plenty of money to spend on prestige projects.",
+  "taken": "2017-01-03 07:24",
+  "retrieved_at": "2026-10-08T23:03:35+00:00",
+  "sha256": "10f75fd07936215a9cb3d78189e1435addde7594a3859c07c9bea94c7c2f1ac8"
+ }
+}

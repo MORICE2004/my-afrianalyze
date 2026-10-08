@@ -1,7 +1,16 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import path from "node:path";
 
 const SHOTS = path.resolve(__dirname, "../../../docs/screenshots");
+
+// Every test starts as a visitor who already answered the cookie banner (rejecting optional analytics), so the
+// banner never covers what a test clicks. The consent tests below start without the cookie: a true first visit.
+test.beforeEach(async ({ context, baseURL }, info) => {
+  if (info.title.includes("cookie banner")) return;
+  const value = encodeURIComponent(JSON.stringify({ analytics: false, decided_at: "2026-10-09T00:00:00Z" }));
+  await context.addCookies([{ name: "afriedge_consent", value, url: baseURL ?? "http://localhost:3000" }]);
+});
 
 const ROUTES: { path: string; name: string; expectText: RegExp }[] = [
   { path: "/", name: "home", expectText: /Research a listed company/i },
@@ -15,7 +24,7 @@ const ROUTES: { path: string; name: string; expectText: RegExp }[] = [
   { path: "/dashboard", name: "dashboard", expectText: /Sign in to see your portfolios/i },
   { path: "/watchlist", name: "watchlist", expectText: /Your watchlist is empty/i },
   { path: "/settings", name: "settings", expectText: /Appearance/i },
-  { path: "/login", name: "login", expectText: /Research on listed African companies is open to read/i },
+  { path: "/login", name: "login", expectText: /Welcome back/i },
   { path: "/funds", name: "funds", expectText: /LICENSE_REVIEW_REQUIRED/ },
   { path: "/health", name: "health", expectText: /Used today/i },
   { path: "/admin", name: "admin", expectText: /Sign in to continue/i },
@@ -52,9 +61,9 @@ async function openCompany(page: Page, id: string) {
 async function signUp(page: Page, prefix: string) {
   const email = `e2e-${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}@afriedge.test`;
   await page.goto("/login", { waitUntil: "networkidle" });
-  await page.getByRole("tab", { name: "Create account" }).click();
+  await page.getByRole("tab", { name: "Create an account" }).click();
   await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(`e2e-only-${Date.now()}`);
+  await page.getByLabel("Password", { exact: true }).fill(`e2e-only-${Date.now()}`);
   await page.getByRole("button", { name: "Create account" }).last().click();
   await expect(page).toHaveURL(/\/dashboard$/);
   return email;
@@ -246,13 +255,85 @@ test("source documents are read as pages inside AfriEdge; the original file is n
   await expect(page.getByTestId("original-source")).toHaveAttribute("href", /^https?:\/\//);
 });
 
-test("the footer carries legal and information links only, not the main navigation", async ({ page }) => {
+test("the footer carries secondary and legal links only, not the main navigation", async ({ page }) => {
   await page.goto("/about");
   const footer = page.getByTestId("site-footer");
-  for (const l of ["Privacy", "Cookies", "Risk disclaimer", "Data methodology", "About"]) await expect(footer.getByRole("link", { name: l, exact: true })).toBeVisible();
+  for (const l of ["About", "Data methodology", "Risk disclaimer", "Privacy policy", "Cookie policy", "Terms of use"]) {
+    await expect(footer.getByRole("link", { name: l, exact: true })).toBeVisible();
+  }
   for (const l of ["Markets", "Research", "Portfolio", "News"]) await expect(footer.getByRole("link", { name: l, exact: true })).toHaveCount(0);
+  await expect(footer).toContainText(`© ${new Date().getFullYear()} AfriEdge`);
   await footer.getByRole("link", { name: "Risk disclaimer" }).click();
   await expect(page.getByTestId("disclaimer-page")).toContainText("Not investment advice");
+});
+
+test("cookie banner: first visit asks; accept, reject and customize each save a working choice", async ({ browser }) => {
+  for (const choice of ["accept", "reject", "customize"] as const) {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    const apiConsent: string[] = [];
+    page.on("request", (r) => { if (r.url().includes("/api/v1/")) apiConsent.push(r.headers()["x-analytics-consent"] ?? "none"); });
+    await page.goto("/", { waitUntil: "networkidle" });
+    const banner = page.getByTestId("cookie-banner");
+    await expect(banner).toContainText("Your privacy matters");
+    // Before any choice, the browser sends no analytics consent.
+    expect(apiConsent.every((h) => h === "none")).toBe(true);
+    if (choice === "accept") await page.getByTestId("cookie-accept").click();
+    if (choice === "reject") await page.getByTestId("cookie-reject").click();
+    if (choice === "customize") {
+      await page.getByTestId("cookie-customize").click();
+      await expect(page.getByTestId("cookie-dialog")).toContainText("Necessary");
+      await page.getByTestId("consent-analytics").click();
+      await expect(page.getByTestId("consent-analytics")).toHaveAttribute("aria-checked", "true");
+      await page.getByTestId("consent-save").click();
+    }
+    await expect(banner).toHaveCount(0);
+    const cookie = (await ctx.cookies()).find((c) => c.name === "afriedge_consent");
+    expect(JSON.parse(decodeURIComponent(cookie!.value)).analytics).toBe(choice !== "reject");
+    // Returning visitor: no banner, and the choice travels with API requests.
+    apiConsent.length = 0;
+    await page.goto("/markets", { waitUntil: "networkidle" });
+    await expect(page.getByTestId("cookie-banner")).toHaveCount(0);
+    if (choice !== "reject") {
+      await page.goto("/", { waitUntil: "networkidle" });
+      await page.getByTestId("search-hero").fill("nmb");
+      await expect(page.getByRole("option").first()).toBeVisible();
+      expect(apiConsent).toContain("granted");
+    } else {
+      expect(apiConsent).not.toContain("granted");
+    }
+    // The footer reopens the preferences with the saved choice.
+    await page.getByTestId("footer-cookie-preferences").click();
+    await expect(page.getByTestId("consent-analytics")).toHaveAttribute("aria-checked", choice === "reject" ? "false" : "true");
+    await ctx.close();
+  }
+});
+
+test("sign-in: password can be shown, the brand panel says what AfriEdge is, and phones get the form alone", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Password", { exact: true }).fill("secret-value-123");
+  await page.getByTestId("toggle-password").click();
+  await expect(page.getByLabel("Password", { exact: true })).toHaveAttribute("type", "text");
+  await expect(page.getByTestId("brand-logo")).toBeVisible();
+  const vw = page.viewportSize()!.width;
+  if (vw >= 1024) await expect(page.getByText("See African Markets Clearly.")).toBeVisible();
+  else await expect(page.getByText("See African Markets Clearly.")).toBeHidden();
+  await page.getByLabel("Email").fill("nobody@afriedge.test");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.getByRole("alert")).toBeVisible();
+});
+
+test("news is image-led with topic graphics, never a broken image, and filters by search", async ({ page }) => {
+  test.skip(!!process.env.OFFLINE, "needs the API");
+  await page.goto("/news", { waitUntil: "networkidle" });
+  await expect(page.getByTestId("news-featured")).toBeVisible();
+  await expect(page.getByTestId("news-grid").getByTestId("news-card").first()).toBeVisible();
+  const broken = await page.locator("img").evaluateAll((imgs) => imgs.filter((i) => (i as HTMLImageElement).complete && (i as HTMLImageElement).naturalWidth === 0).length);
+  expect(broken).toBe(0);
+  await page.getByTestId("news-search").fill("monetary");
+  await page.getByRole("button", { name: "Apply" }).click();
+  await expect(page).toHaveURL(/q=monetary/);
+  for (const t of await page.getByTestId("news-card").allInnerTexts()) expect(t.toLowerCase()).toContain("monetary");
 });
 
 test("the administration page is refused to an ordinary account", async ({ page }) => {
@@ -290,9 +371,9 @@ test("a portfolio is private to the account that saved it", async ({ browser }) 
     const page = await ctx.newPage();
     const errors = watchErrors(page);
     await page.goto("/login", { waitUntil: "networkidle" });
-    await page.getByRole("tab", { name: "Create account" }).click();
+    await page.getByRole("tab", { name: "Create an account" }).click();
     await page.getByLabel("Email").fill(email);
-    await page.getByLabel("Password").fill(password);
+    await page.getByLabel("Password", { exact: true }).fill(password);
     await page.getByRole("button", { name: "Create account" }).last().click();
     await expect(page).toHaveURL(/\/dashboard$/);
     await expect(page.locator("main")).toContainText(`Signed in as ${email}`);
@@ -384,7 +465,7 @@ test("news lists official stories with source, time, relevance and a link out, a
   test.skip(!!process.env.OFFLINE, "needs the API");
   const errors = watchErrors(page);
   await page.goto("/news", { waitUntil: "networkidle" });
-  await expect(page.getByTestId("news-card").first()).toBeVisible();
+  await expect(page.getByTestId("news-featured")).toBeVisible();
   const body = await page.locator("main").innerText();
   expect(body).not.toMatch(/breaking|bullish|bearish/i);
   await expect(page.getByTestId("news-sources")).toContainText("Central Bank of Kenya");
@@ -429,6 +510,22 @@ test("with reduced motion the company page still shows every state, and the priv
   await expect(page.getByTestId("model-view")).toBeVisible();
   await expect(page.getByTestId("quote-header")).toContainText("TZS");
   await page.goto("/privacy");
-  await expect(page.locator("main")).toContainText("no analytics or advertising cookies");
+  await expect(page.locator("main")).toContainText("If you reject them, nothing is recorded");
   await ctx.close();
 });
+
+
+// Automated accessibility check (axe-core, WCAG 2.1 A and AA rules) on the main routes, light and dark.
+for (const theme of ["light", "dark"] as const) {
+  test(`accessibility: main routes have no serious or critical axe violations (${theme})`, async ({ page }) => {
+    test.skip(!!process.env.OFFLINE, "needs the API");
+    await page.addInitScript((t) => localStorage.setItem("afriedge-theme", t), theme);
+    for (const path of ["/", "/markets", "/news", "/report/DSE:NMB", "/login", "/portfolio", "/privacy", "/cookies"]) {
+      await page.goto(path, { waitUntil: "networkidle" });
+      const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+      const bad = r.violations.filter((v) => v.impact === "serious" || v.impact === "critical")
+        .map((v) => `${path}: ${v.id} (${v.nodes.length}) ${v.nodes.slice(0, 2).map((n) => n.target.join(" ")).join(" | ")}`);
+      expect(bad, bad.join("\n")).toEqual([]);
+    }
+  });
+}

@@ -9,12 +9,14 @@ import { PriceChart } from "@/components/market/PriceChart";
 import EvidenceLineage from "@/components/research/EvidenceLineage";
 import ValuationExplainer from "@/components/research/ValuationExplainer";
 import { NumberReveal } from "@/components/motion/primitives";
+import { LibraryPhoto } from "@/components/media/LibraryPhoto";
 import { RelatedNews } from "@/components/news/RelatedNews";
 import { Change, Empty, Panel, Skeleton } from "@/components/ui/kit";
 import { useToast } from "@/components/ui/Toast";
 import { VerificationBadge } from "@/components/ui/VerificationBadge";
 import { API_URL, type Quote, type Report, type ResearchStage, type Security, type StreamEvent } from "@/lib/api";
 import { fmtCompact, fmtDate, fmtPct, fmtPerShare, fmtShortDate } from "@/lib/format";
+import { consentHeaders } from "@/lib/consent";
 import { rememberViewed, toggleWatch, useSavedList } from "@/lib/local";
 import { ExportButtons } from "./ExportButtons";
 import { ResearchRunPanel } from "./ResearchRunPanel";
@@ -92,7 +94,7 @@ function useResearch(securityId: string, attempt: number) {
     dispatch({ type: "reset" });
     (async () => {
       try {
-        const res = await fetch(`${API_URL}/api/v1/research/${encodeURIComponent(securityId)}/stream`, { signal: ctrl.signal, cache: "no-store" });
+        const res = await fetch(`${API_URL}/api/v1/research/${encodeURIComponent(securityId)}/stream`, { signal: ctrl.signal, cache: "no-store", headers: consentHeaders() });
         if (!res.ok || !res.body) {
           if (res.status === 429) {
             dispatch({ type: "event", ev: { event: "unavailable", status: "BUSY", reason: "Too many research requests from this connection. Please try again in a minute." } });
@@ -177,7 +179,7 @@ export function Workspace({ security }: { security: Security }) {
             <div className="space-y-2 lg:ml-auto lg:w-56" aria-label="Loading price"><Skeleton className="h-8 w-48" /><Skeleton className="h-4 w-40" /></div>
           ) : q.available ? (
             <motion.div {...fade()}>
-              <div className="flex items-baseline gap-3 lg:justify-end">
+              <div className="flex flex-wrap items-baseline gap-x-3 lg:justify-end">
                 <NumberReveal value={Number(q.price)} format={(n) => `${q.currency} ${fmtPerShare(n)}`}
                   className="text-3xl font-semibold tracking-tight tabular-nums sm:text-4xl" />
                 <Change value={q.change_pct} className="text-base font-medium" label="Change on the day" />
@@ -216,13 +218,27 @@ export function Workspace({ security }: { security: Security }) {
             <ViewCard report={report} quote={q} onReviewAssumptions={() => { setTab("Valuation"); document.getElementById("research-tabs")?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" }); }} />
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="flex flex-wrap items-center gap-x-1 text-xs text-muted" data-testid="data-as-of">
-                <VerificationBadge state={report.review.status === "published" ? "Reviewed" : "Verified"} testId="verification-badge" detail={{
+                {/* Automated data check: always about the figures, never a claim that a person reviewed them. */}
+                <VerificationBadge state="Verified data" testId="verification-badge" detail={{
+                  kind: "Automated data check",
                   source: report.data_as_of.latest_report ?? undefined,
-                  period: report.data_as_of.fiscal_year_end ? `Year to ${fmtDate(report.data_as_of.fiscal_year_end)}` : undefined,
-                  currency: security.currency,
+                  reporting: report.data_as_of.fiscal_year_end ? `Year to ${fmtDate(report.data_as_of.fiscal_year_end)}` : undefined,
                   retrieved: report.data_as_of.retrieved_at ? fmtDate(report.data_as_of.retrieved_at) : undefined,
-                  validation: "Each statement figure is read by two independent extraction methods; figures where they disagree are marked and not used. The Evidence tab lists every figure with its page.",
+                  currency: security.currency,
+                  method: "Each statement figure is read by two independent extraction methods; where they disagree the figure is marked and not used. Not a human review.",
                 }} />
+                {/* Human steps, shown only when they happened (section 72). */}
+                {report.review.status === "published" && report.review.reviewer ? (
+                  <span className="ml-1.5"><VerificationBadge state="Approved publication" testId="approval-badge" detail={{
+                    kind: "Approved for publication by a named reviewer", reviewer: report.review.reviewer,
+                    reporting: report.review.reviewed_at ? fmtDate(report.review.reviewed_at) : undefined,
+                    method: `Research run ${report.review.run_id ?? ""}`.trim(),
+                  }} /></span>
+                ) : report.review.reviewer && report.review.reviewed_at ? (
+                  <span className="ml-1.5"><VerificationBadge state="Reviewed research" testId="review-badge" detail={{
+                    kind: "Examined by a named reviewer", reviewer: report.review.reviewer, reporting: fmtDate(report.review.reviewed_at),
+                  }} /></span>
+                ) : null}
                 <span aria-hidden className="mx-1 text-faint">·</span>
                 Financials to {report.data_as_of.fiscal_year_end ? fmtDate(report.data_as_of.fiscal_year_end) : "an unknown date"}
                 {report.data_as_of.latest_report && <> · {report.data_as_of.latest_report}</>}
@@ -244,7 +260,7 @@ export function Workspace({ security }: { security: Security }) {
                   </Tabs.Trigger>
                 ))}
               </Tabs.List>
-              <Tabs.Content value="Overview" className="pt-5 outline-none"><Overview report={report} quote={q} /></Tabs.Content>
+              <Tabs.Content value="Overview" className="pt-5 outline-none"><Overview report={report} quote={q} photo={security.photo} /></Tabs.Content>
               <Tabs.Content value="Financials" className="space-y-8 pt-5 outline-none">
                 <div className="grid gap-4 md:grid-cols-3">
                   <TrendChart report={report} title="Profit for the year" codes={["profit_for_year", "profit_attributable_owners"]} />
@@ -327,8 +343,8 @@ function Progress({ state, onRetry }: { state: State; onRetry: () => void }) {
     <section aria-label="Research progress" data-testid="research-progress" data-status={state.status}
       className="rounded-lg border border-line bg-surface">
       <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={running || open}
-        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm sm:px-5">
-        <span className="flex items-center gap-2">
+        className="flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-1 px-4 py-3 text-left text-sm sm:px-5">
+        <span className="flex min-w-0 flex-wrap items-center gap-2">
           {running ? (
             <span className="relative flex h-2.5 w-2.5" aria-hidden>
               {!reduceMotion && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-fg opacity-30" />}
@@ -404,7 +420,7 @@ function TabReadiness({ state }: { state: State }) {
 
 const KEY_RATIOS = ["roe", "nim", "cost_to_income", "npl_ratio", "car", "dividend_payout"];
 
-function Overview({ report, quote }: { report: Report; quote: Quote | null }) {
+function Overview({ report, quote, photo }: { report: Report; quote: Quote | null; photo?: Security["photo"] }) {
   const latest = String(report.years[report.years.length - 1]);
   const prev = String(report.years[report.years.length - 2]);
   return (
@@ -424,6 +440,7 @@ function Overview({ report, quote }: { report: Report; quote: Quote | null }) {
         </div>
       </div>
       <div className="space-y-5">
+        {photo && <LibraryPhoto photo={photo} ratio="aspect-[4/3]" />}
         <RelatedNews securityId={report.security.id} />
         <Panel title={`Key figures, FY${latest}`} testId="key-ratios">
           <dl className="divide-y divide-line text-sm">

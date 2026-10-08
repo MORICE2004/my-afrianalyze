@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import React from "react";
-import { newsTime, RelevanceLabel } from "@/components/news/NewsCard";
+import { RelevanceLabel } from "@/components/news/NewsCard";
+import { newsTime } from "@/lib/newsTime";
 import { Empty } from "@/components/ui/kit";
 import { apiGet, type NewsDetail } from "@/lib/api";
 import { fmtDate, fmtNumber, fmtPct } from "@/lib/format";

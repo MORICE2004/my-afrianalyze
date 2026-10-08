@@ -50,7 +50,7 @@ function Breadth({ b }: { b: NonNullable<MarketsOverview["movers"]["breadth"]> }
 
 function Sectors({ indices }: { indices: IndexSummary[] }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Sector indices table">
       <table className="w-full text-sm" data-testid="sectors">
         <thead>
           <tr className="border-b border-line text-xs text-muted">
@@ -125,7 +125,7 @@ export default async function MarketsPage() {
                   <div className="text-3xl font-semibold tracking-tight">{fmtNumber(idx.value, 2)}</div>
                   <div className="text-sm"><Change value={idx.change} label="Change on the day" /> <span className="text-xs text-muted">on {fmtDate(idx.trade_date)}</span></div>
                 </div>
-                <dl className="flex gap-6 text-sm">
+                <dl className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
                   <div><dt className="text-xs text-muted">1 month</dt><dd><Change value={idx.change_1m ?? null} digits={1} /></dd></div>
                   <div><dt className="text-xs text-muted">Year to date</dt><dd><Change value={idx.change_ytd ?? null} digits={1} /></dd></div>
                   <div><dt className="text-xs text-muted">1 year</dt><dd><Change value={idx.change_1y ?? null} digits={1} /></dd></div>
@@ -180,9 +180,9 @@ export default async function MarketsPage() {
               title={<span>{m.name} <span className="ml-1 rounded border border-line px-1.5 py-0.5 font-mono text-xs font-normal">{m.currency}</span></span>}>
               <p className="text-sm text-muted">{m.exchange === "DSE" ? "Market shown above." : m.index.available ? null : m.index.public_reason}</p>
               {m.macro?.available && m.macro.rows && (
-                <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm" data-testid={`macro-${m.market}`}>
+                <dl className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(min(100%,11rem),1fr))] gap-x-4 gap-y-2 text-sm" data-testid={`macro-${m.market}`}>
                   {m.macro.rows.map((r) => (
-                    <div key={r.indicator} className="flex justify-between gap-2 border-b border-line pb-1.5">
+                    <div key={r.indicator} className="flex min-w-0 flex-wrap justify-between gap-x-2 border-b border-line pb-1.5">
                       <dt className="text-muted">{r.label} <span className="text-faint">({r.year})</span></dt>
                       <dd className="font-medium">{r.unit === "decimal" ? fmtPct(Number(r.value), 1) : fmtNumber(r.value, 2)}</dd>
                     </div>

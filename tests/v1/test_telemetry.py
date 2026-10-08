@@ -54,7 +54,9 @@ class _FakePostHog:
 def test_tracking_sends_only_clean_properties(monkeypatch):
     fake = _FakePostHog()
     monkeypatch.setattr(telemetry, "_client", lambda: fake)
+    token = telemetry.set_consent(True)
     assert telemetry.track("portfolio_created", 7, {"holdings_count": 2, "holdings": ["DSE:NMB"]})
+    telemetry._consent.reset(token)
     (event, kw), = fake.sent
     assert event == "portfolio_created" and kw["properties"]["holdings_count"] == 2
     assert "holdings" not in kw["properties"] and kw["distinct_id"] != 7
@@ -77,3 +79,33 @@ def test_production_refuses_analytics_without_a_salt():
     with pytest.raises(ValueError, match="ANALYTICS_SALT"):
         Settings(**base)
     assert Settings(**base, ANALYTICS_SALT="x" * 16).POSTHOG_API_KEY == "phc_test"
+
+
+def test_nothing_is_sent_without_consent(monkeypatch):
+    fake = _FakePostHog()
+    monkeypatch.setattr(telemetry, "_client", lambda: fake)
+    assert telemetry.track("login", 1) is False and fake.sent == []
+
+
+def test_the_api_takes_consent_only_from_the_header():
+    """The middleware sets consent per request from X-Analytics-Consent: exactly "granted", nothing else."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    import apps.api.main as api
+
+    probe = FastAPI()
+    probe.middleware("http")(api.analytics_consent)
+    seen = []
+
+    @probe.get("/p")
+    def p():
+        seen.append(telemetry.consent_granted())
+        return {}
+
+    c = TestClient(probe)
+    c.get("/p")
+    c.get("/p", headers={"X-Analytics-Consent": "granted"})
+    c.get("/p", headers={"X-Analytics-Consent": "yes"})
+    assert seen == [False, True, False]
+    assert telemetry.consent_granted() is False  # reset after each request

@@ -89,7 +89,7 @@ export function PortfolioAnalysis({ id }: { id: number }) {
       )}
 
       <Block title="Stress tests">
-        <div className="overflow-x-auto border border-neutral-200">
+        <div className="overflow-x-auto border border-neutral-200" tabIndex={0} role="region" aria-label="Scrollable table">
           <table className="w-full text-sm">
             <thead className="bg-neutral-50 text-xs text-neutral-500"><tr><th className="text-left px-3 py-2">Scenario</th><th className="text-right px-3 py-2">Effect</th><th className="text-left px-3 py-2">How</th></tr></thead>
             <tbody className="divide-y divide-neutral-100">

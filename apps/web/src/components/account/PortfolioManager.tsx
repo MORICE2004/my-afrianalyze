@@ -140,7 +140,7 @@ function PortfolioCard({ p, onDelete }: { p: Portfolio; onDelete: () => void }) 
         </div>
       </header>
       {p.holdings.length > 0 && (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Scrollable table">
           <table className="min-w-full text-sm">
             <thead className="text-left text-xs uppercase tracking-wide text-neutral-500">
               <tr>

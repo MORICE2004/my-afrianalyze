@@ -1,0 +1,125 @@
+{
+ "_note": "Openly licensed photographs AfriEdge may show, all from Wikimedia Commons. pipelines.images checks each file's licence with the Commons API at download time (only CC0, public domain, CC BY and CC BY-SA are accepted; GFDL is not, because it requires reproducing the full licence text), stores a copy under apps/web/public/media/library/ and records author, licence and fingerprint in config/image_library.lock.json. Every use shows the caption and credit. These photos show the institution or the city, never a news event: on news stories they are labelled as the publisher's building or the city, so a reader cannot take them for a picture of what happened. Excluded: File:CRDB BANK.png (2026-10-09) is CRDB's trademarked logo marked CC0 by an uploader who is not shown to own it; it is not a photograph.",
+ "images": [
+  {
+   "id": "bank-of-tanzania",
+   "commons": "File:Bank of Tanzania.jpg",
+   "caption": "Bank of Tanzania headquarters, Dar es Salaam",
+   "for": {
+    "news_source": [
+     "bot"
+    ]
+   }
+  },
+  {
+   "id": "central-bank-of-kenya",
+   "commons": "File:Central Bank of Kenya Pensions Tower.jpg",
+   "caption": "Central Bank of Kenya Pension Towers, Nairobi",
+   "for": {
+    "news_source": [
+     "cbk"
+    ]
+   }
+  },
+  {
+   "id": "bank-of-uganda",
+   "commons": "File:Bank of Uganda Kampala Branch.jpg",
+   "caption": "Bank of Uganda, Kampala branch",
+   "for": {
+    "news_source": [
+     "bou"
+    ]
+   }
+  },
+  {
+   "id": "nmb-mbeya",
+   "commons": "File:NMB in Mbeya.jpg",
+   "caption": "NMB Bank branch in Mbeya, Tanzania",
+   "for": {
+    "security": [
+     "DSE:NMB"
+    ]
+   }
+  },
+  {
+   "id": "equity-centre",
+   "commons": "File:Equity Center.jpg",
+   "caption": "Equity Centre, Equity Bank headquarters, Upper Hill, Nairobi",
+   "for": {
+    "security": [
+     "NSE:EQTY"
+    ]
+   }
+  },
+  {
+   "id": "dar-es-salaam",
+   "commons": "File:Dar es Salaam Skyline.jpg",
+   "caption": "Dar es Salaam skyline",
+   "for": {
+    "country": [
+     "TZ"
+    ]
+   }
+  },
+  {
+   "id": "nairobi",
+   "commons": "File:Nairobi skyline P1000019.jpg",
+   "caption": "Nairobi skyline from Upper Hill",
+   "for": {
+    "country": [
+     "KE"
+    ]
+   }
+  },
+  {
+   "id": "kampala",
+   "commons": "File:Kampala skyline.jpg",
+   "caption": "Kampala skyline",
+   "for": {
+    "country": [
+     "UG"
+    ]
+   }
+  },
+  {
+   "id": "central-bank-of-kenya-1973",
+   "commons": "File:CBK Nairobi 1973.jpg",
+   "caption": "Central Bank of Kenya, Nairobi (photographed 1973)",
+   "for": {
+    "news_source": [
+     "cbk"
+    ]
+   }
+  },
+  {
+   "id": "nairobi-2",
+   "commons": "File:Nairobi skyline P1000020.jpg",
+   "caption": "Nairobi skyline",
+   "for": {
+    "country": [
+     "KE"
+    ]
+   }
+  },
+  {
+   "id": "dar-es-salaam-2",
+   "commons": "File:Dar Es Salaam Skyline (34011488084).jpg",
+   "caption": "Dar es Salaam skyline",
+   "for": {
+    "country": [
+     "TZ"
+    ]
+   }
+  },
+  {
+   "id": "kampala-2",
+   "commons": "File:Skyline of Kampala.jpg",
+   "caption": "Kampala skyline",
+   "for": {
+    "country": [
+     "UG"
+    ]
+   }
+  }
+ ]
+}

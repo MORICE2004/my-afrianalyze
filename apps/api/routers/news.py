@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from packages.core.config import settings
 from packages.database.models import DataSourceStatus, MacroObservation, NewsItem, Security
 from packages.database.session import get_session
+from packages.media import library
 
 router = APIRouter(tags=["news"])
 
@@ -41,6 +42,7 @@ def source_health(session: Session) -> list[dict]:
         fresh = bool(row and row.status == "ok" and last and (now - last).total_seconds() / 3600 <= row.max_age_hours)
         out.append({"id": s["id"], "name": s["name"], "tier": s["tier"], "country": s.get("country"),
                     "state": s["state"], "home": s.get("home"), "terms_note": s.get("terms_note"),
+                    "image_rights": s.get("image_rights"), "image_rights_note": s.get("image_rights_note"),
                     "last_success_at": last.isoformat() if last else None,
                     "last_attempt_at": _aware(row.last_attempt_at).isoformat() if row else None,
                     "status": row.status if row else None, "detail": row.detail if row else None,
@@ -53,8 +55,13 @@ def _item(n: NewsItem, src: dict) -> dict:
     return {"id": n.id, "title": n.title, "url": n.url, "language": n.language,
             "published_at": _aware(n.published_at).isoformat(), "retrieved_at": _aware(n.retrieved_at).isoformat(),
             "summary": n.summary, "countries": n.countries, "categories": n.categories,
-            "image": ({"url": n.image_url, "width": n.image_width, "height": n.image_height, "credit": s.get("name", n.source_id)}
-                      if n.image_url else None),
+            # A publisher's image is shown only when its terms permit it (config/news_sources.json image_rights).
+            "image": ({"url": n.image_url, "width": n.image_width, "height": n.image_height,
+                       "credit": s.get("name", n.source_id), "rights": "PERMITTED",
+                       "retrieved_at": _aware(n.image_checked_at).isoformat() if n.image_checked_at else None}
+                      if n.image_url and s.get("image_rights") == "PERMITTED" else None),
+            # Otherwise an openly licensed photo of the publishing institution or the story's city (never the event).
+            "photos": library.for_news(n.source_id, n.countries or []),
             "relevance": n.relevance, "relevance_reason": n.relevance_reason,
             "source": {"id": n.source_id, "name": s.get("name", n.source_id), "tier": s.get("tier"),
                        "tier_label": TIER_LABEL.get(s.get("tier"))},
@@ -67,6 +74,7 @@ def list_news(country: str | None = Query(None, pattern="^(TZ|KE|UG)$"),
               category: str | None = Query(None, max_length=40),
               relevance: str | None = Query(None, pattern="^(HIGH|MEDIUM|LOW|NOT_ASSESSED)$"),
               security: str | None = Query(None, max_length=32),
+              q: str | None = Query(None, max_length=80),
               limit: int = Query(30, ge=1, le=100), session: Session = Depends(get_session)) -> dict:
     """Stories newest first. Filters are applied in Python because countries and categories are JSON lists;
     the cache is small (hundreds of rows), and the newest 600 are scanned."""
@@ -80,6 +88,8 @@ def list_news(country: str | None = Query(None, pattern="^(TZ|KE|UG)$"),
             continue
         if relevance and n.relevance != relevance:
             continue
+        if q and q.strip().lower() not in n.title.lower():
+            continue
         if security and not any(c["security_id"] == security for c in (n.related or {}).get("companies", [])):
             continue
         picked.append(_item(n, src))
@@ -89,7 +99,14 @@ def list_news(country: str | None = Query(None, pattern="^(TZ|KE|UG)$"),
     connected = [h for h in health if h["state"] == "CONNECTED"]
     some_down = any(not h["fresh"] for h in connected)
     categories = sorted({c for n in rows for c in (n.categories or [])})
+    # The lead story, by a stated rule: the newest story rated HIGH relevance published in the last 21 days, or
+    # failing that the newest story. No hand-picked ranking.
+    recent = datetime.now(timezone.utc).timestamp() - 21 * 86400
+    lead = next((i for i in picked if i["relevance"] == "HIGH" and datetime.fromisoformat(i["published_at"]).timestamp() >= recent),
+                picked[0] if picked else None)
     return {"items": picked, "count": len(picked), "categories": categories,
+            "lead_id": lead["id"] if lead else None,
+            "lead_rule": "The newest story rated high relevance in the last 21 days; otherwise the newest story.",
             "sources": [{"name": h["name"], "tier": h["tier"], "connected": h["state"] == "CONNECTED"} for h in health],
             "some_sources_unavailable": some_down, "notice": SOURCES_UNAVAILABLE if some_down else None,
             "relevance_method": ("Market relevance comes from fixed rules: which asset class the story affects, "

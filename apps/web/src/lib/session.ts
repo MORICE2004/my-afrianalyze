@@ -51,10 +51,21 @@ async function visitorIp(): Promise<string | null> {
   return h.get("x-real-ip") ?? (xff ? xff.split(",").pop()!.trim() : null);
 }
 
+// The visitor's cookie choice (components/CookieConsent.tsx), read on this server for requests it forwards.
+export async function analyticsConsent(): Promise<boolean> {
+  const raw = (await cookies()).get("afriedge_consent")?.value;
+  try {
+    return raw ? JSON.parse(decodeURIComponent(raw)).analytics === true : false;
+  } catch {
+    return false;
+  }
+}
+
 export async function forward(path: string, init: RequestInit = {}, token?: string): Promise<NextResponse> {
   const headers = new Headers(init.headers);
   if (init.body) headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
+  if (await analyticsConsent()) headers.set("X-Analytics-Consent", "granted");
   // Requests reach the API from this server, so tell the API who the visitor is, with the shared secret that
   // proves the header came from here (without it the API would rate-limit every visitor as one).
   const secret = process.env.INTERNAL_PROXY_SECRET;

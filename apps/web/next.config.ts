@@ -27,8 +27,8 @@ const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
-  // Publisher preview images for news, from the whitelisted news sources only (config/news_sources.json).
-  "img-src 'self' data: blob: https://www.worldbank.org https://www.centralbank.go.ke https://www.bot.go.tz",
+  // Add a news publisher's image host here only when config/news_sources.json marks its images PERMITTED.
+  "img-src 'self' data: blob:",
   "font-src 'self' data:",
   `connect-src 'self' ${apiOrigin}${isDev ? " ws: wss:" : ""}`.trim(),
   "frame-src 'none'",
@@ -39,6 +39,8 @@ const csp = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
+  // The development-only build indicator (never in production builds) sits where it covers no page content.
+  devIndicators: { position: "bottom-right" },
   // Self-contained server bundle for the Docker image (apps/web/Dockerfile copies .next/standalone).
   // Vercel builds and runs the app its own way and does not want a standalone bundle, so leave it off
   // there. VERCEL is set by Vercel itself during the build.

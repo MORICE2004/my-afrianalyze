@@ -47,7 +47,7 @@ export function ResearchRunPanel({ securityId }: { securityId: string }) {
         {run.finished_at && <> · finished {fmtDate(run.finished_at)}</>}
       </p>
       {run.error && <ErrorState message={run.error} />}
-      <div className="overflow-x-auto border border-neutral-200 bg-white">
+      <div className="overflow-x-auto border border-neutral-200 bg-white" tabIndex={0} role="region" aria-label="Scrollable table">
         <table className="w-full text-sm">
           <thead className="bg-neutral-50 text-xs uppercase tracking-wider text-neutral-500">
             <tr><th className="text-left px-3 py-2">Stage</th><th className="text-left px-3 py-2">State</th><th className="text-left px-3 py-2">Detail</th></tr>

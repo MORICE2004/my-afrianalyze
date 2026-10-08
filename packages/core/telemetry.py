@@ -13,6 +13,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+from contextvars import ContextVar
 from typing import Any
 
 from packages.core.config import settings
@@ -93,8 +94,23 @@ def clean(event: str, properties: dict[str, Any] | None) -> dict[str, Any] | Non
     return {k: v for k, v in (properties or {}).items() if k in ALLOWED[event] and isinstance(v, (str, int, bool))}
 
 
+# Whether the visitor accepted optional analytics (cookie banner). Set per request by the API's middleware from
+# the X-Analytics-Consent header that the web app sends only when the visitor said yes. Default: no.
+_consent: ContextVar[bool] = ContextVar("analytics_consent", default=False)
+
+
+def set_consent(granted: bool):
+    return _consent.set(granted)
+
+
+def consent_granted() -> bool:
+    return _consent.get()
+
+
 def track(event: str, user_id: int | None = None, properties: dict[str, Any] | None = None) -> bool:
     """Send one allowed event. Never raises: analytics must not break a request."""
+    if not _consent.get():
+        return False  # no analytics without the visitor's consent
     props = clean(event, properties)
     if props is None:
         log.warning("telemetry: event %r is not in the allowlist; not sent", event)

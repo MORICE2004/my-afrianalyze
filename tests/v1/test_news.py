@@ -235,3 +235,39 @@ def test_an_image_shared_by_several_stories_is_treated_as_generic(db):  # noqa: 
         assert news.drop_shared_images(s) == 2
         s.commit()
         assert [r.image_url for r in s.query(NewsItem).order_by(NewsItem.id)] == [None, None, "https://www.worldbank.org/own.jpg"]
+
+
+def test_publisher_images_are_shown_only_when_their_rights_are_permitted(client, db, monkeypatch):  # noqa: F811
+    from apps.api.routers import news as news_router
+
+    with db() as s:
+        s.add(NewsItem(id="1" * 40, source_id="worldbank", title="Kenya inflation update", url="https://www.worldbank.org/k",
+                       language="en", published_at=datetime(2026, 10, 1, tzinfo=timezone.utc),
+                       retrieved_at=datetime(2026, 10, 1, tzinfo=timezone.utc), countries=["KE"], categories=["Inflation"],
+                       relevance="HIGH", relevance_reason="r", related={}, raw_sha256="0" * 64,
+                       image_url="https://www.worldbank.org/i.jpg", image_width=1200, image_height=675,
+                       image_checked_at=datetime(2026, 10, 1, tzinfo=timezone.utc)))
+        s.commit()
+    assert client.get("/api/v1/news").json()["items"][0]["image"] is None  # World Bank: LICENSE_REVIEW_REQUIRED
+    real = news_router.news_sources
+    monkeypatch.setattr(news_router, "news_sources", lambda: [{**x, "image_rights": "PERMITTED"} if x["id"] == "worldbank" else x for x in real()])
+    img = client.get("/api/v1/news").json()["items"][0]["image"]
+    assert img["rights"] == "PERMITTED" and img["credit"] == "World Bank" and img["retrieved_at"]
+    assert client.get("/api/v1/news?q=inflation").json()["count"] == 1
+    assert client.get("/api/v1/news?q=bonds").json()["count"] == 0
+
+
+def test_library_photos_follow_the_stated_rule_and_carry_their_licence():
+    from packages.media import library
+
+    bot = library.for_news("bot", ["TZ"])[0]
+    assert bot and bot["kind"] == "library" and bot["caption"].startswith("Bank of Tanzania")
+    assert bot["licence"].startswith("CC") and bot["author"] and bot["source_page"].startswith("https://commons.wikimedia.org/")
+    wb = library.for_news("worldbank", ["UG", "KE"])
+    assert wb[0]["caption"] == "Kampala skyline"  # no institution photo: the first country's city first
+    assert any(p["caption"].startswith("Nairobi") for p in wb)
+    assert library.for_news("worldbank", []) == []
+    assert library.for_security("DSE:NMB")["caption"].startswith("NMB Bank")
+    assert library.for_security("DSE:TBL") is None  # no photo of that company, so none is shown
+    for e in library._lock().values():
+        assert library.ALLOWED_LICENCE.match(e["licence"]), e["licence"]

@@ -38,7 +38,7 @@ export default async function DashboardPage() {
         <div className="mt-6 text-left">
           <SecuritySearch size="hero" />
         </div>
-        <p className="mt-3 text-xs text-faint">Try NMB, CRDB or an ISIN · press <kbd className="font-sans">Ctrl K</kbd> anywhere for quick search</p>
+        <p className="mt-3 text-xs text-muted">Try NMB, CRDB or an ISIN · press <kbd className="font-sans">Ctrl K</kbd> anywhere for quick search</p>
       </section>
 
       {overview.ok ? <MarketSnapshot data={overview.data} /> : (
@@ -64,9 +64,15 @@ export default async function DashboardPage() {
                 <li key={s.id}>
                   <Link href={`/report/${encodeURIComponent(s.id)}`} data-testid={`covered-${s.ticker}`}
                     className="-mx-2 flex items-center justify-between gap-3 rounded-md px-2 py-3 transition-colors hover:bg-surface-2/70">
-                    <span className="min-w-0">
+                    <span className="flex min-w-0 items-center gap-3">
+                      {s.photo ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- local library photo; credit on the company page
+                        <img src={s.photo.url} alt="" width={56} height={42} loading="lazy" className="h-[42px] w-14 shrink-0 rounded object-cover" />
+                      ) : <span aria-hidden className="flex h-[42px] w-14 shrink-0 items-center justify-center rounded bg-surface-2 font-mono text-[11px] text-muted">{s.ticker}</span>}
+                      <span className="min-w-0">
                       <span className="block truncate font-medium">{s.name}</span>
                       <span className="block text-xs text-muted"><span className="font-mono">{s.ticker}</span> · {s.exchange} · {s.sector}</span>
+                      </span>
                     </span>
                     <span className="shrink-0 text-right">
                       {quote ? (

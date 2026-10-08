@@ -12,6 +12,7 @@ export function SignInForm({ next = "/" }: { next?: string }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [show, setShow] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -46,7 +47,7 @@ export function SignInForm({ next = "/" }: { next?: string }) {
           <button key={m} type="button" role="tab" aria-selected={mode === m}
             onClick={() => { setMode(m); setError(null); }}
             className={`-mb-px border-b-2 pb-2.5 ${mode === m ? "border-fg font-medium text-fg" : "border-transparent text-muted hover:text-fg"}`}>
-            {m === "login" ? "Sign in" : "Create account"}
+            {m === "login" ? "Sign in" : "Create an account"}
           </button>
         ))}
       </div>
@@ -55,21 +56,28 @@ export function SignInForm({ next = "/" }: { next?: string }) {
         <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)}
           className="mt-1.5 block h-11 w-full rounded-md border border-line-strong bg-surface px-3 text-[15px] text-fg transition-colors focus:border-fg focus:outline-none" />
       </label>
-      <label className="block text-sm">
-        <span className="font-medium text-fg">Password</span>
-        <input type="password" required minLength={mode === "signup" ? 12 : 1} maxLength={128}
-          autoComplete={mode === "signup" ? "new-password" : "current-password"}
-          value={password} onChange={(e) => setPassword(e.target.value)}
-          className="mt-1.5 block h-11 w-full rounded-md border border-line-strong bg-surface px-3 text-[15px] text-fg transition-colors focus:border-fg focus:outline-none" />
+      <div className="block text-sm">
+        <label htmlFor="signin-password" className="font-medium text-fg">Password</label>
+        <span className="relative mt-1.5 block">
+          <input id="signin-password" type={show ? "text" : "password"} required minLength={mode === "signup" ? 12 : 1} maxLength={128}
+            autoComplete={mode === "signup" ? "new-password" : "current-password"}
+            value={password} onChange={(e) => setPassword(e.target.value)}
+            className="block h-11 w-full rounded-md border border-line-strong bg-surface pl-3 pr-16 text-[15px] text-fg transition-colors focus:border-fg focus:outline-none" />
+          <button type="button" onClick={() => setShow((v) => !v)} aria-pressed={show} data-testid="toggle-password"
+            aria-label={show ? "Hide password" : "Show password"}
+            className="absolute inset-y-1 right-1 rounded px-2.5 text-xs font-medium text-muted hover:text-fg">
+            {show ? "Hide" : "Show"}
+          </button>
+        </span>
         {mode === "signup" && <span className="mt-1 block text-xs text-muted">At least 12 characters.</span>}
-      </label>
+      </div>
       {error && <p role="alert" className="rounded-md bg-neg-bg px-3 py-2 text-sm text-neg">{error}</p>}
       <button type="submit" disabled={busy}
         className="h-11 w-full rounded-md bg-selected text-sm font-medium text-on-selected transition-opacity hover:opacity-90 disabled:opacity-50">
         {busy ? "Please wait…" : mode === "login" ? "Sign in" : "Create account"}
       </button>
       <p className="text-xs leading-relaxed text-muted">
-        There is no password reset yet: it needs an email service, which is not set up. Keep your password safe.
+        Password reset is not available yet (it needs an email service). Keep your password safe.
       </p>
     </form>
   );

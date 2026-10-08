@@ -1,39 +1,24 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import React from "react";
+import { InfoPage } from "@/components/ui/InfoPage";
 
-export const metadata: Metadata = { title: "Privacy & cookies", description: "What AfriEdge stores in your browser and why." };
+export const metadata: Metadata = { title: "Privacy policy", description: "What AfriEdge collects, why, and the choices you have." };
 
-// A factual description of what this site stores, written from the code. It is not a legal privacy policy; that
-// text is the owner's to approve (docs/KNOWN_GAPS.md).
+// A factual description written from the code. The owner's legal review is still pending (docs/KNOWN_GAPS.md).
 export default function PrivacyPage() {
   return (
-    <article className="mx-auto max-w-2xl space-y-6 pb-10 text-sm leading-relaxed">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Privacy &amp; cookies</h1>
-        <p className="mt-1 text-muted">What this site keeps in your browser, and what it does not.</p>
-      </header>
-      <section id="cookies" className="scroll-mt-20 border-t border-line pt-4">
-        <h2 className="font-semibold">Cookies: necessary only</h2>
-        <ul className="mt-2 list-disc space-y-1.5 pl-5 text-muted">
-          <li><span className="text-fg">Sign-in cookie</span>: set only when you sign in, so the site knows the session is yours. It cannot be read by page scripts and ends when you sign out.</li>
-        </ul>
-      </section>
-      <section className="border-t border-line pt-4">
-        <h2 className="font-semibold">Preferences kept on this device</h2>
-        <ul className="mt-2 list-disc space-y-1.5 pl-5 text-muted">
-          <li><span className="text-fg">Theme</span>: light or dark.</li>
-          <li><span className="text-fg">Recently viewed companies and your watchlist</span>: company names and tickers you chose. They never leave this browser; clear them in Settings.</li>
-        </ul>
-      </section>
-      <section className="border-t border-line pt-4">
-        <h2 className="font-semibold">Analytics</h2>
-        <p className="mt-2 text-muted">
-          AfriEdge sets no analytics or advertising cookies and loads no tracking scripts in your browser, so there is
-          nothing to accept or decline here. Our server records a short list of events (for example, that a company&apos;s
-          research page was opened, with that company&apos;s ticker) under a scrambled identifier, never your email address.
-          If browser analytics are ever added, this page will ask for your consent first.
-        </p>
-      </section>
-    </article>
+    <InfoPage title="Privacy policy" lead="What AfriEdge collects, why, and the choices you have." testId="privacy-page">
+      <section><h2>Account</h2>
+        <p>If you create an account, AfriEdge stores your email address and a one-way hash of your password (Argon2id). Your saved portfolios are visible only to your account.</p></section>
+      <section><h2>On your device</h2>
+        <p>Your theme, the companies you viewed recently and your watchlist are kept in this browser only. They are never sent to AfriEdge; clear them in Settings.</p></section>
+      <section><h2>Analytics, only with your consent</h2>
+        <p>If you accept analytics, AfriEdge&apos;s server records a short list of events, for example that a company&apos;s research page was opened, with that company&apos;s ticker, under a scrambled identifier, never your email address. If you reject them, nothing is recorded. No advertising or tracking scripts run in your browser.</p></section>
+      <section><h2>Cookies</h2>
+        <p>See the <Link href="/cookies" className="underline underline-offset-4">cookie policy</Link>, and change your choice at any time with &ldquo;Cookie preferences&rdquo; in the footer.</p></section>
+      <section><h2>Status of this page</h2>
+        <p className="text-muted">This page describes what the software does. A formal privacy notice reviewed for the applicable data-protection law has not been published yet.</p></section>
+    </InfoPage>
   );
 }

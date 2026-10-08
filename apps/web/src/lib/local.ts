@@ -73,3 +73,40 @@ export function toggleWatch(s: SavedSecurity): boolean {
 export function clearList(name: ListName) {
   write(name, []);
 }
+
+// Saved news stories: headline, source, time and id only, in this browser. Never sent anywhere.
+export type SavedNews = { id: string; title: string; source: string; published_at: string };
+const NEWS_KEY = "afriedge-saved-news";
+const NO_NEWS: SavedNews[] = [];
+let newsCache: { raw: string | null; value: SavedNews[] } = { raw: null, value: NO_NEWS };
+
+function readNews(): SavedNews[] {
+  let raw: string | null = null;
+  try {
+    raw = window.localStorage.getItem(NEWS_KEY);
+  } catch {
+    return NO_NEWS;
+  }
+  if (raw === newsCache.raw) return newsCache.value;
+  let value = NO_NEWS;
+  try {
+    const parsed = raw ? JSON.parse(raw) : [];
+    value = Array.isArray(parsed) ? parsed.filter((x) => x && typeof x.id === "string").slice(0, 100) : NO_NEWS;
+  } catch { /* corrupted entry: start again */ }
+  newsCache = { raw, value };
+  return value;
+}
+
+export function useSavedNews(): SavedNews[] {
+  return useSyncExternalStore(subscribe, readNews, () => NO_NEWS);
+}
+
+export function toggleSavedNews(n: SavedNews): boolean {
+  const list = readNews();
+  const on = list.some((x) => x.id === n.id);
+  try {
+    window.localStorage.setItem(NEWS_KEY, JSON.stringify(on ? list.filter((x) => x.id !== n.id) : [n, ...list]));
+  } catch { /* storage blocked */ }
+  listeners.forEach((l) => l());
+  return !on;
+}

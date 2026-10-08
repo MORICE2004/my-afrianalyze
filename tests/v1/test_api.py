@@ -46,16 +46,29 @@ def _keys(obj):
 
 
 def test_health_reports_every_source_with_its_own_freshness():
-    h = client.get("/health").json()
+    from apps.api.main import health
+
+    with SessionLocal() as session:
+        h = health(session)  # the full report, as the admin endpoint serves it
     assert h["status"] in {"online", "degraded", "offline"}
     prices = next(s for s in h["sources"] if s["source"] == "dse_prices")
     assert prices["status"] == "ok" and prices["detail"], "DSE prices are loaded, so say so"
-    assert "DSE published prices" in prices["detail"], "the health page must name where prices came from"
+    assert "DSE published prices" in prices["detail"], "the admin page must name where prices came from"
     # A source that is not ok must never be reported as fresh, and must drag the whole status down.
     for s in h["sources"]:
         if s["status"] != "ok":
             assert s["fresh"] is False, s["source"]
             assert h["status"] != "online"
+
+
+def test_public_health_carries_no_loader_errors_or_licensing_detail():
+    h = client.get("/health").json()
+    for s in h["sources"]:
+        assert set(s) == {"source", "fresh", "last_success_at", "age_hours"}
+    for r in h["registry"]:
+        assert "licensing_note" not in r and "probe" not in r and "parser_state" not in r
+        assert r["public_state"] in {"Updated", "Delayed", "Limited data", "Temporarily unavailable", "Not yet collected", "Coming", "Not yet connected"}
+    assert client.get("/api/v1/admin/data-health").status_code == 401
 
 
 def test_search_ranks_exact_ticker_first():

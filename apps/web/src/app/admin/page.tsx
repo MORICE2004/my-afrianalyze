@@ -136,7 +136,7 @@ export default function AdminPage() {
       </div>
 
       <Panel title="News sources" testId="admin-news">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Scrollable table">
           <table className="w-full text-sm">
             <thead><tr className="text-left text-xs text-muted"><th className="py-2 pr-3 font-medium">Source</th><th className="py-2 pr-3 font-medium">Tier</th><th className="py-2 pr-3 font-medium">State</th><th className="py-2 pr-3 font-medium">Last success</th><th className="py-2 font-medium">Detail / terms</th></tr></thead>
             <tbody className="divide-y divide-line">

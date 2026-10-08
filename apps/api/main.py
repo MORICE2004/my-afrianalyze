@@ -48,7 +48,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type"],
+    allow_headers=["Content-Type", "X-Analytics-Consent"],
 )
 
 # Report and PDF builds are the only endpoints that do real work per request, so they get a per-client
@@ -189,8 +189,30 @@ def _source_registry(rows: dict[str, dict]) -> list[dict]:
     return out
 
 
+# What readers may see about a source: its name, what it covers, a plain state and dates. Loader messages, error
+# text, licensing clauses and probe results are for administrators (/api/v1/admin/data-health), so the public
+# endpoint never carries them, whatever the page chooses to display.
+PUBLIC_SOURCE_FIELDS = ("source", "fresh", "last_success_at", "age_hours")
+PUBLIC_REGISTRY_FIELDS = ("id", "name", "country", "datasets", "state", "coverage", "licensing", "last_success_at")
+PUBLIC_STATE = {"OK": "Updated", "STALE": "Delayed", "PARTIAL": "Limited data", "FAILED": "Temporarily unavailable",
+                "NEVER_RUN": "Not yet collected", "COMING": "Coming", "NOT_BUILT": "Not yet connected"}
+
+
 @app.get("/health")
-def health(session: Session = Depends(get_session)) -> dict:
+def public_health(session: Session = Depends(get_session)) -> dict:
+    """The data-sources report for everyone, in plain words. It answers 200 whenever the API is up; platforms
+    use /ready. Technical detail is on the admin endpoint only."""
+    h = health(session)
+    out = {"status": h["status"], "checked_at": h["checked_at"], "database": {"ok": h["database"]["ok"]},
+           "sources": [{k: x.get(k) for k in PUBLIC_SOURCE_FIELDS} for x in h["sources"]]}
+    if "registry" in h:
+        out["registry"] = [{**{k: r.get(k) for k in PUBLIC_REGISTRY_FIELDS}, "public_state": PUBLIC_STATE.get(r["state"], r["state"])}
+                           for r in h["registry"]]
+        out["summary"] = h["summary"]
+    return out
+
+
+def health(session: Session) -> dict:
     """The data-health report shown to people on /health. It answers 200 whenever the API is up and says
     in its body whether the database and each source are working. Platforms should use /ready instead."""
     now = datetime.now(timezone.utc)
@@ -234,7 +256,9 @@ def _security(s: Security, session: Session, report_ids: set[str] | None = None)
     else:
         has_report = s.id in report_ids
     country_code, country, exchange_name = EXCHANGE_COUNTRY.get(s.exchange, (None, None, s.exchange))
-    return {"id": s.id, "exchange": s.exchange, "exchange_name": exchange_name, "country": country,
+    from packages.media import library
+
+    return {"photo": library.for_security(s.id), "id": s.id, "exchange": s.exchange, "exchange_name": exchange_name, "country": country,
             "country_code": country_code, "ticker": s.local_ticker, "isin": s.isin, "name": s.name,
             "sector": s.sector, "currency": s.currency, "is_bank": s.is_bank, "listing_url": s.listing_url,
             "verified_at": s.verified_at.isoformat(), "verification_note": s.verification_note,
@@ -767,6 +791,17 @@ def portfolio_proposal(req: ProposalRequest, session: Session = Depends(get_sess
 
 
 # Sign-in and saved portfolios (per-user; every query is scoped to the signed-in user).
+@app.middleware("http")
+async def analytics_consent(request: Request, call_next):
+    """Optional analytics only for visitors who accepted them in the cookie banner; the web app sends
+    X-Analytics-Consent: granted for those visitors and nothing for everyone else."""
+    token = telemetry.set_consent(request.headers.get("x-analytics-consent") == "granted")
+    try:
+        return await call_next(request)
+    finally:
+        telemetry._consent.reset(token)
+
+
 app.include_router(auth_router.router)
 app.include_router(portfolios_router.router)
 app.include_router(market_router.router)

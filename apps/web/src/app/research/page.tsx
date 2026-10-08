@@ -40,7 +40,7 @@ export default async function ResearchPage() {
                         <span className="block truncate font-medium">{s.name}</span>
                         <span className="block text-xs text-muted"><span className="font-mono">{s.ticker}</span> · {s.exchange_name ?? s.exchange} · {s.sector}</span>
                       </span>
-                      <span className="shrink-0 text-xs text-muted">Statements, valuation, technicals, risks →</span>
+                      <span className="min-w-0 text-right text-xs text-muted">Statements, valuation, technicals, risks →</span>
                     </Link>
                   </li>
                 ))}
@@ -74,7 +74,7 @@ export default async function ResearchPage() {
             {Object.entries(byExchange).map(([ex, list]) => (
               <div key={ex} className="mb-5 last:mb-0">
                 <h2 className="mb-2 text-xs font-medium text-muted">{list[0].exchange_name ?? ex} · {list[0].currency}</h2>
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Scrollable table">
                   <table className="w-full text-sm">
                     <tbody className="divide-y divide-line">
                       {list.map((s) => (

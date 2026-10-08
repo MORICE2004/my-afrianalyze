@@ -70,7 +70,7 @@ export default async function DataSourcesPage() {
         </p>
       </header>
       <Panel title="Used today" testId="source-registry">
-        <div className="-my-3 overflow-x-auto">
+        <div className="-my-3 overflow-x-auto" tabIndex={0} role="region" aria-label="Scrollable table">
           <table className="w-full text-sm">
             <thead><tr className="border-b border-line text-xs text-muted">
               <th className="py-2 pr-3 text-left font-medium">Source</th><th className="px-3 py-2 text-left font-medium">Country</th>
@@ -84,7 +84,7 @@ export default async function DataSourcesPage() {
       {planned.length > 0 && (
         <Panel title="Planned">
           <p className="mb-3 text-sm text-muted">Listed so it is clear what is not connected yet. None of their data appears anywhere on the site.</p>
-          <div className="-mb-3 overflow-x-auto">
+          <div className="-mb-3 overflow-x-auto" tabIndex={0} role="region" aria-label="Scrollable table">
             <table className="w-full text-sm"><tbody className="divide-y divide-line">{planned.map((r) => <Row key={r.id} r={r} />)}</tbody></table>
           </div>
         </Panel>

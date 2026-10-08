@@ -54,6 +54,15 @@ price, opposite answer.
 
 ## Still open
 
+- **News photographs (owner's decision).** World Bank article images are withheld: its terms allow non-commercial
+  use only, and AfriEdge has a paid plan (`config/news_sources.json` image_rights `LICENSE_REVIEW_REQUIRED`).
+  Stories instead show openly licensed Wikimedia Commons photos of the publishing institution or city
+  (`config/image_library.json`, 11 photos), or a topic graphic. No photo of CRDB is available: the only Commons file
+  is CRDB's logo, uploaded as CC0 by someone not shown to own it, and was excluded.
+- **Legal text.** Terms of use and a formal privacy notice need the owner's legal review; `/terms` says so and
+  `/privacy` and `/cookies` describe what the code does.
+- **Password reset** is not available (needs an email service).
+
 - **News publishers (owner's decision).** Only official sources are fetched: Central Bank of Kenya (RSS), Bank of
   Tanzania (press releases), World Bank (public API). Reuters, Bloomberg, The EastAfrican, Business Daily Africa
   and The Citizen are `LICENSE_REVIEW_REQUIRED`; IMF and AfDB answered 403 and are not retried; Bank of Uganda,

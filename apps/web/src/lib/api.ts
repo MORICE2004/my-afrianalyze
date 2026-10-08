@@ -16,7 +16,10 @@ export type ApiResult<T> =
 
 export async function apiGet<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> {
   try {
-    const res = await fetch(`${baseUrl()}${path}`, { cache: "no-store", ...init });
+    // In the browser, pass the visitor's analytics choice (lib/consent.ts). Server renders send none.
+    const consent: Record<string, string> = typeof document !== "undefined" && /(?:^|; )afriedge_consent=[^;]*%22analytics%22%3Atrue/.test(document.cookie)
+      ? { "X-Analytics-Consent": "granted" } : {};
+    const res = await fetch(`${baseUrl()}${path}`, { cache: "no-store", ...init, headers: { ...consent, ...(init?.headers as Record<string, string> | undefined) } });
     const body = await res.json().catch(() => null);
     if (!res.ok) {
       return { ok: false, status: res.status, error: body?.detail ?? `Request failed (${res.status})` };
@@ -55,6 +58,7 @@ export type DataStatus =
 export type Unavailable = { available: false; reason: string; status?: DataStatus };
 
 export interface Security {
+  photo?: LibraryPhoto | null;
   id: string;
   exchange: string;
   exchange_name?: string;
@@ -374,11 +378,18 @@ export type StreamEvent =
 
 // ------------------------------------------------------------------ news (pipelines/news.py → news_items)
 
+// An openly licensed photo from AfriEdge's library (pipelines/images.py): the institution or city, not an event.
+export interface LibraryPhoto {
+  kind: "library"; url: string; width: number; height: number; caption: string; author: string; licence: string;
+  licence_url: string | null; source_page: string; source: string;
+}
+
 export type Relevance = "HIGH" | "MEDIUM" | "LOW" | "NOT_ASSESSED";
 export interface NewsItem {
   id: string; title: string; url: string; language: string; published_at: string; retrieved_at: string;
   summary: string | null; countries: string[]; categories: string[]; relevance: Relevance; relevance_reason: string;
-  image: { url: string; width: number; height: number; credit: string } | null;
+  image: { url: string; width: number; height: number; credit: string; rights: "PERMITTED"; retrieved_at: string | null } | null;
+  photos: LibraryPhoto[];
   source: { id: string; name: string; tier: number | null; tier_label: string | null };
   companies: { security_id: string; name: string; link: "named" | "sector" }[];
 }
@@ -386,6 +397,7 @@ export interface NewsList {
   items: NewsItem[]; count: number; categories: string[];
   sources: { name: string; tier: number; connected: boolean }[];
   some_sources_unavailable: boolean; notice: string | null; relevance_method: string; terms: string;
+  lead_id: string | null; lead_rule: string;
 }
 export interface NewsDetail extends NewsItem {
   markets: { country: string; exchange: string; currency: string }[];

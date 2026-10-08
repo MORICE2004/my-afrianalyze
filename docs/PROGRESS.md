@@ -544,3 +544,20 @@ Confidence: 45 of 100 (Low). The deductions are:
   respected), `VerificationBadge`, toasts, Ctrl+K quick search, a calmer "View unavailable" with "Review
   assumptions", tab state markers, a Pro workbook explainer, a clean footer, `/privacy`.
 - Tests: Python 409 passed, 4 skipped; Playwright 74/74; no horizontal overflow in 80 page views.
+
+## 2026-10-09: brand, sign-in, consent, news imagery, access separation
+
+- New vector mark (`apps/web/src/components/brand/`), static SVG/PNG assets (`public/brand/`, `src/app/icon.*`),
+  animated reveal once per session, reduced motion respected.
+- Sign-in rebuilt (45/55 split, show/hide password, phones get the form alone); footer rebuilt as a grid with
+  legal links and Cookie preferences.
+- Cookie consent: banner, preferences dialog, cookie policy; analytics events are sent by the API only for
+  visitors who accept (X-Analytics-Consent), tested in `test_telemetry.py` and the browser suite.
+- Verification badges distinguish Verified data (automated), Reviewed research and Approved publication.
+- News: image rights per source; openly licensed photo library (`pipelines.images`); search, save, lead story by a
+  stated rule in the API.
+- Public `/health` returns plain fields only; loader errors and licensing detail are on the admin endpoint.
+- Accessibility: axe-core (WCAG 2.1 AA) on 8 routes, light and dark, desktop and phone: no serious or critical
+  violations after darkening the faint text tokens and making scroll regions focusable.
+- Tests: Python 419 passed, 4 skipped; Playwright 88/88; 270 page views across 18 device configurations (12
+  widths, 2 landscape, iPhone 13, Pixel 7, 200% text) with no overflow.

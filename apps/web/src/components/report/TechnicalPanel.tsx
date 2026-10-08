@@ -37,7 +37,7 @@ export function TechnicalPanel({ report }: { report: Report }) {
         {fmtPct(n(t.liquidity.max_zero_volume_share), 0)} of its window had none.
         {t.stale && <> <StatusBadge status="STALE" /> The last close is {t.age_days} days old.</>}
       </p>
-      <div className="overflow-x-auto border border-neutral-200 bg-white">
+      <div className="overflow-x-auto border border-neutral-200 bg-white" tabIndex={0} role="region" aria-label="Scrollable table">
         <table className="w-full text-sm">
           <thead className="bg-neutral-50 text-xs uppercase tracking-wider text-neutral-500">
             <tr><th className="text-left px-3 py-2">Indicator</th><th className="text-left px-3 py-2">Value</th><th className="text-left px-3 py-2">How</th></tr>

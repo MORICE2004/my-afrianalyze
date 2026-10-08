@@ -146,6 +146,10 @@ against Postgres by CI on every push. Deploying: `docs/DEPLOYMENT_RUNBOOK.md`.
 Economic news (official feeds only; headlines and links): `.venv\Scripts\python -m pipelines.news`
 (sources and their licensing states: `config/news_sources.json`; rules: `packages/news/classify.py`).
 
+Photo library (openly licensed, from Wikimedia Commons; licence checked before download):
+`.venv\Scripts\python -m pipelines.images` (add `--refresh` to re-check every file). Brand assets from the mark's
+geometry: `cd apps\web; python scripts/brand.py; node scripts/brand-png.cjs`.
+
 Check which sources answer (writes nothing): `.venv\Scripts\python -m pipelines.probe_sources`.
 
 ### Test

@@ -31,7 +31,7 @@ export default function ValuationExplainer({ report }: { report: Report }) {
     <div className="space-y-8">
       <section>
         <h3 className="font-semibold text-neutral-900 mb-2">1. Cost of equity inputs (TZS)</h3>
-        <div className="overflow-x-auto border border-neutral-200 bg-white">
+        <div className="overflow-x-auto border border-neutral-200 bg-white" tabIndex={0} role="region" aria-label="Scrollable table">
           <table className="w-full text-sm">
             <thead className="bg-neutral-50 text-xs uppercase tracking-wider text-neutral-500">
               <tr><th className="text-left px-3 py-2">Input</th><th className="text-right px-3 py-2">Value</th><th className="text-left px-3 py-2">Source</th></tr>
@@ -76,7 +76,7 @@ export default function ValuationExplainer({ report }: { report: Report }) {
 
       <section>
         <h3 className="font-semibold text-neutral-900 mb-2">2. Base-case drivers from {report.security.name}&apos;s own history</h3>
-        <div className="overflow-x-auto border border-neutral-200 bg-white">
+        <div className="overflow-x-auto border border-neutral-200 bg-white" tabIndex={0} role="region" aria-label="Scrollable table">
           <table className="w-full text-sm">
             <thead className="bg-neutral-50 text-xs uppercase tracking-wider text-neutral-500">
               <tr><th className="text-left px-3 py-2">Driver</th><th className="text-right px-3 py-2">Value</th><th className="text-left px-3 py-2">How it is computed</th></tr>
@@ -123,7 +123,7 @@ export default function ValuationExplainer({ report }: { report: Report }) {
           These are sensitivities, not forecasts or targets.
         </p>
         {coe.alternatives && coe.alternatives.length > 0 && (
-          <div className="overflow-x-auto border border-neutral-200 bg-white mb-4">
+          <div className="overflow-x-auto border border-neutral-200 bg-white mb-4" tabIndex={0} role="region" aria-label="Scrollable table">
             <table className="w-full text-sm" data-testid="coe-alternatives">
               <thead className="bg-neutral-50 text-xs uppercase tracking-wider text-neutral-500">
                 <tr>
@@ -154,7 +154,7 @@ export default function ValuationExplainer({ report }: { report: Report }) {
           </div>
         )}
         {val.sensitivity.available && val.sensitivity.rows ? (
-          <div className="overflow-x-auto border border-neutral-200 bg-white">
+          <div className="overflow-x-auto border border-neutral-200 bg-white" tabIndex={0} role="region" aria-label="Scrollable table">
             <table className="w-full text-sm font-mono" data-testid="valuation-sensitivity">
               <thead className="bg-neutral-50 text-xs uppercase tracking-wider text-neutral-500 font-sans">
                 <tr>

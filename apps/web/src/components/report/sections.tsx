@@ -160,7 +160,7 @@ export function Statements({ report }: { report: Report }) {
       {report.statements.map((st) => (
         <div key={st.code}>
           <h3 className="mb-2 text-sm font-semibold">{st.title}</h3>
-          <div className="overflow-x-auto rounded-lg border border-line">
+          <div className="overflow-x-auto rounded-lg border border-line" tabIndex={0} role="region" aria-label="Scrollable table">
             <table className="w-full text-sm" data-testid={`statement-${st.code}`}>
               <thead className="bg-surface-2/70">
                 <tr className="border-b border-line">
@@ -235,7 +235,7 @@ export function Ratios({ report, codes, testId = "ratios" }: { report: Report; c
   const rows = codes ? report.ratios.filter((r) => codes.includes(r.code)) : report.ratios;
   return (
     <div>
-      <div className="overflow-x-auto rounded-lg border border-line">
+      <div className="overflow-x-auto rounded-lg border border-line" tabIndex={0} role="region" aria-label="Scrollable table">
         <table className="w-full text-sm" data-testid={testId}>
           <thead className="bg-surface-2/70">
             <tr className="border-b border-line"><th className={`${th} text-left`}>Ratio</th>{years.map((y) => <th key={y} className={`${th} text-right ${y === latest ? "text-fg" : ""}`}>FY{y}</th>)}</tr>
@@ -294,7 +294,7 @@ export function Beta({ report }: { report: Report }) {
           <ul className="mt-1 list-disc space-y-1 pl-5 text-muted">{b.adjustments.map((a) => <li key={a}>{a}</li>)}</ul>
         </div>
       )}
-      <div className="overflow-x-auto rounded-lg border border-line">
+      <div className="overflow-x-auto rounded-lg border border-line" tabIndex={0} role="region" aria-label="Scrollable table">
         <table className="w-full text-sm" data-testid="beta-table">
           <thead className="bg-surface-2/70">
             <tr><th className={`${th} text-left`}>Method</th><th className={`${th} text-right`}>Beta</th><th className={`${th} text-right`}>Std error</th><th className={`${th} text-right`}>R²</th><th className={`${th} text-right`}>Observations</th></tr>
@@ -342,7 +342,7 @@ export function Scenarios({ report }: { report: Report }) {
   const names = Object.keys(cfg.scenarios);
   return (
     <div className="space-y-4">
-      <div className="overflow-x-auto rounded-lg border border-line">
+      <div className="overflow-x-auto rounded-lg border border-line" tabIndex={0} role="region" aria-label="Scrollable table">
         <table className="w-full text-sm" data-testid="scenarios">
           <thead className="bg-surface-2/70">
             <tr>
