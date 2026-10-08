@@ -116,10 +116,37 @@ def test_a_source_outage_is_recorded_and_nothing_is_lost(tmp_path, db, monkeypat
 
     def down(*a, **k):
         raise requests.ConnectionError("dse.co.tz unreachable")
-    monkeypatch.setattr(refresh_prices.requests, "get", down)
+    monkeypatch.setattr(requests, "get", down)          # the DSE adapter (packages/market_data) downloads
     assert refresh_prices.main(["30"]) == 1
     with db() as s:
         st = s.get(DataSourceStatus, "dse_prices")
         assert st.status == "partial" and "Needs attention: NMB" in st.detail
         assert st.last_success_at == before
     assert len(_bars(db)) == len(HISTORY)
+
+
+def _with_activity(r: dict, turnover, high, low) -> dict:
+    return {**r, "turnover": turnover, "high": high, "low": low, "opening_price": r["closing_price"],
+            "market_cap": r["closing_price"] * 1000}
+
+
+def test_published_turnover_fills_an_empty_day_but_never_overwrites_a_stored_one(tmp_path, db):
+    assert _load(tmp_path, HISTORY) == 0                       # an old-style file: close and volume only
+    day = date(2026, 9, 18)
+    with db() as s:
+        bar = s.query(PriceBar).filter_by(instrument_id="DSE:NMB", trade_date=day).one()
+        assert bar.turnover is None and bar.high is None
+        doc_before = bar.source_document_id
+    # The same days again, now with the DSE's other published fields: empty fields are filled.
+    rich = [_with_activity(r, 207000, 2080, 2060) for r in HISTORY]
+    assert _load(tmp_path, rich) == 0
+    with db() as s:
+        bar = s.query(PriceBar).filter_by(instrument_id="DSE:NMB", trade_date=day).one()
+        assert (bar.turnover, bar.high, bar.low) == (D("207000"), D("2080"), D("2060"))
+        assert bar.source_document_id == doc_before, "the close still comes from the file it was first read from"
+    # A later file stating different turnover for a stored day does not overwrite it.
+    other = [_with_activity(r, 999, 9999, 1) for r in HISTORY]
+    assert _load(tmp_path, other) == 0
+    with db() as s:
+        bar = s.query(PriceBar).filter_by(instrument_id="DSE:NMB", trade_date=day).one()
+        assert bar.turnover == D("207000") and bar.high == D("2080")

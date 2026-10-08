@@ -77,7 +77,7 @@ def test_a_liquid_fresh_series_gives_every_close_based_indicator():
         assert ind[k]["available"] and ind[k]["status"] == "VERIFIED", k
     assert ind["sma_200"]["price_vs"] == "above"            # a steadily rising price
     assert ind["rsi_14"]["value"] == D(100) and ind["rsi_14"]["zone"] == "above 70"
-    for k in ("atr_14", "adx_14", "vwap"):                   # not computable from closes alone
+    for k in ("atr_14", "adx_14", "vwap"):                   # need the published high, low and turnover
         assert ind[k]["status"] == "INSUFFICIENT_DATA" and "not stored" in ind[k]["reason"]
 
 
@@ -118,3 +118,44 @@ def test_the_nmb_split_is_not_read_as_a_crash():
 
 def test_no_prices_at_all():
     assert ta.analyse([], "DSE:TEST", CFG)["status"] == "INSUFFICIENT_DATA"
+
+
+# ------------------------------------------------------------------ ATR, ADX, VWAP (published high/low/turnover)
+
+def test_true_range_and_atr_by_hand():
+    # Day 2: high 12, low 9, previous close 10 -> max(3, 2, 1) = 3. Day 3: gap up, high 15, low 14, previous
+    # close 11 -> max(1, 4, 3) = 4. ATR(2) = (3 + 4) / 2 = 3.5.
+    assert ta.true_ranges([D(11), D(12), D(15)], [D(9), D(9), D(14)], [D(10), D(11), D(14)]) == [D(3), D(4)]
+
+
+def test_adx_of_a_steady_rise_is_strong_and_up():
+    n = 14
+    highs = [D(100 + 2 * i) for i in range(2 * n + 1)]
+    lows = [h - 1 for h in highs]
+    closes = [h - D("0.5") for h in highs]
+    value, plus_di, minus_di = ta.adx(highs, lows, closes, n)
+    assert minus_di == 0 and plus_di > 50 and value == 100     # every move is up: DX is 100 every day
+
+
+def _activity(bars, turnover=lambda d, c, v: c * v):
+    return {d: {"high": c + 1, "low": c - 1, "turnover": turnover(d, c, v)} for d, c, v in bars}
+
+
+def test_vwap_atr_adx_from_published_activity():
+    bars = _bars(300)
+    out = ta.analyse(bars, "DSE:TEST", CFG, today=bars[-1][0], activity=_activity(bars))["indicators"]
+    last20 = bars[-20:]
+    expected_vwap = sum(c * v for _, c, v in last20) / sum(v for _, _, v in last20)
+    assert out["vwap"]["available"] and out["vwap"]["value"] == expected_vwap
+    assert out["atr_14"]["available"] and out["atr_14"]["value"] > 0
+    assert out["adx_14"]["available"] and 0 <= out["adx_14"]["value"] <= 100
+
+
+def test_a_no_trade_day_in_the_window_refuses_the_range_indicators():
+    # The DSE publishes high = low = 0 and turnover = 0 on a day without a trade; that is not a range.
+    bars = _bars(300)
+    act = _activity(bars)
+    act[bars[-3][0]] = {"high": D(0), "low": D(0), "turnover": D(0)}
+    out = ta.analyse(bars, "DSE:TEST", CFG, today=bars[-1][0], activity=act)["indicators"]
+    for k in ("atr_14", "adx_14", "vwap"):
+        assert out[k]["status"] == "INSUFFICIENT_DATA" and "had no trade" in out[k]["reason"], k

@@ -1,0 +1,35 @@
+{
+  "_comment": "Market-data providers AfriEdge has an adapter for (packages/market_data/adapters), in the default order they are asked for prices. MARKET_DATA_PRIORITY (environment) overrides the order, e.g. \"mansa,dse_public\". A provider needing a key is NOT_CONFIGURED until its key is set in the host's dashboard; one whose terms for public display are unresolved is LICENSE_REVIEW_REQUIRED and is never used. Evaluation: docs/PROVIDER_EVALUATION.md.",
+  "priority": ["dse_public", "mansa", "eodhd"],
+  "reconcile_tolerance_pct": "0.005",
+  "_reconcile_note": "Two providers' closes for the same day that differ by more than 0.5% are CONFLICTING_SOURCE. DSE prices are quoted in whole shillings, so 0.5% is several ticks on any listed share.",
+  "providers": [
+    {
+      "id": "dse_public",
+      "name": "Dar es Salaam Stock Exchange (public website)",
+      "adapter": "packages.market_data.adapters.dse_public:DsePublicProvider",
+      "credential_env": null,
+      "licensing": "RESTRICTED",
+      "coverage": ["DSE"],
+      "note": "The exchange's own published end-of-day prices. Owner decision of 2026-09-19 to use them; public display is switched by DSE_PUBLIC_DISPLAY (Data Vending Policy v1.2, cl. 23.1)."
+    },
+    {
+      "id": "mansa",
+      "name": "Mansa API",
+      "adapter": "packages.market_data.adapters.mansa:MansaProvider",
+      "credential_env": "MANSA_API_KEY",
+      "licensing": "LICENSE_REVIEW_REQUIRED",
+      "coverage": ["DSE", "NSE", "USE"],
+      "note": "Professional $50/month, 10,000 requests/day, about 30-minute updates in market hours. Display inside our own site is allowed on every tier, but caching is limited to 7 days and a stored copy counts as redistribution; AfriEdge stores history permanently, so written terms are needed. Adapter UNTESTED (no key)."
+    },
+    {
+      "id": "eodhd",
+      "name": "EODHD",
+      "adapter": "packages.market_data.adapters.eodhd:EodhdProvider",
+      "credential_env": "EODHD_API_KEY",
+      "licensing": "LICENSE_REVIEW_REQUIRED",
+      "coverage": ["DSE", "USE"],
+      "note": "Covers DSE (NMB.DSE) and USE, not NSE Kenya. Personal plans forbid display; the internal-use plan forbids showing data outside the company; public display needs Enterprise (2,499/month) or Custom by agreement. Adapter UNTESTED (no key)."
+    }
+  ]
+}

@@ -7,22 +7,21 @@ unexplained-jump check over its whole history (pipelines.dse.import_public_price
 slip in a share that was refused there (on 2026-10-07: KA, NICO, NMG, TTP, USL, VODA, AFRIPRISE, JATU).
 Every import merges (pipelines/dse/merge.py), so history is never deleted. One failing share does not stop the
 others; the exit code is 1 if any share failed or had a revision held back for review.
+
+Prices come from the first USABLE provider for the DSE in the configured order (packages/market_data/registry.py:
+config/market_data.json, MARKET_DATA_PRIORITY). Today that is the DSE's own website; a paid provider is used only
+once its key is set AND its terms are accepted. Whichever is used is recorded as the publisher of the stored file.
 """
 from __future__ import annotations
 
 import sys
-import tempfile
 import time
-from pathlib import Path
-
-import requests
 
 from packages.database.models import PriceBar, Security
 from packages.database.session import SessionLocal
+from packages.market_data import registry
+from packages.market_data.provider import ProviderUnavailable
 from pipelines.dse import import_public_prices
-
-UA = {"User-Agent": "Mozilla/5.0 (AfriEdge scheduled data refresh)"}
-URL = "https://dse.co.tz/api/get/market/prices/for/range/duration?security_code={code}&days={days}&class=EQUITY"
 
 
 def loaded_shares() -> list[str]:
@@ -37,22 +36,35 @@ def main(argv: list[str]) -> int:
     if not codes:
         print("No DSE share has a stored history yet; load each one once with pipelines.dse.import_public_prices.")
         return 1
+    providers = registry.usable("DSE", "history")
+    if not providers:
+        print("No market-data provider is usable for the DSE: "
+              + "; ".join(f"{e.id} {e.state} ({e.state_reason})" for e in registry.entries()))
+        return 1
+    provider = providers[0]
+    entry = next(e for e in registry.entries() if e.id == provider.id)
+    print(f"Provider: {provider.name}")
     failed = []
-    with tempfile.TemporaryDirectory() as tmp:
-        for code in codes:
-            time.sleep(1)
-            path = Path(tmp) / f"{code}.json"
-            try:
-                r = requests.get(URL.format(code=code, days=days), headers=UA, timeout=60)
-                r.raise_for_status()
-                path.write_bytes(r.content)
-            except requests.RequestException as exc:
-                print(f"{code}: download failed ({type(exc).__name__})")
-                failed.append(code)
-                continue
-            rc = import_public_prices.main(["--instrument", f"DSE:{code}", "--file", str(path), "--days", days])
-            if rc != 0:
-                failed.append(code)
+    for code in codes:
+        time.sleep(1)
+        instrument = f"DSE:{code}"
+        try:
+            hist = provider.history(provider.symbol_for(instrument), int(days))
+        except ProviderUnavailable as exc:
+            print(f"{code}: download failed ({exc.detail or exc.public})")
+            failed.append(code)
+            continue
+        bars = {b.trade_date: (b.close, b.volume) for b in hist.bars}
+        activity = {b.trade_date: b.activity() for b in hist.bars}
+        if provider.id == "dse_public":
+            rc = import_public_prices.store_and_merge(instrument, hist.raw.content, bars, activity, url=hist.raw.url)
+        else:
+            rc = import_public_prices.store_and_merge(
+                instrument, hist.raw.content, bars, activity, url=hist.raw.url, kind="provider_price_file",
+                publisher=provider.name, title=f"{provider.name} end-of-day prices", listing_url=None,
+                terms_note=entry.note)
+        if rc != 0:
+            failed.append(code)
     summary = (f"Refreshed {len(codes) - len(failed)} of {len(codes)} shares."
                + (f" Needs attention: {', '.join(failed)}." if failed else ""))
     if failed:

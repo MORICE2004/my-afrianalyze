@@ -11,6 +11,10 @@ can put a beta on.
 A date whose level and change repeat the day before is a day the index did not move; it is kept,
 because the beta rule needs to see quiet days (PRODUCT_CONTEXT.md section 74).
 
+The same answer carries the DSE's sector indices (BI banks, finance and investment; IA industrial and allied;
+CS commercial services) and the Tanzania Share Index (TSI). They load the same way, under DSE:BI and so on,
+and are recorded on /health as one source, dse_sector_indices, so they never overwrite the DSEI's record.
+
 Owner decision (2026-09-19): use the levels the DSE publishes publicly. Terms note as in
 pipelines/dse/import_public_prices.py.
 """
@@ -33,6 +37,9 @@ from pipelines.dse.merge import merge_bars, stored_bars
 SRC = Path("data/raw/dse/public/dsei_daily.jsonl")
 STORE = Path("data/raw/dse/public")
 TOLERANCE = Decimal("0.02")   # the published levels are rounded to two decimals
+# Codes in the DSE's answer, with their names as the DSE spells them (its own "COMERCIAL" corrected).
+SECTOR_INDICES = {"TSI": "Tanzania Share Index", "BI": "Banks, Finance & Investments Index",
+                  "IA": "Industrial & Allied Index", "CS": "Commercial Services Index"}
 
 
 def _num(text: str) -> Decimal:
@@ -158,12 +165,26 @@ def main(argv: list[str]) -> int:
                        s.query(PriceBar.trade_date).filter_by(instrument_id=args.instrument)
                        .order_by(PriceBar.trade_date.desc()).first()[0])
         held_back = merged.revisions and not args.accept_revisions
-        s.merge(DataSourceStatus(
-            source="dse_index", last_success_at=now, last_attempt_at=now,
-            status="ok" if not (bad or problems or held_back) else "partial", max_age_hours=24 * 5,
-            detail=f"{total} days of {args.code} stored ({first} to {last}). Last refresh: {merged.summary()}; "
-                   f"{len(bad)} did not reconcile, {len(problems)} were not fetched. "
-                   f"Source: DSE published index levels."))
+        status = "ok" if not (bad or problems or held_back) else "partial"
+        if args.code == "DSEI":
+            s.merge(DataSourceStatus(
+                source="dse_index", last_success_at=now, last_attempt_at=now, status=status, max_age_hours=24 * 5,
+                detail=f"{total} days of {args.code} stored ({first} to {last}). Last refresh: {merged.summary()}; "
+                       f"{len(bad)} did not reconcile, {len(problems)} were not fetched. "
+                       f"Source: DSE published index levels."))
+        else:
+            # One record for the sector indices; its detail describes every one stored, not just this code.
+            stored_codes = []
+            for code in SECTOR_INDICES:
+                q = s.query(PriceBar.trade_date).filter_by(instrument_id=f"DSE:{code}")
+                n = q.count()
+                if n:
+                    stored_codes.append(f"{code} {n} days to {q.order_by(PriceBar.trade_date.desc()).first()[0]}")
+            s.merge(DataSourceStatus(
+                source="dse_sector_indices", last_success_at=now, last_attempt_at=now, status=status,
+                max_age_hours=24 * 5,
+                detail="; ".join(stored_codes) + f". Last load ({args.code}): {merged.summary()}; {len(bad)} did "
+                       f"not reconcile, {len(problems)} were not fetched. Source: DSE published index levels."))
         s.commit()
     print(f"Read {len(kept)} days of {args.code} ({min(kept)} to {max(kept)}, levels {flat[0]} to {flat[-1]}, "
           f"sha256 {sha[:16]}).\nMerge into {args.instrument}: {merged.summary()}.")

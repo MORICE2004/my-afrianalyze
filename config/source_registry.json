@@ -5,10 +5,11 @@
    "id": "dse",
    "name": "Dar es Salaam Stock Exchange",
    "country": "TZ",
-   "datasets": "Listed companies (discovered from the exchange's list); daily prices and volume for every share that passes the jump check; DSEI index",
+   "datasets": "Listed companies (discovered from the exchange's list); daily prices, volume, turnover, high and low for every share that passes the jump check; DSEI, TSI and the three sector indices (BI, IA, CS)",
    "status_keys": [
     "dse_prices",
     "dse_index",
+    "dse_sector_indices",
     "dse_issuers"
    ],
    "coverage": "V1",

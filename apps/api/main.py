@@ -16,7 +16,7 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, text
 from sqlalchemy.orm import Session
@@ -27,6 +27,7 @@ from packages.database.models import (DataSourceStatus, MacroObservation, PriceB
                                       SourceDocument)
 from packages.database.session import get_session
 from apps.api.routers import auth as auth_router
+from apps.api.routers import market as market_router
 from apps.api.routers import portfolios as portfolios_router
 from packages.core import telemetry
 from packages.report.builder import build_report
@@ -52,7 +53,7 @@ app.add_middleware(
 # Report and PDF builds are the only endpoints that do real work per request, so they get a per-client
 # limit. This is an in-process brake against a script hammering one server, not a security control: it
 # resets on restart and each server instance counts separately.
-_EXPENSIVE_PREFIX = "/api/v1/reports/"
+_EXPENSIVE_PREFIXES = ("/api/v1/reports/", "/api/v1/research/")
 _AUTH_PREFIX = "/api/v1/auth/"        # sign-in and sign-up: a tighter budget against password guessing
 AUTH_REQUESTS_PER_MINUTE = 10
 _hits: dict[str, deque] = {}
@@ -82,7 +83,7 @@ def client_ip(request: Request) -> str:
 @app.middleware("http")
 async def limit_expensive_requests(request: Request, call_next):
     path = request.url.path
-    if path.startswith(_EXPENSIVE_PREFIX):
+    if path.startswith(_EXPENSIVE_PREFIXES):
         bucket, limit, what = "reports", settings.EXPENSIVE_REQUESTS_PER_MINUTE, "report"
     elif path.startswith(_AUTH_PREFIX) and request.method == "POST":
         bucket, limit, what = "auth", AUTH_REQUESTS_PER_MINUTE, "sign-in"
@@ -220,40 +221,74 @@ def health(session: Session = Depends(get_session)) -> dict:
 
 # ------------------------------------------------------------------ securities
 
-def _security(s: Security, session: Session) -> dict:
-    has_report = session.query(func.count()).select_from(SourceDocument).filter(
-        SourceDocument.security_id == s.id, SourceDocument.kind == "annual_report").scalar() > 0
-    return {"id": s.id, "exchange": s.exchange, "ticker": s.local_ticker, "isin": s.isin, "name": s.name,
+EXCHANGE_COUNTRY = {"DSE": ("TZ", "Tanzania", "Dar es Salaam Stock Exchange"),
+                    "NSE": ("KE", "Kenya", "Nairobi Securities Exchange"),
+                    "USE": ("UG", "Uganda", "Uganda Securities Exchange")}
+
+
+def _security(s: Security, session: Session, report_ids: set[str] | None = None) -> dict:
+    if report_ids is None:
+        has_report = session.query(func.count()).select_from(SourceDocument).filter(
+            SourceDocument.security_id == s.id, SourceDocument.kind == "annual_report").scalar() > 0
+    else:
+        has_report = s.id in report_ids
+    country_code, country, exchange_name = EXCHANGE_COUNTRY.get(s.exchange, (None, None, s.exchange))
+    return {"id": s.id, "exchange": s.exchange, "exchange_name": exchange_name, "country": country,
+            "country_code": country_code, "ticker": s.local_ticker, "isin": s.isin, "name": s.name,
             "sector": s.sector, "currency": s.currency, "is_bank": s.is_bank, "listing_url": s.listing_url,
             "verified_at": s.verified_at.isoformat(), "verification_note": s.verification_note,
             "has_report": has_report}
 
 
+def search_score(s: Security, needle: str) -> float | None:
+    """Relevance of one security to a typed query; None = not a match. Lower is better.
+
+    0 exact ticker, id or ISIN; 1 ticker or ISIN prefix; 2 name prefix; 3 a word of the name starts with it;
+    4 contained in the name; 5 to 6 a close spelling of the name or ticker (difflib ratio >= 0.75), so a typo
+    still finds the company. Plain string work on the security master: no model is called for a search.
+    """
+    from difflib import SequenceMatcher
+
+    ticker, name, sid, isin = s.local_ticker.lower(), s.name.lower(), s.id.lower(), (s.isin or "").lower()
+    if needle in (ticker, sid) or (isin and needle == isin):
+        return 0
+    if ticker.startswith(needle) or sid.startswith(needle) or (isin and len(needle) >= 4 and isin.startswith(needle)):
+        return 1
+    if name.startswith(needle):
+        return 2
+    words = name.replace("&", " ").replace(",", " ").split()
+    if any(w.startswith(needle) for w in words):
+        return 3
+    if len(needle) >= 3 and needle in name:
+        return 4
+    if len(needle) >= 3:
+        best = max([SequenceMatcher(None, needle, name).ratio(), SequenceMatcher(None, needle, ticker).ratio()]
+                   + [SequenceMatcher(None, needle, w).ratio() for w in words])
+        if best >= 0.75:
+            return 5 + (1 - best)
+    return None
+
+
 @app.get("/api/v1/securities")
 def list_securities(q: str | None = Query(None, max_length=60), exchange: str | None = None,
-                    session: Session = Depends(get_session)) -> dict:
+                    limit: int = Query(50, ge=1, le=200), session: Session = Depends(get_session)) -> dict:
     query = session.query(Security)
     if exchange:
         query = query.filter(Security.exchange == exchange.upper())
     rows = query.order_by(Security.exchange, Security.local_ticker).all()
-    if q:
-        needle = q.strip().lower()
-
-        def score(s: Security) -> int | None:
-            ticker, name, sid = s.local_ticker.lower(), s.name.lower(), s.id.lower()
-            if needle in (ticker, sid):
-                return 0
-            if ticker.startswith(needle) or sid.startswith(needle):
-                return 1
-            if name.startswith(needle):
-                return 2
-            if needle in name or needle in sid:
-                return 3
-            return None
-
-        ranked = [(score(s), s) for s in rows]
-        rows = [s for sc, s in sorted((x for x in ranked if x[0] is not None), key=lambda x: (x[0], x[1].id))]
-    return {"results": [_security(s, session) for s in rows], "count": len(rows)}
+    if q and q.strip():
+        needle = " ".join(q.strip().lower().split())
+        ranked = [(search_score(s, needle), s) for s in rows]
+        # Ties: companies with a research report first, then the exchange and ticker.
+        report_ids = {sid for (sid,) in session.query(SourceDocument.security_id)
+                      .filter(SourceDocument.kind == "annual_report").distinct()}
+        rows = [s for sc, s in sorted((x for x in ranked if x[0] is not None),
+                                      key=lambda x: (x[0], x[1].id not in report_ids, x[1].id))]
+    else:
+        report_ids = {sid for (sid,) in session.query(SourceDocument.security_id)
+                      .filter(SourceDocument.kind == "annual_report").distinct()}
+    total = len(rows)
+    return {"results": [_security(s, session, report_ids) for s in rows[:limit]], "count": total}
 
 
 @app.get("/api/v1/securities/{security_id}")
@@ -291,6 +326,33 @@ def get_report(security_id: str, session: Session = Depends(get_session)) -> dic
     return build_report(session, sec.id)
 
 
+@app.get("/api/v1/research/{security_id}/stream")
+def stream_research(security_id: str, session: Session = Depends(get_session)) -> StreamingResponse:
+    """The company page's research, as NDJSON events sent as each stage finishes (packages/research/stream.py).
+    The generator owns the session from here: FastAPI may release its dependency before the stream ends."""
+    import json as _json
+
+    from packages.research.engine import to_wire
+    from packages.research.stream import events
+
+    NL = "\n"                       # NDJSON: one event per line
+
+    def body():
+        try:
+            for ev in events(session, security_id, lambda sec: _security(sec, session),
+                             lambda sec: market_router.quote_for(session, sec), to_wire):
+                yield _json.dumps(to_wire(ev), separators=(",", ":")) + NL
+        except Exception:
+            log.exception("research stream failed for %s", security_id)
+            yield _json.dumps({"event": "unavailable", "status": "FAILED",
+                               "reason": "The research could not be loaded. Please try again."}) + NL
+        finally:
+            session.close()
+
+    return StreamingResponse(body(), media_type="application/x-ndjson",
+                             headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
+
+
 @app.get("/api/v1/reports/{security_id}/pdf")
 def get_report_pdf(security_id: str, session: Session = Depends(get_session)) -> Response:
     from packages.report.pdf import render_pdf
@@ -301,6 +363,46 @@ def get_report_pdf(security_id: str, session: Session = Depends(get_session)) ->
     name = f"AfriEdge_{report['security']['id'].replace(':', '_')}_{date.today():%Y%m%d}.pdf"
     return Response(pdf, media_type="application/pdf",
                     headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+@app.get("/api/v1/reports/{security_id}/xlsx")
+def get_report_xlsx(security_id: str, user=Depends(auth_router.require_feature("excel_export")),
+                    session: Session = Depends(get_session)) -> Response:
+    """The analyst workbook (Pro). The entitlement is checked here, on the server: an account without it gets
+    403 whatever the page shows. The workbook is the same report a reader sees (the approved snapshot in
+    production), laid out in thirteen sheets by packages/report/excel.py."""
+    from packages.report.excel import build_workbook
+
+    report = get_report(security_id, session)
+    data = build_workbook(report)
+    telemetry.track("report_xlsx_downloaded", user.id, {"security_id": report["security"]["id"]})
+    name = f"AfriEdge_{report['security']['id'].replace(':', '_')}_{date.today():%Y%m%d}.xlsx"
+    return Response(data, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"})
+
+
+# ------------------------------------------------------------------ administration
+
+@app.get("/api/v1/admin/data-health")
+def admin_data_health(_admin=Depends(auth_router.require_admin), session: Session = Depends(get_session)) -> dict:
+    """Everything an administrator needs about each source: state, failure reason, last success, freshness and
+    licensing, plus the market-data providers and their priority. Readers never see these details."""
+    from packages.market_data import registry
+    from packages.database.models import PriceReconciliation
+
+    h = health(session)
+    providers = [{"id": e.id, "name": e.name, "state": e.state, "state_reason": e.state_reason,
+                  "licensing": e.licensing, "coverage": e.coverage, "note": e.note,
+                  "credential_env": e.credential_env} for e in registry.entries()]
+    recon = (session.query(PriceReconciliation).order_by(PriceReconciliation.checked_at.desc()).limit(20).all())
+    return {**h, "providers": providers,
+            "priority_setting": settings.MARKET_DATA_PRIORITY or None,
+            "reconciliations": [{"instrument_id": r.instrument_id, "trade_date": r.trade_date.isoformat(),
+                                 "currency": r.currency, "provider_a": r.provider_a, "close_a": r.close_a,
+                                 "provider_b": r.provider_b, "close_b": r.close_b,
+                                 "difference_pct": r.difference_pct, "status": r.status,
+                                 "checked_at": r.checked_at.isoformat()} for r in recon],
+            "refresh_schedule": "Weekdays 18:00 Dar es Salaam (GitHub Actions, refresh-data.yml), after the DSE close"}
 
 
 # ------------------------------------------------------------------ unit trusts
@@ -410,10 +512,9 @@ def markets_overview(session: Session = Depends(get_session)) -> dict:
         bars = (session.query(PriceBar).filter_by(instrument_id=m["index"])
                 .order_by(PriceBar.trade_date.desc()).limit(2).all()) if dse_display_allowed() else []
         if len(bars) == 2:
-            last, prev = bars
-            index = {"available": True, "id": m["index"], "value": last.close,
-                     "trade_date": last.trade_date.isoformat(), "attribution": DSE_ATTRIBUTION,
-                     "change": (last.close - prev.close) / prev.close}
+            summary = market_router.index_summary(session, m["index"])
+            index = {**summary, "available": True, "id": m["index"], "attribution": DSE_ATTRIBUTION,
+                     "change": summary["change_1d"]}
         else:
             if m["exchange"] == "DSE" and not dse_display_allowed():
                 reason, idx_status = DSE_DISPLAY_BLOCKED, "BLOCKED"
@@ -426,11 +527,23 @@ def markets_overview(session: Session = Depends(get_session)) -> dict:
                 reason = (f"COMING: {m['exchange']} data is not integrated yet, and its terms of use have not "
                           f"been reviewed (LICENSE_REVIEW_REQUIRED). Nothing is shown until both are done.")
                 idx_status = "BLOCKED"
-            index = {"available": False, "id": m["index"], "status": idx_status, "reason": reason}
+            public = {"DSE": "Tanzania market data is not available right now.",
+                      "NSE": "Kenya market data is not yet connected.",
+                      "USE": "Uganda market data is not yet connected."}[m["exchange"]]
+            if m["exchange"] == "DSE" and not dse_display_allowed():
+                public = "Prices from the Dar es Salaam Stock Exchange are not shown until a data licence is held."
+            index = {"available": False, "id": m["index"], "status": idx_status, "reason": reason,
+                     "public_reason": public}
         count = session.query(func.count()).select_from(Security).filter(Security.exchange == m["exchange"]).scalar()
         out.append({"market": code, "name": m["name"], "exchange": m["exchange"], "currency": m["currency"],
                     "index": index, "securities_in_master": count, "macro": _country_macro(session, code)})
+    session_day = market_router.latest_session(session, "DSE") if dse_display_allowed() else None
     return {"markets": out,
+            "session": {"exchange": "DSE", "latest_session": session_day.isoformat() if session_day else None,
+                        "kind": "End of day",
+                        "note": "End-of-day data. Prices update after each session, not during trading."},
+            "activity": market_router.activity(session),
+            "sectors": market_router.sectors(session),
             "commentary": {"available": False,
                            "reason": "Market commentary is only published when it can be generated from stored, "
                                      "sourced market data. None is loaded."},
@@ -601,3 +714,4 @@ def portfolio_proposal(req: ProposalRequest, session: Session = Depends(get_sess
 # Sign-in and saved portfolios (per-user; every query is scoped to the signed-in user).
 app.include_router(auth_router.router)
 app.include_router(portfolios_router.router)
+app.include_router(market_router.router)

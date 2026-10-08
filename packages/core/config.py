@@ -59,6 +59,13 @@ class Settings(BaseSettings):
     # Salt for the hashed user id sent to PostHog. A SECRET: user ids are small integers, so without a salt
     # the hash could be reversed by hashing 1, 2, 3...
     ANALYTICS_SALT: str = ""
+    # Market-data providers (packages/market_data). The order in which providers are asked for prices; the first
+    # that is configured and answers is used, and the one used is recorded with every stored bar. Empty = the
+    # order in config/market_data.json. Example: "mansa,dse_public".
+    MARKET_DATA_PRIORITY: str = ""
+    # SECRETS for paid providers, set in the host's dashboard. Empty = that provider is not configured (BLOCKED).
+    MANSA_API_KEY: str = ""
+    EODHD_API_KEY: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

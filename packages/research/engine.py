@@ -73,15 +73,20 @@ def _overall(stages: list[dict]) -> str:
 
 
 def _assess(session: Session, security_id: str, report: dict | None, build_error: str | None) -> list[dict]:
+    return [*input_stages(session, security_id), *output_stages(session, security_id, report, build_error)]
+
+
+def input_stages(session: Session, security_id: str):
+    """The stages judged before the report is built, yielded one at a time as each check finishes (the live
+    progress view streams them, packages/research/stream.py)."""
     t = time.perf_counter()
-    stages: list[dict] = []
     docs = session.query(SourceDocument).filter_by(security_id=security_id, kind="annual_report").all()
-    stages.append(_stage("sources", "COMPLETED" if docs else "INSUFFICIENT_DATA",
+    yield (_stage("sources", "COMPLETED" if docs else "INSUFFICIENT_DATA",
                          f"{len(docs)} annual report(s) on record" if docs
                          else "No annual reports have been ingested for this company", t))
     t = time.perf_counter()
     unhashed = [d.title for d in docs if not d.sha256 or not d.retrieved_at]
-    stages.append(_stage("documents", "FAILED" if unhashed else "COMPLETED" if docs else "INSUFFICIENT_DATA",
+    yield (_stage("documents", "FAILED" if unhashed else "COMPLETED" if docs else "INSUFFICIENT_DATA",
                          f"Missing hash or retrieval time: {unhashed}" if unhashed
                          else f"{len(docs)} document(s), each with SHA-256 and retrieval time", t))
     t = time.perf_counter()
@@ -89,7 +94,7 @@ def _assess(session: Session, security_id: str, report: dict | None, build_error
     open_conflicts = (session.query(ExtractionConflict).filter_by(security_id=security_id, status="OPEN")
                       .filter(ExtractionConflict.kind.notin_(["RESTATEMENT", "METHOD_OUTLIER", "SOURCE_INCONSISTENCY"]))
                       .count())
-    stages.append(_stage("extraction",
+    yield (_stage("extraction",
                          "INSUFFICIENT_DATA" if not facts else "PARTIAL" if open_conflicts else "COMPLETED",
                          f"{facts} figures agreed by at least two readers; {open_conflicts} open conflict(s), "
                          f"not used", t))
@@ -99,7 +104,7 @@ def _assess(session: Session, security_id: str, report: dict | None, build_error
     unchecked = [c for c in checks if not c.passed and c.detail.startswith("Not checked")]
     failed = [c for c in checks if not c.passed and c not in unchecked]
     ran = len(checks) - len(unchecked)
-    stages.append(_stage("validation",
+    yield (_stage("validation",
                          "INSUFFICIENT_DATA" if not ran else "PARTIAL" if failed or unchecked else "COMPLETED",
                          f"{ran - len(failed)} of {ran} tie checks pass"
                          + (f"; failing: {', '.join(f'FY{c.fiscal_year} {c.check_name}' for c in failed[:3])} "
@@ -109,33 +114,37 @@ def _assess(session: Session, security_id: str, report: dict | None, build_error
                             f"{', '.join(f'FY{c.fiscal_year} {c.check_name}' for c in unchecked[:3])}"
                             if unchecked else ""), t))
 
+
+
+def output_stages(session: Session, security_id: str, report: dict | None, build_error: str | None):
+    """The stages judged on the built report, yielded one at a time."""
     if report is None:
         for name in ("calculations", "valuation", "technical", "risk", "synthesis", "ai_interpretation"):
-            stages.append({"stage": name, "state": "FAILED" if name == "calculations" else "SKIPPED",
+            yield ({"stage": name, "state": "FAILED" if name == "calculations" else "SKIPPED",
                            "detail": f"The report could not be built: {build_error}" if name == "calculations"
                            else "Not reached", "critical": name in CRITICAL, "duration_ms": 0})
-        return stages
+        return
 
     t = time.perf_counter()
     latest = str(max(report["years"])) if report["years"] else None
     ok = sum(1 for r in report["ratios"] if latest and r["values"].get(latest, {}).get("available"))
     total = len(report["ratios"])
-    stages.append(_stage("calculations", "COMPLETED" if ok == total else "PARTIAL" if ok else "INSUFFICIENT_DATA",
+    yield (_stage("calculations", "COMPLETED" if ok == total else "PARTIAL" if ok else "INSUFFICIENT_DATA",
                          f"{ok} of {total} ratios computed for FY{latest}; the others say why not", t))
     t = time.perf_counter()
     val = report["valuation"]["result"]
-    stages.append(_stage("valuation", "COMPLETED" if val.get("available") else val.get("status", "INSUFFICIENT_DATA"),
+    yield (_stage("valuation", "COMPLETED" if val.get("available") else val.get("status", "INSUFFICIENT_DATA"),
                          "Residual income, justified P/B and dividend discount, three scenarios"
                          if val.get("available") else val.get("reason", ""), t))
     t = time.perf_counter()
     tech = report["technical"]
     tech_state = ("PARTIAL" if tech.get("stale") else "COMPLETED") if tech.get("available") else tech.get("status", "INSUFFICIENT_DATA")
-    stages.append(_stage("technical", tech_state,
+    yield (_stage("technical", tech_state,
                          f"Indicators on closes to {tech.get('last_trade_date')}" + (" (stale)" if tech.get("stale") else "")
                          if tech.get("available") else tech.get("reason", ""), t))
     t = time.perf_counter()
     risks = session.query(RiskItem).filter_by(security_id=security_id).count()
-    stages.append(_stage("risk", "COMPLETED" if risks else "INSUFFICIENT_DATA",
+    yield (_stage("risk", "COMPLETED" if risks else "INSUFFICIENT_DATA",
                          f"{risks} risks, each quoted from its source page" if risks else "No sourced risks recorded", t))
     t = time.perf_counter()
     rec = report["header"]["recommendation"]
@@ -145,11 +154,10 @@ def _assess(session: Session, security_id: str, report: dict | None, build_error
         syn_state, syn = "PARTIAL", "Model view withheld: " + rec.get("inconclusive_reason", "")
     else:
         syn_state, syn = "COMPLETED", f"Model view: {rec['model_view']}"
-    stages.append(_stage("synthesis", syn_state, syn, t))
-    stages.append({"stage": "ai_interpretation", "state": "SKIPPED", "critical": False, "duration_ms": 0,
+    yield (_stage("synthesis", syn_state, syn, t))
+    yield ({"stage": "ai_interpretation", "state": "SKIPPED", "critical": False, "duration_ms": 0,
                    "detail": "Not part of a run: the research copilot answers questions on demand from this run's "
                              "snapshot and never changes a figure."})
-    return stages
 
 
 def execute(session: Session, security_id: str, actor: str = "pipeline") -> ResearchRun:

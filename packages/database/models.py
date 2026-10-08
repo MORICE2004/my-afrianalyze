@@ -140,7 +140,12 @@ class ValidationCheck(Base):
 
 
 class PriceBar(Base):
-    """End-of-day prices. Only loaded from licensed files (see pipelines/dse/import_prices.py)."""
+    """One end-of-day bar, exactly as the source published it (pipelines/dse/import_public_prices.py).
+
+    close and volume are what every calculation uses. open, high, low, turnover and market_cap are the
+    other fields the DSE publishes for the day; they are optional because older bars were stored without
+    them and an index has none. source_document_id is the stored file the bar was read from.
+    """
 
     __tablename__ = "price_bars"
 
@@ -149,9 +154,37 @@ class PriceBar(Base):
     trade_date: Mapped[date] = mapped_column(Date, index=True)
     close: Mapped[Decimal] = mapped_column(ExactDecimal)
     volume: Mapped[Decimal | None] = mapped_column(ExactDecimal)
+    open: Mapped[Decimal | None] = mapped_column(ExactDecimal)
+    high: Mapped[Decimal | None] = mapped_column(ExactDecimal)
+    low: Mapped[Decimal | None] = mapped_column(ExactDecimal)
+    turnover: Mapped[Decimal | None] = mapped_column(ExactDecimal)      # value traded, in the currency
+    market_cap: Mapped[Decimal | None] = mapped_column(ExactDecimal)    # as the exchange states it
     source_document_id: Mapped[int] = mapped_column(ForeignKey("source_documents.id"))
 
     __table_args__ = (UniqueConstraint("instrument_id", "trade_date"),)
+
+
+class PriceReconciliation(Base):
+    """One comparison of the same day's close from two providers (packages/market_data/reconcile.py).
+    A difference beyond the tolerance is CONFLICTING_SOURCE; the two values are never averaged."""
+
+    __tablename__ = "price_reconciliations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    instrument_id: Mapped[str] = mapped_column(String(32), index=True)
+    trade_date: Mapped[date] = mapped_column(Date)
+    currency: Mapped[str] = mapped_column(String(3))
+    provider_a: Mapped[str] = mapped_column(String(40))
+    symbol_a: Mapped[str] = mapped_column(String(40))       # the provider's own code for the instrument
+    close_a: Mapped[Decimal] = mapped_column(ExactDecimal)
+    provider_b: Mapped[str] = mapped_column(String(40))
+    symbol_b: Mapped[str] = mapped_column(String(40))
+    close_b: Mapped[Decimal] = mapped_column(ExactDecimal)
+    difference: Mapped[Decimal] = mapped_column(ExactDecimal)       # close_b - close_a
+    difference_pct: Mapped[Decimal] = mapped_column(ExactDecimal)   # relative to close_a
+    tolerance_pct: Mapped[Decimal] = mapped_column(ExactDecimal)
+    status: Mapped[str] = mapped_column(String(24))                 # MATCH or CONFLICTING_SOURCE
+    checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 
 class MacroObservation(Base):

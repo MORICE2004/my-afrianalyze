@@ -6,9 +6,10 @@ Everything is exact Decimal arithmetic on stored, split-adjusted closes. Two rul
    calm (Bollinger), like strength or weakness (RSI), or like a trend (moving averages) that no trade ever
    made. So each indicator checks the share of zero-volume days in its own window; above
    `max_zero_volume_share` (config/technical.json) it is INSUFFICIENT_DATA, not a number.
-2. **Only what the data supports.** Close and volume are stored; daily high, low and turnover are not. ATR and
-   ADX (need high and low) and VWAP (needs turnover) are reported as INSUFFICIENT_DATA with that reason
-   instead of an approximation from closes.
+2. **Only what the data supports.** ATR and ADX use the DSE's published daily high and low, and VWAP its
+   turnover (stored since 2026-10-08). On a day without a trade the DSE publishes high and low as 0, which is
+   not a price, so these indicators need a trade on EVERY day of their window; otherwise they are
+   INSUFFICIENT_DATA with that reason, never an approximation from closes.
 
 The output describes price behaviour. It never feeds the valuation, the cost of equity or the model view, and
 it uses descriptive words ("above its 200-day average"), not trading signals.
@@ -84,6 +85,36 @@ def obv_change(closes: list[Decimal], volumes: list[Decimal]) -> Decimal:
     return total
 
 
+def true_ranges(highs: list[Decimal], lows: list[Decimal], closes: list[Decimal]) -> list[Decimal]:
+    """Wilder's true range for each day after the first: max(high - low, |high - prev close|, |low - prev close|)."""
+    return [max(h - l, abs(h - c0), abs(l - c0)) for h, l, c0 in zip(highs[1:], lows[1:], closes)]
+
+
+def wilder(xs: list[Decimal], n: int) -> list[Decimal]:
+    """Wilder smoothing: seeded with the mean of the first n values, then (prev * (n - 1) + x) / n."""
+    out = [sum(xs[:n], ZERO) / n]
+    for x in xs[n:]:
+        out.append((out[-1] * (n - 1) + x) / n)
+    return out
+
+
+def adx(highs: list[Decimal], lows: list[Decimal], closes: list[Decimal], n: int) -> tuple[Decimal, Decimal, Decimal]:
+    """(ADX, +DI, -DI) at the last day, Wilder's definitions. Needs 2n + 1 days (n to smooth DM and TR, n more
+    to smooth DX)."""
+    tr = true_ranges(highs, lows, closes)
+    plus_dm, minus_dm = [], []
+    for (h0, h1), (l0, l1) in zip(zip(highs, highs[1:]), zip(lows, lows[1:])):
+        up, down = h1 - h0, l0 - l1
+        plus_dm.append(up if up > down and up > 0 else ZERO)
+        minus_dm.append(down if down > up and down > 0 else ZERO)
+    s_tr, s_p, s_m = wilder(tr, n), wilder(plus_dm, n), wilder(minus_dm, n)
+    dx, pdi, mdi = [], ZERO, ZERO
+    for t, p_, m_ in zip(s_tr, s_p, s_m):
+        pdi, mdi = (HUNDRED * p_ / t, HUNDRED * m_ / t) if t else (ZERO, ZERO)
+        dx.append(ZERO if pdi + mdi == 0 else HUNDRED * abs(pdi - mdi) / (pdi + mdi))
+    return wilder(dx, n)[-1], pdi, mdi
+
+
 # ------------------------------------------------------------------ the analysis
 
 def _adjust_volumes(vols: dict[date, Decimal | None], actions: list[dict]) -> dict[date, Decimal | None]:
@@ -100,8 +131,9 @@ def _adjust_volumes(vols: dict[date, Decimal | None], actions: list[dict]) -> di
 
 
 def analyse(bars: list[tuple[date, Decimal, Decimal | None]], security_id: str, cfg: dict,
-            today: date | None = None) -> dict:
-    """bars: (trade_date, close as published, volume) in any order. Returns every indicator with a status."""
+            today: date | None = None, activity: dict[date, dict] | None = None) -> dict:
+    """bars: (trade_date, close as published, volume) in any order. activity: optional {day: {high, low,
+    turnover}} as published. Returns every indicator with a status."""
     today = today or date.today()
     if not bars:
         return {"available": False, "status": INSUFFICIENT_DATA, "reason": "No stored prices for this security."}
@@ -192,10 +224,7 @@ def analyse(bars: list[tuple[date, Decimal, Decimal | None]], security_id: str, 
                            from_high=last / max(window) - 1, from_low=last / min(window) - 1,
                            formula=f"highest and lowest close of the last {n} trading days"))
 
-    for name, why in (("atr_14", "ATR needs each day's high and low"), ("adx_14", "ADX needs each day's high and low"),
-                      ("vwap", "VWAP needs each day's turnover")):
-        out[name] = Unavailable(f"{why}, which are not stored yet (only the close and volume are).",
-                                INSUFFICIENT_DATA).to_dict()
+    out.update(_range_indicators(days, closes, volumes, activity or {}, actions, cfg, ok))
 
     recent = volumes[-60:]
     return {
@@ -211,3 +240,65 @@ def analyse(bars: list[tuple[date, Decimal, Decimal | None]], security_id: str, 
         "note": ("Descriptive only. These indicators do not change the valuation, the cost of equity or the model "
                  "view, and they are not trading signals."),
     }
+
+
+def _range_indicators(days, closes, volumes, activity, actions, cfg, ok) -> dict:
+    """ATR, ADX and VWAP from the published high, low and turnover. Each needs a trade on every day of its
+    window: on a no-trade day the DSE publishes high = low = 0 and turnover = 0, which describe no price."""
+    out = {}
+    # High and low are published per share as traded, so they get the same split adjustment as the close.
+    factor = {d: corporate_actions.adjust_prices({d: ONE}, actions)[d] for d in days[-60:]}
+
+    def window(n: int, need_range: bool) -> tuple[list[date], str | None]:
+        w = days[-n:]
+        if len(days) < n:
+            return w, f"needs {n} trading days; {len(days)} are stored"
+        missing = [d for d in w if not activity.get(d)]
+        if missing:
+            return w, f"the published high, low and turnover are not stored for {len(missing)} of the last {n} days"
+        no_trade = [d for d in w if not activity[d].get("turnover") or
+                    (need_range and (not activity[d].get("high") or not activity[d].get("low")))]
+        if no_trade:
+            return w, (f"{len(no_trade)} of the last {n} trading days had no trade, and on those days the DSE "
+                       f"publishes no high, low or turnover (it shows 0)")
+        return w, None
+
+    n = cfg.get("atr_period", 14)
+    w, why = window(n + 1, True)
+    if why:
+        out[f"atr_{n}"] = Unavailable(f"ATR({n}) {why}.", INSUFFICIENT_DATA).to_dict()
+    else:
+        hi = [activity[d]["high"] * factor[d] for d in w]
+        lo = [activity[d]["low"] * factor[d] for d in w]
+        atr = sum(true_ranges(hi, lo, closes[-(n + 1):]), ZERO) / n
+        out[f"atr_{n}"] = ok(n + 1, value=atr, percent_of_price=atr / closes[-1],
+                             formula=f"mean of the last {n} true ranges, max(high - low, |high - previous close|, "
+                                     f"|low - previous close|), on the DSE's published daily high and low")
+
+    w, why = window(2 * n + 1, True)
+    if why:
+        out[f"adx_{n}"] = Unavailable(f"ADX({n}) {why}.", INSUFFICIENT_DATA).to_dict()
+    else:
+        hi = [activity[d]["high"] * factor[d] for d in w]
+        lo = [activity[d]["low"] * factor[d] for d in w]
+        value, pdi, mdi = adx(hi, lo, closes[-(2 * n + 1):], n)
+        out[f"adx_{n}"] = ok(2 * n + 1, value=value, plus_di=pdi, minus_di=mdi,
+                             trend_strength="strong" if value >= 25 else "weak" if value < 20 else "moderate",
+                             formula=f"Wilder ADX({n}): smoothed directional movement over smoothed true range")
+
+    m = cfg.get("vwap_days", 20)
+    w, why = window(m, False)
+    if why:
+        out["vwap"] = Unavailable(f"VWAP({m} days) {why}.", INSUFFICIENT_DATA).to_dict()
+    else:
+        turnover = sum((activity[d]["turnover"] for d in w), ZERO)
+        shares = sum(volumes[-m:], ZERO)
+        if not shares:
+            out["vwap"] = Unavailable("VWAP is undefined: no shares traded in the window.", INSUFFICIENT_DATA).to_dict()
+        else:
+            vwap = turnover / shares
+            out["vwap"] = ok(m, value=vwap,
+                             price_vs="above" if closes[-1] > vwap else "below" if closes[-1] < vwap else "at",
+                             formula=f"sum of the DSE's published turnover / sum of split-adjusted volume over the "
+                                     f"last {m} trading days")
+    return out

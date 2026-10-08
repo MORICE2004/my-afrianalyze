@@ -27,6 +27,7 @@ ALLOWED: dict[str, set[str]] = {
     "report_viewed": {"security_id", "frozen"},
     "valuation_viewed": {"security_id"},
     "report_pdf_downloaded": {"security_id"},
+    "report_xlsx_downloaded": {"security_id"},
     "research_started": {"security_id"},
     "research_completed": {"security_id", "execution_state"},
     "portfolio_created": {"holdings_count"},

@@ -53,13 +53,17 @@ jobs:
         # first ten-year load is a deliberate manual step, so refused shares are never slipped in here.
         run: python -m pipelines.dse.refresh_prices 30
 
-      - name: DSE index (only the dates after the last stored level, one request per date)
+      - name: DSE indices (only the dates after the last stored level, one request per date)
         if: env.SKIP != '1'
         run: |
           set -euo pipefail
           python -m pipelines.dse.fetch_public_index --from auto --to today --delay 1
           # Each new level must follow the previous one (the first is checked against the stored level).
           python -m pipelines.dse.import_public_index --code DSEI --instrument DSE:DSEI
+          # The same answers carry the Tanzania Share Index and the three sector indices: no extra requests.
+          for code in TSI BI IA CS; do
+            python -m pipelines.dse.import_public_index --code "$code" --instrument "DSE:$code"
+          done
 
       - name: Macro inputs (BoT bond yields and policy rate, NBS CPI, Damodaran)
         if: env.SKIP != '1'

@@ -21,7 +21,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from packages.core import telemetry
-from packages.database.models import User, UserSession
+from packages.database.models import Entitlement, Plan, User, UserSession
 from packages.database.session import get_session
 
 SESSION_DAYS = 7
@@ -150,6 +150,32 @@ def logout(authorization: str | None = Header(None), session: Session = Depends(
             session.commit()
 
 
+def features(session: Session, user: User) -> set[str]:
+    """The features the user's plan includes (entitlements table). No plan = the free features only."""
+    if not user.plan_id:
+        return set()
+    return {e.feature for e in session.query(Entitlement).filter_by(plan_id=user.plan_id)}
+
+
+def require_feature(feature: str):
+    """A dependency that lets the request through only for a plan that includes `feature`. The web app hides
+    buttons too, but this is the check that counts: the API refuses whatever the browser sends."""
+    def check(user: User = Depends(current_user), session: Session = Depends(get_session)) -> User:
+        if feature not in features(session, user):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "This is part of AfriEdge Pro.")
+        return user
+    return check
+
+
+def require_admin(user: User = Depends(current_user)) -> User:
+    if user.role != "admin":
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Administrators only.")
+    return user
+
+
 @router.get("/me")
-def me(user: User = Depends(current_user)) -> dict:
-    return {"id": user.id, "email": user.email}
+def me(user: User = Depends(current_user), session: Session = Depends(get_session)) -> dict:
+    plan = session.get(Plan, user.plan_id) if user.plan_id else None
+    return {"id": user.id, "email": user.email, "role": user.role,
+            "plan": {"id": plan.id, "name": plan.name} if plan else {"id": "free", "name": "Free"},
+            "features": sorted(features(session, user))}

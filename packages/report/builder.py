@@ -30,6 +30,7 @@ from packages.analysis.technical import analyse as technical_analysis
 from packages.analysis.line_items import analyse_series
 from packages.analysis.notes import line_note
 from packages.analysis.recommendation import confidence, recommend, INCONCLUSIVE_VIEW, robust_view
+from packages.market_data.quality import MOVE, WITHIN, round_trips
 from packages.core.config import DSE_ATTRIBUTION, DSE_DISPLAY_BLOCKED, dse_display_allowed, settings
 from packages.database.models import (
     DataSourceStatus,
@@ -270,6 +271,15 @@ def build_report(session: Session, security_id: str) -> dict | None:
     if price_bars and index_bars:
         stock = corporate_actions.adjust_prices({b.trade_date: b.close for b in price_bars}, splits)
         index = {b.trade_date: b.close for b in index_bars}
+        # Index days the source published as a round trip (packages/market_data/quality.py) would each add a
+        # return the size of the whole series; they are left out of every regression and listed below.
+        bad_index_days = round_trips(index)
+        if bad_index_days:
+            index = {d: v for d, v in index.items() if d not in set(bad_index_days)}
+            split_notes = [*split_notes, (
+                f"{len(bad_index_days)} DSEI day(s) left out of the regressions because the published level jumps "
+                f"more than {MOVE:.0%} and returns within {WITHIN} sessions, which is a source error, not a market "
+                f"move: {', '.join(d.isoformat() for d in bad_index_days)}.")]
         vols = {b.trade_date: b.volume for b in price_bars}
         estimates = {
             "raw_daily": beta_mod.raw_daily(stock, index),
@@ -300,7 +310,9 @@ def build_report(session: Session, security_id: str) -> dict | None:
     # ------------------------------------------------------------ technical analysis (descriptive only)
     if price_bars:
         technical = technical_analysis([(b.trade_date, b.close, b.volume) for b in price_bars], security_id,
-                                       _config("technical.json"))
+                                       _config("technical.json"),
+                                       activity={b.trade_date: {"high": b.high, "low": b.low, "turnover": b.turnover}
+                                                 for b in price_bars if b.turnover is not None})
     else:
         technical = price  # the same BLOCKED or INSUFFICIENT_DATA reason as the share price
 
