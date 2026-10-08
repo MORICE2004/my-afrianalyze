@@ -172,6 +172,8 @@ def store(session, source: dict, raw: bytes, items: list[dict], securities: list
         published = it["published_at"]
         if published.tzinfo is None:
             published = published.replace(tzinfo=timezone.utc)
+        # Stored in UTC: SQLite drops the offset, and the API reads a stored time as UTC.
+        published = published.astimezone(timezone.utc)
         if published > horizon:
             counts["future_dated"] += 1
             continue

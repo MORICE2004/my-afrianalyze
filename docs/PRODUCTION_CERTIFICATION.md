@@ -46,14 +46,16 @@ pip-audit and npm audit); local `pip-audit` and `npm audit --omit=dev` clean.
 | Research run engine | yes | yes | `test_research_runs.py` (8) | no | 10 stages; COMPLETED/PARTIAL/FAILED/BLOCKED/INSUFFICIENT_DATA; frozen snapshot + SHA-256 served in production; NMB and CRDB runs `PARTIAL` | READY_WITH_LIMITATIONS | `PARTIAL` because of disclosed gaps (unchecked tie check, stale Damodaran inputs) |
 | Valuation | yes | yes | hand-checked tests; sensitivity; three cost-of-equity treatments | no | NMB fair value 2,354 / 1,706 / 1,433 TZS by treatment vs price 2,040 → **Inconclusive**, no label; CRDB Undervalued under all three | INCONCLUSIVE | The treatment is the owner's decision; CRDB's 26% loan growth is extrapolated |
 | Recommendation (BUY/HOLD/SELL) | yes | yes | `test_recommendation.py` | no | Shown only when the view survives every treatment (`require_robust_view`) | READY_WITH_LIMITATIONS | Labels on by owner decision; no published report yet |
-| Technical analysis | yes | yes | `test_technical.py` (11) | no | SMA/EMA/RSI/MACD/Bollinger/OBV with a liquidity gate per window (section 74) | READY_WITH_LIMITATIONS | ATR/ADX/VWAP `INSUFFICIENT_DATA` (no reliable intraday high/low) |
-| Market analysis | yes | yes | API + browser tests | no | DSEI, breadth, gainers/losers over 17 shares (no trade is not a move) | READY_WITH_LIMITATIONS | No sector view (26 companies "Unclassified") |
+| Technical analysis | yes | yes | `test_technical.py` (11) | no | SMA/EMA/RSI/MACD/Bollinger/OBV with a liquidity gate per window (section 74) | READY_WITH_LIMITATIONS | ATR/ADX/VWAP computed from the DSE's published high, low and turnover since 2026-10-08, only over windows where every day traded |
+| Market analysis | yes | yes | API + browser tests | no | DSEI, breadth, gainers/losers over 17 shares (no trade is not a move) | READY_WITH_LIMITATIONS | DSE sector indices (BI, IA, CS) shown; most listed companies still "Unclassified" |
 | Fixed income | yes | yes | `test_bonds.py` (11) | no | Yield curve, price, duration, convexity, rate shocks; BoT prices reproduced to 0.0003 (5-25Y) | READY_WITH_LIMITATIONS | No T-bills; 2Y/20Y differ by 0.02-0.03 (BoT averages) |
 | Mutual funds | data model and page | no | API test | no | 6 UTT AMIS funds listed with sources, each `BLOCKED` | BLOCKED | Owner to read UTT AMIS terms before any price is loaded |
 | Portfolios | yes | yes | API + browser | no | Decimal valuation at the latest close; unpriced → `INSUFFICIENT_DATA`; stale flagged | READY_WITH_LIMITATIONS | TZS only |
 | Portfolio risk, optimisation, stress | yes | yes | `test_portfolio_risk.py` (10) | no | Weekly returns; volatility, drawdown, correlation; minimum variance only (no invented expected returns); historical and configured shocks | READY_WITH_LIMITATIONS | Thin trading (NMB had no trade on 35.6% of days) makes risk estimates noisy; no board-lot rules |
 | AI copilot | yes | no provider key | `test_copilot.py` (22) with a fake provider | no | Grounded context; deterministic number check withholds `UNGROUNDED`; `AI_UNAVAILABLE` on any failure; sign-in + 20/day | INCONCLUSIVE | Never run against the real model (no `ANTHROPIC_API_KEY`; a paid service) |
 | Evidence lineage | yes | yes | `test_every_shown_figure_has_status_source_and_units` | no | Every figure: source, page, status, retrieval | READY_WITH_LIMITATIONS | Source links need the PDFs hosted |
+| Economic news | yes | yes | `test_news.py` (12), 2 browser tests | no | CBK RSS, BoT press releases, World Bank API; rule-based relevance with stated reason; headlines and links only; future-dated items rejected | READY_WITH_LIMITATIONS | Reuters, Bloomberg, The EastAfrican, Business Daily, The Citizen: LICENSE_REVIEW_REQUIRED (owner); IMF and AfDB refused requests (403); Bank of Uganda not built |
+| Interface (2026-10-08 pass) | yes | yes | 74/74 Playwright (1440 + 375), 80 page views at 320-1440 px light/dark with no overflow, reduced-motion test | no (preview pending) | Search-first, sectioned pages without card walls, verification badge with source popover, Ctrl+K quick search, toasts, plain-language no-view state | READY_WITH_LIMITATIONS | No legal privacy policy or terms text (owner); `/privacy` is a factual description of what is stored |
 | Data-quality UI | yes | yes | browser tests | no | `/health` (status, ages, licensing), per-figure status on reports | READY | |
 | Sentry | API wired | no | scrubber tests; `pipelines.sentry_check` | no | release = deployed commit | BLOCKED | No Sentry project (owner); browser errors not reported |
 | PostHog | API wired | no | `test_telemetry.py` (9) | no | Server-side, allowlisted events, salted ids, EU, no GeoIP | BLOCKED | No PostHog project (owner) |
@@ -70,3 +72,10 @@ with their liquidity gates; risks; the recommendation with its uncertainty (NMB 
 run's stages and snapshot; sign up and sign in; create, value, analyse and stress-test a portfolio; markets
 breadth; bond analytics; the copilot's `AI_UNAVAILABLE` path. Not working: the copilot's answers (no key),
 unit trust prices (blocked on terms), anything in production.
+
+## 2026-10-08 interface and news pass
+
+Verified: Python 409 passed, 4 skipped; Playwright 74/74; `tsc` and `eslint` clean; 80 page views at
+320/375/390/430/768/1024/1280/1440 px (light, plus dark at 375 and 1440) with no horizontal scroll. Not
+verified: the deployed preview against a production API (no API host); browser analytics (none exist, so no
+consent banner is shown; `/privacy` says so).

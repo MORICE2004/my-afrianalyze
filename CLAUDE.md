@@ -143,6 +143,9 @@ cd apps\web; npm run dev -- --port 3000                              # web, http
 installed). The API image itself (`Dockerfile.api`, `requirements-api.txt`) is built, started and checked
 against Postgres by CI on every push. Deploying: `docs/DEPLOYMENT_RUNBOOK.md`.
 
+Economic news (official feeds only; headlines and links): `.venv\Scripts\python -m pipelines.news`
+(sources and their licensing states: `config/news_sources.json`; rules: `packages/news/classify.py`).
+
 Check which sources answer (writes nothing): `.venv\Scripts\python -m pipelines.probe_sources`.
 
 ### Test

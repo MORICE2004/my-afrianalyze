@@ -54,6 +54,16 @@ price, opposite answer.
 
 ## Still open
 
+- **News publishers (owner's decision).** Only official sources are fetched: Central Bank of Kenya (RSS), Bank of
+  Tanzania (press releases), World Bank (public API). Reuters, Bloomberg, The EastAfrican, Business Daily Africa
+  and The Citizen are `LICENSE_REVIEW_REQUIRED`; IMF and AfDB answered 403 and are not retried; Bank of Uganda,
+  DSE, NSE and USE announcements have no loader. `config/news_sources.json`.
+- **News relevance is keyword rules**, so it can miss a story worded unusually (shown as "Impact not assessed")
+  and can tag a story by a word in its headline. It never predicts direction.
+- **No legal privacy policy, terms or contact page.** `/privacy` describes what the site stores, from the code.
+  Legal text needs the owner.
+
+
 | # | Question | Why it matters |
 |---|---|---|
 | 0 | Confirm the beta basis and the cost of equity treatment above, and the split in `config/corporate_actions.json` (`verified_by: null`) | They decide whether the reports say BUY or SELL |

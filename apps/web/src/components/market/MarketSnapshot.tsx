@@ -11,7 +11,7 @@ export function MarketSnapshot({ data }: { data: MarketsOverview }) {
   const act = data.activity;
   const b = data.movers.breadth;
   return (
-    <section aria-label="DSE today" data-testid="market-snapshot" className="rounded-xl border border-line bg-surface">
+    <section aria-label="DSE today" data-testid="market-snapshot" className="rounded-lg border border-line bg-surface">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3 sm:px-5">
         <h2 className="text-sm font-semibold">Dar es Salaam Stock Exchange <span className="font-normal text-muted">· TZS</span></h2>
         <span className="text-xs text-muted">

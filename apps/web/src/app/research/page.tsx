@@ -64,7 +64,7 @@ export default async function ResearchPage() {
       )}
 
       {res.ok && (
-        <details className="group rounded-xl border border-line bg-surface" data-testid="browse-all">
+        <details className="group rounded-lg border border-line bg-surface" data-testid="browse-all">
           <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-medium sm:px-5">
             Browse all {all.length} listed companies
             <span className="text-xs text-muted group-open:hidden">Show</span>

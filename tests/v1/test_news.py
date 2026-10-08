@@ -136,6 +136,11 @@ def test_store_rejects_future_and_relative_items_dedupes_and_updates(db, tmp_pat
         news.store(s, _source("cbk"), RSS, news.parse_rss(RSS), SECURITIES, when)
         s.commit()
         assert all(r.summary is None for r in s.query(NewsItem).filter_by(source_id="cbk"))
+        # A Bank of Tanzania time (East Africa Time) is stored as the same instant in UTC.
+        news.store(s, _source("bot"), BOT, news.parse_bot_press(BOT), SECURITIES, when)
+        s.commit()
+        mpc = s.query(NewsItem).filter_by(source_id="bot", title="Monetary Policy Committee Statement").one()
+        assert mpc.published_at.replace(tzinfo=None) == datetime(2026, 10, 8, 12, 53)
 
 
 def test_one_failing_source_does_not_stop_the_others(db, monkeypatch, tmp_path):  # noqa: F811

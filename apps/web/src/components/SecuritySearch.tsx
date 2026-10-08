@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import React, { useEffect, useId, useRef, useState } from "react";
+import { Stagger, StaggerItem, VerifiedCheck } from "@/components/motion/primitives";
 import { apiGet, type Security } from "@/lib/api";
 
 // Company search over AfriEdge's security master: name, ticker or ISIN, ranked by the API (exact ticker or ISIN,
@@ -140,20 +141,21 @@ export function SecuritySearch({ size = "hero", autoFocus = false }: { size?: "h
           {status === "error" && <div className="px-4 py-3 text-sm text-neg">{error}</div>}
           {status === "done" && results.length === 0 && (
             <div className="px-4 py-3 text-sm text-muted" data-testid="search-no-results">
-              No listed company matches “{query.trim()}”. AfriEdge covers companies listed in Tanzania today;
-              Kenya and Uganda are not yet connected.
+              <span className="font-medium text-fg">No company matched “{query.trim()}”.</span> Try a company name, ticker or
+              ISIN. AfriEdge covers companies listed in Tanzania today; Kenya and Uganda are being added.
             </div>
           )}
+          <Stagger key={results.map((r) => r.id).join()}>
           {results.map((s, i) => (
+            <StaggerItem key={s.id}>
             <div
               role="option"
               id={optionId(i)}
               aria-selected={i === active}
-              key={s.id}
               onMouseEnter={() => setActive(i)}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => choose(s)}
-              className={`flex cursor-pointer items-center justify-between gap-3 px-4 py-2.5 text-sm ${i === active ? "bg-surface-2" : ""}`}
+              className={`flex cursor-pointer items-center justify-between gap-3 px-4 py-2.5 text-sm transition-colors ${i === active ? "bg-surface-2" : ""}`}
             >
               <span className="min-w-0">
                 <span className="block truncate font-medium text-fg">{s.name}</span>
@@ -164,11 +166,15 @@ export function SecuritySearch({ size = "hero", autoFocus = false }: { size?: "h
               <span className="flex shrink-0 items-center gap-2">
                 <span className="rounded border border-line px-1.5 py-0.5 font-mono text-[11px] text-muted">{s.currency}</span>
                 {s.has_report && (
-                  <span className="hidden rounded bg-surface-2 px-1.5 py-0.5 text-[11px] text-fg sm:inline">Research</span>
+                  <span className="hidden items-center gap-1 text-[11px] text-fg sm:inline-flex" title="Full research: statements checked against the annual reports">
+                    <VerifiedCheck size={12} />Research
+                  </span>
                 )}
               </span>
             </div>
+            </StaggerItem>
           ))}
+          </Stagger>
         </div>
       )}
     </div>

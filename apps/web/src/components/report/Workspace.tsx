@@ -8,7 +8,11 @@ import { QuoteFreshness } from "@/components/market/Freshness";
 import { PriceChart } from "@/components/market/PriceChart";
 import EvidenceLineage from "@/components/research/EvidenceLineage";
 import ValuationExplainer from "@/components/research/ValuationExplainer";
+import { NumberReveal } from "@/components/motion/primitives";
+import { RelatedNews } from "@/components/news/RelatedNews";
 import { Change, Empty, Panel, Skeleton } from "@/components/ui/kit";
+import { useToast } from "@/components/ui/Toast";
+import { VerificationBadge } from "@/components/ui/VerificationBadge";
 import { API_URL, type Quote, type Report, type ResearchStage, type Security, type StreamEvent } from "@/lib/api";
 import { fmtCompact, fmtDate, fmtPct, fmtPerShare, fmtShortDate } from "@/lib/format";
 import { rememberViewed, toggleWatch, useSavedList } from "@/lib/local";
@@ -132,6 +136,7 @@ export function Workspace({ security }: { security: Security }) {
   const [tab, setTab] = useState<Tab>("Overview");
   const watch = useSavedList("watchlist");
   const watched = watch.some((w) => w.id === security.id);
+  const toast = useToast();
 
   useEffect(() => {
     rememberViewed({ id: security.id, name: security.name, currency: security.currency });
@@ -160,7 +165,7 @@ export function Workspace({ security }: { security: Security }) {
             <span className="rounded border border-line px-1.5 py-0.5 font-mono text-xs" data-testid="currency" title="All prices and figures for this company are in this currency">{security.currency}</span>
             {security.sector && security.sector !== "Unclassified" && <span className="text-muted">{security.sector}</span>}
             {security.isin && <span className="text-xs text-faint">ISIN {security.isin}</span>}
-            <button type="button" onClick={() => toggleWatch({ id: security.id, name: security.name, currency: security.currency })}
+            <button type="button" onClick={() => toast(toggleWatch({ id: security.id, name: security.name, currency: security.currency }) ? "Added to watchlist" : "Removed from watchlist")}
               aria-pressed={watched} data-testid="watch-toggle"
               className={`ml-1 inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs ${watched ? "border-fg text-fg" : "border-line text-muted hover:text-fg"}`}>
               <span aria-hidden>{watched ? "★" : "☆"}</span>{watched ? "On watchlist" : "Add to watchlist"}
@@ -173,7 +178,8 @@ export function Workspace({ security }: { security: Security }) {
           ) : q.available ? (
             <motion.div {...fade()}>
               <div className="flex items-baseline gap-3 lg:justify-end">
-                <span className="text-3xl font-semibold tracking-tight">{q.currency} {fmtPerShare(q.price)}</span>
+                <NumberReveal value={Number(q.price)} format={(n) => `${q.currency} ${fmtPerShare(n)}`}
+                  className="text-3xl font-semibold tracking-tight tabular-nums sm:text-4xl" />
                 <Change value={q.change_pct} className="text-base font-medium" label="Change on the day" />
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted lg:justify-end">
@@ -207,9 +213,17 @@ export function Workspace({ security }: { security: Security }) {
       <AnimatePresence>
         {report && (
           <motion.div key="research" {...fade(0.05)} className="space-y-5">
-            <ViewCard report={report} quote={q} />
+            <ViewCard report={report} quote={q} onReviewAssumptions={() => { setTab("Valuation"); document.getElementById("research-tabs")?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" }); }} />
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-xs text-muted" data-testid="data-as-of">
+              <p className="flex flex-wrap items-center gap-x-1 text-xs text-muted" data-testid="data-as-of">
+                <VerificationBadge state={report.review.status === "published" ? "Reviewed" : "Verified"} testId="verification-badge" detail={{
+                  source: report.data_as_of.latest_report ?? undefined,
+                  period: report.data_as_of.fiscal_year_end ? `Year to ${fmtDate(report.data_as_of.fiscal_year_end)}` : undefined,
+                  currency: security.currency,
+                  retrieved: report.data_as_of.retrieved_at ? fmtDate(report.data_as_of.retrieved_at) : undefined,
+                  validation: "Each statement figure is read by two independent extraction methods; figures where they disagree are marked and not used. The Evidence tab lists every figure with its page.",
+                }} />
+                <span aria-hidden className="mx-1 text-faint">·</span>
                 Financials to {report.data_as_of.fiscal_year_end ? fmtDate(report.data_as_of.fiscal_year_end) : "an unknown date"}
                 {report.data_as_of.latest_report && <> · {report.data_as_of.latest_report}</>}
                 {report.data_as_of.published_on && <> (published {fmtDate(report.data_as_of.published_on)})</>}
@@ -218,12 +232,13 @@ export function Workspace({ security }: { security: Security }) {
               <ExportButtons securityId={security.id} />
             </div>
 
-            <Tabs.Root value={tab} onValueChange={(v) => setTab(v as Tab)}>
+            <Tabs.Root id="research-tabs" value={tab} onValueChange={(v) => setTab(v as Tab)}>
               <Tabs.List aria-label="Research sections" className="no-print -mx-4 flex overflow-x-auto border-b border-line px-4 sm:mx-0 sm:px-0">
                 {TABS.map((t) => (
                   <Tabs.Trigger key={t} value={t}
                     className="relative shrink-0 px-3 py-2.5 text-sm text-muted transition-colors hover:text-fg data-[state=active]:font-medium data-[state=active]:text-fg">
                     {t}
+                    <TabState state={s} tab={t} />
                     {tab === t && !reduceMotion && <motion.span layoutId="tab-underline" className="absolute inset-x-2 -bottom-px h-0.5 bg-fg" />}
                     {tab === t && reduceMotion && <span className="absolute inset-x-2 -bottom-px h-0.5 bg-fg" />}
                   </Tabs.Trigger>
@@ -286,7 +301,7 @@ function mark(state: string | undefined) {
 }
 
 const PLAIN: Record<string, string> = {
-  COMPLETED: "Done", PARTIAL: "Done, with gaps noted", INSUFFICIENT_DATA: "Not enough data", FAILED: "Failed",
+  COMPLETED: "Done", PARTIAL: "Done, limited data", INSUFFICIENT_DATA: "Not enough data", FAILED: "Failed",
   BLOCKED: "Blocked", SKIPPED: "Not part of this step",
 };
 
@@ -310,7 +325,7 @@ function Progress({ state, onRetry }: { state: State; onRetry: () => void }) {
   const stopped = !!state.unavailable && !state.report;
   return (
     <section aria-label="Research progress" data-testid="research-progress" data-status={state.status}
-      className="rounded-xl border border-line bg-surface">
+      className="rounded-lg border border-line bg-surface">
       <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={running || open}
         className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm sm:px-5">
         <span className="flex items-center gap-2">
@@ -326,8 +341,8 @@ function Progress({ state, onRetry }: { state: State; onRetry: () => void }) {
           {!running && (
             <span className="text-muted">
               {recorded ? `· recorded when the research ran${recorded.executed_at ? ` on ${fmtDate(recorded.executed_at)}` : ""}` :
-                state.totalMs ? `· ${state.totalMs < 1000 ? `${Math.round(state.totalMs)} ms` : `${(state.totalMs / 1000).toFixed(1)} s`}` : ""}
-              {partial > 0 && ` · ${partial} step${partial > 1 ? "s" : ""} with gaps noted`}
+                ""}
+              {partial > 0 && ` · ${partial} section${partial > 1 ? "s" : ""} with limited data`}
             </span>
           )}
         </span>
@@ -351,7 +366,6 @@ function Progress({ state, onRetry }: { state: State; onRetry: () => void }) {
                     {d && (
                       <span className="ml-2 text-xs text-muted">
                         {PLAIN[d.state] ?? d.state.replace(/_/g, " ").toLowerCase()}
-                        {!d.recorded && ` · ${d.duration_ms < 1 ? "<1" : Math.round(d.duration_ms)} ms`}
                       </span>
                     )}
                     {d?.detail && d.state !== "COMPLETED" && <span className="block text-xs text-muted">{d.detail}</span>}
@@ -364,6 +378,19 @@ function Progress({ state, onRetry }: { state: State; onRetry: () => void }) {
       </AnimatePresence>
     </section>
   );
+}
+
+// A small marker after a tab's name while research runs or when its section has limited data. Ready tabs
+// carry no marker, so a finished page is quiet.
+function TabState({ state, tab }: { state: State; tab: Tab }) {
+  const d = state.done[TAB_STAGE[tab]];
+  if (!d) {
+    if (state.status !== "running") return null;
+    return <span title="Processing" aria-hidden className="ml-1.5 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-faint align-middle" />;
+  }
+  if (d.state === "COMPLETED") return null;
+  const word = d.state === "PARTIAL" ? "Limited data" : d.state === "INSUFFICIENT_DATA" ? "Insufficient data" : "Unavailable";
+  return <span title={word} aria-hidden className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-warn align-middle" />;
 }
 
 // Screen readers hear which tabs are ready while the research runs; sighted readers see the progress list.
@@ -390,13 +417,14 @@ function Overview({ report, quote }: { report: Report; quote: Quote | null }) {
           )}
         </Panel>
         <Panel title={`What moved in FY${latest}`}><WhatMoved report={report} limit={6} /></Panel>
-        <div className="grid gap-4 rounded-xl border border-line bg-surface p-4 sm:grid-cols-3 sm:p-5">
+        <div className="grid gap-6 border-t border-line pt-4 sm:grid-cols-3">
           <TrendChart report={report} title="Profit for the year" codes={["profit_for_year", "profit_attributable_owners"]} testId="trend-profit" />
           <TrendChart report={report} title="Operating income" codes={["total_operating_income", "operating_income_pre_impairment"]} />
           <TrendChart report={report} title="Return on equity" ratio="roe" />
         </div>
       </div>
       <div className="space-y-5">
+        <RelatedNews securityId={report.security.id} />
         <Panel title={`Key figures, FY${latest}`} testId="key-ratios">
           <dl className="divide-y divide-line text-sm">
             {KEY_RATIOS.map((code) => {

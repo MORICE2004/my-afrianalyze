@@ -6,20 +6,23 @@ import { direction, fmtSignedPct } from "@/lib/format";
 
 type Num = number | string;
 
-// A surface with a quiet border. Used for every block on a page, so spacing and weight stay consistent.
-export function Panel({ title, action, children, className = "", testId, id }: {
+// A section of a page: a heading on a hairline rule, then content. No box around it; hierarchy comes from type,
+// spacing and dividers, so pages do not turn into a wall of rounded cards. `boxed` keeps a surface for the few
+// blocks that need one (a chart over a tinted page, a form).
+export function Panel({ title, action, children, className = "", testId, id, boxed = false }: {
   title?: React.ReactNode; action?: React.ReactNode; children: React.ReactNode; className?: string;
-  testId?: string; id?: string;
+  testId?: string; id?: string; boxed?: boolean;
 }) {
   return (
-    <section id={id} data-testid={testId} className={`rounded-xl border border-line bg-surface ${className}`}>
+    <section id={id} data-testid={testId}
+      className={`min-w-0 ${boxed ? "rounded-lg border border-line bg-surface p-4 sm:p-5" : "border-t border-line pt-3"} ${className}`}>
       {(title || action) && (
-        <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3 sm:px-5">
-          {title && <h2 className="text-sm font-semibold text-fg">{title}</h2>}
+        <div className="mb-3 flex items-center justify-between gap-3">
+          {title && <h2 className="text-[13px] font-semibold uppercase tracking-[0.04em] text-muted">{title}</h2>}
           {action}
         </div>
       )}
-      <div className="p-4 sm:p-5">{children}</div>
+      <div>{children}</div>
     </section>
   );
 }
@@ -86,14 +89,23 @@ export function Skeleton({ className = "" }: { className?: string }) {
   return <div className={`skeleton ${className}`} aria-hidden />;
 }
 
-// Shown where data cannot be shown, saying why in plain words. Never "No data." or "Error."
-export function Empty({ title, children, testId }: { title: string; children?: React.ReactNode; testId?: string }) {
+// Shown where data cannot be shown: what is missing, in plain words, and what the reader can do next.
+// Never "No data." or "Error."
+export function Empty({ title, children, testId, action }: {
+  title: string; children?: React.ReactNode; testId?: string; action?: { label: string; href?: string; onClick?: () => void };
+}) {
   return (
-    <div data-testid={testId} className="rounded-lg border border-dashed border-line-strong bg-surface-2/40 px-4 py-5 text-sm">
+    <div data-testid={testId} className="rounded-lg bg-surface-2/60 px-4 py-4 text-sm">
       <div className="font-medium text-fg">{title}</div>
-      {children && <div className="mt-1 text-muted">{children}</div>}
+      {children && <div className="mt-1 max-w-prose text-muted">{children}</div>}
+      {action && <NextAction {...action} />}
     </div>
   );
+}
+
+export function NextAction({ label, href, onClick }: { label: string; href?: string; onClick?: () => void }) {
+  const cls = "mt-3 inline-flex h-8 items-center rounded-md border border-line-strong bg-surface px-3 text-sm font-medium text-fg transition-colors hover:bg-surface-2";
+  return href ? <a href={href} className={cls}>{label} →</a> : <button type="button" onClick={onClick} className={cls}>{label}</button>;
 }
 
 export function Stat({ label, value, sub, testId }: { label: string; value: React.ReactNode; sub?: React.ReactNode; testId?: string }) {

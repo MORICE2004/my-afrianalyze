@@ -5,7 +5,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import React, { useState } from "react";
+import { CommandPalette } from "@/components/CommandPalette";
 import { SecuritySearch } from "@/components/SecuritySearch";
+import { ToastProvider } from "@/components/ui/Toast";
 import { refreshAccount, useAccount } from "@/lib/account";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -14,6 +16,7 @@ export const NAV = [
   { href: "/", label: "Dashboard", match: (p: string) => p === "/" },
   { href: "/markets", label: "Markets", match: (p: string) => p.startsWith("/markets") },
   { href: "/research", label: "Research", match: (p: string) => p.startsWith("/research") || p.startsWith("/report") },
+  { href: "/news", label: "News", match: (p: string) => p.startsWith("/news") },
   { href: "/portfolio", label: "Portfolio", match: (p: string) => p.startsWith("/portfolio") || p.startsWith("/dashboard") },
 ];
 export const MORE = [
@@ -87,6 +90,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const moreActive = MORE.some((m) => pathname.startsWith(m.href));
 
   return (
+    <ToastProvider>
+    <CommandPalette />
     <div className="flex min-h-screen flex-col bg-background text-fg">
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[60] focus:rounded focus:bg-surface focus:px-3 focus:py-2">
         Skip to content
@@ -127,6 +132,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             {!["/", "/research", "/markets"].includes(pathname) && <SecuritySearch size="compact" />}
           </div>
           <div className="ml-auto flex items-center gap-2 lg:ml-0">
+            <button type="button" onClick={() => window.dispatchEvent(new Event("afriedge:palette"))} data-testid="palette-open"
+              className="hidden h-9 items-center gap-1.5 rounded-md border border-line px-2.5 text-xs text-muted transition-colors hover:text-fg xl:inline-flex"
+              aria-label="Quick search (Ctrl+K)">
+              <kbd className="font-sans">Ctrl K</kbd>
+            </button>
             <ThemeToggle />
             <div className="hidden sm:block"><AccountMenu /></div>
             <button
@@ -157,14 +167,21 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       </header>
       <main id="main" className="mx-auto w-full max-w-[1320px] flex-1 px-4 py-6 sm:px-6 sm:py-8">{children}</main>
       <footer className="border-t border-line">
-        <div className="mx-auto flex max-w-[1320px] flex-col gap-2 px-4 py-5 text-xs text-muted sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <p>For research and education only. Not investment advice. Every figure links to its source; missing figures say why.</p>
-          <p className="flex gap-4">
-            <Link href="/health" className="hover:text-fg">Data sources</Link>
-            <Link href="/settings" className="hover:text-fg">Settings</Link>
-          </p>
+        <div className="mx-auto grid max-w-[1320px] gap-4 px-4 py-6 text-xs text-muted sm:grid-cols-[1fr_auto] sm:px-6">
+          <div>
+            <div className="text-sm font-semibold text-fg">AfriEdge</div>
+            <div>African financial intelligence</div>
+            <p className="mt-2 max-w-md text-faint">For research and education only. Not investment advice.</p>
+          </div>
+          <nav aria-label="Footer" className="flex flex-wrap content-start gap-x-5 gap-y-2">
+            {[["/markets", "Markets"], ["/research", "Research"], ["/portfolio", "Portfolio"], ["/news", "News"],
+              ["/health", "Data sources"], ["/privacy", "Privacy & cookies"]].map(([h, l]) => (
+              <Link key={h} href={h} className="hover:text-fg">{l}</Link>
+            ))}
+          </nav>
         </div>
       </footer>
     </div>
+    </ToastProvider>
   );
 }

@@ -12,19 +12,19 @@ const TONE: Record<string, string> = {
   HOLD: "text-fg", "Fairly valued": "text-fg", Inconclusive: "text-muted",
 };
 
-function headline(rec: Rec): { word: string; sub: string; tone: string } {
-  if (!rec.available) return { word: "No view", sub: "Not enough sourced evidence to form one.", tone: "text-muted" };
+function headline(rec: Rec): { word: string; sub: string; tone: string; review: boolean } {
+  if (!rec.available) return { word: "View unavailable", sub: "There are not yet enough verified inputs for a reliable view.", tone: "text-muted", review: false };
   if (rec.model_view === "Inconclusive") {
-    return { word: "No view", tone: "text-muted",
-      sub: "The result changes with the cost-of-equity method, so no view is given until that is settled." };
+    return { word: "View unavailable", tone: "text-muted", review: true,
+      sub: "Current valuation methods give conflicting results." };
   }
-  if (rec.trade_label) return { word: rec.trade_label, sub: `Model view: ${rec.model_view}`, tone: TONE[rec.trade_label] };
-  return { word: rec.model_view, sub: "Model view", tone: TONE[rec.model_view] ?? "text-fg" };
+  if (rec.trade_label) return { word: rec.trade_label, sub: `Model view: ${rec.model_view}`, tone: TONE[rec.trade_label], review: false };
+  return { word: rec.model_view, sub: "Model view", tone: TONE[rec.model_view] ?? "text-fg", review: false };
 }
 
-// The investment result first: the view, the price against fair value, and how much to trust it.
-// A missing view is shown as "No view" with its reason; it is never filled in.
-export function ViewCard({ report, quote }: { report: Report; quote: Quote | null }) {
+// The decision row: the view, the price against fair value, and how much to trust it. A withheld view says so
+// calmly and points to the valuation explanation; it is never filled in.
+export function ViewCard({ report, quote, onReviewAssumptions }: { report: Report; quote: Quote | null; onReviewAssumptions?: () => void }) {
   const { header, valuation, security } = report;
   const rec = header.recommendation;
   const h = headline(rec);
@@ -33,29 +33,37 @@ export function ViewCard({ report, quote }: { report: Report; quote: Quote | nul
   const cur = security.currency;
   const inconclusive = rec.available && rec.model_view === "Inconclusive";
   return (
-    <section aria-label="AfriEdge view" data-testid="model-view" className="rounded-xl border border-line bg-surface">
-      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-line lg:grid-cols-[1.3fr_1fr_1fr_1fr_1fr]">
-        <div className="col-span-2 bg-surface p-4 sm:p-5 lg:col-span-1">
+    <section aria-label="AfriEdge view" data-testid="model-view" className="border-y border-line">
+      <div className="grid grid-cols-2 divide-line lg:grid-cols-[1.4fr_1fr_1fr_1fr_1fr] lg:divide-x [&>*]:py-4 lg:[&>*:not(:first-child)]:pl-5">
+        <div className="col-span-2 border-b border-line lg:col-span-1 lg:border-b-0 lg:pr-5">
           <div className="text-xs font-medium text-muted">AfriEdge view</div>
           <div className={`mt-1 text-2xl font-semibold tracking-tight ${h.tone}`} data-testid="view-word">{h.word}</div>
-          <p className="mt-1 text-xs leading-relaxed text-muted" data-testid={rec.available && rec.inconclusive_reason ? "inconclusive-reason" : undefined}>
+          <p className="mt-1 text-sm text-muted" data-testid={rec.available && rec.inconclusive_reason ? "inconclusive-reason" : undefined}>
             {h.sub}
           </p>
-          {rec.available && rec.inconclusive_reason && (
-            <Hint content={rec.inconclusive_reason}>
-              <button type="button" className="mt-1 text-xs text-muted underline decoration-dotted underline-offset-4">Why?</button>
-            </Hint>
+          {h.review && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 text-sm">
+              {onReviewAssumptions && (
+                <button type="button" onClick={onReviewAssumptions} data-testid="review-assumptions"
+                  className="font-medium text-fg underline decoration-line-strong underline-offset-4 hover:decoration-fg">Review assumptions</button>
+              )}
+              {rec.available && rec.inconclusive_reason && (
+                <Hint content={rec.inconclusive_reason}>
+                  <button type="button" className="text-xs text-muted underline decoration-dotted underline-offset-4">Why?</button>
+                </Hint>
+              )}
+            </div>
           )}
         </div>
         <Cell label="Price" testId="price">
           {quote && quote.available ? `${cur} ${fmtPerShare(quote.price)}` : header.price.available ? `${cur} ${fmtPerShare(header.price.value)}` : "Not shown"}
         </Cell>
         <Cell label="Fair value" testId="fair-value"
-          sub={header.fair_value_range.available ? `Range ${fmtPerShare(header.fair_value_range.low)} – ${fmtPerShare(header.fair_value_range.high)}${inconclusive ? "; other methods differ (Valuation tab)" : ""}` : undefined}>
+          sub={header.fair_value_range.available ? `Range ${fmtPerShare(header.fair_value_range.low)} – ${fmtPerShare(header.fair_value_range.high)}${inconclusive ? "; other methods differ" : ""}` : undefined}>
           {fv.available && fv.fair_value !== undefined ? `${cur} ${fmtPerShare(fv.fair_value)}` : "Not available"}
         </Cell>
         <Cell label="Upside to 12-month target" testId="upside"
-          sub={header.target_price.available ? `Target ${cur} ${fmtPerShare(header.target_price.value)}${inconclusive ? ", configured method only" : ""}` : undefined}>
+          sub={header.target_price.available ? `Target ${cur} ${fmtPerShare(header.target_price.value)}${inconclusive ? ", one method only" : ""}` : undefined}>
           {rec.available ? (
             // When the view is withheld, the upside is shown without colour: it holds under one method, not all.
             <span className={inconclusive ? "text-fg" : Number(rec.price_upside) >= 0 ? "text-pos" : "text-neg"}>{fmtSignedPct(Number(rec.price_upside))}</span>
@@ -68,7 +76,7 @@ export function ViewCard({ report, quote }: { report: Report; quote: Quote | nul
           </Hint>
         </Cell>
       </div>
-      <p className="border-t border-line px-4 py-2.5 text-[11px] leading-relaxed text-faint sm:px-5">
+      <p className="border-t border-line py-2.5 text-[11px] leading-relaxed text-faint">
         A model output from a fixed rule: undervalued if the expected 12-month total return beats the cost of equity by
         more than {fmtPct(report.recommendation_rule.buy_margin)}, overvalued if it falls short by more than{" "}
         {fmtPct(report.recommendation_rule.sell_margin)}. A buy, hold or sell label appears only when the view holds under
@@ -80,9 +88,9 @@ export function ViewCard({ report, quote }: { report: Report; quote: Quote | nul
 
 function Cell({ label, children, sub, testId }: { label: string; children: React.ReactNode; sub?: string; testId?: string }) {
   return (
-    <div className="bg-surface p-4 sm:p-5" data-testid={testId}>
+    <div data-testid={testId} className="min-w-0 pr-3">
       <div className="text-xs font-medium text-muted">{label}</div>
-      <div className="mt-1 text-xl font-semibold">{children}</div>
+      <div className="mt-1 text-xl font-semibold tabular-nums">{children}</div>
       {sub && <div className="mt-0.5 text-xs text-muted">{sub}</div>}
     </div>
   );

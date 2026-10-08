@@ -532,3 +532,15 @@ Confidence: 45 of 100 (Low). The deductions are:
 - Baseline audit (now the last section of `MY_AFRIANALYZE_MASTER_AUDIT.md`).
 - Commit `716dfae`: the frontend source was imported into `apps/web`. Before this, GitHub only had a gitlink.
 - Baseline test run: 71 passed, 2 failed (`test_use_connector_*`), 3 files failed to import.
+
+## 2026-10-08: interface, motion and economic news
+
+- News: `pipelines/news.py` fills `news_items` (migration c7a1e3f9b2d4) from three official sources; `/api/v1/news`,
+  `/api/v1/news/{id}`; `/news` and story pages with related indicators, markets and companies; news on the home page
+  and on company pages; source states on `/admin`. Found and fixed: the World Bank API ignores its country filter
+  (stories outside East Africa are now dropped); Bank of Tanzania times were shifted three hours by SQLite (stored in
+  UTC now, with a test).
+- Interface: sections without boxes, one motion system (`components/motion/primitives.tsx`, reduced motion
+  respected), `VerificationBadge`, toasts, Ctrl+K quick search, a calmer "View unavailable" with "Review
+  assumptions", tab state markers, a Pro workbook explainer, a clean footer, `/privacy`.
+- Tests: Python 409 passed, 4 skipped; Playwright 74/74; no horizontal overflow in 80 page views.

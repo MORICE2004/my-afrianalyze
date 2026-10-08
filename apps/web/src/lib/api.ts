@@ -374,3 +374,24 @@ export type StreamEvent =
   | { event: "report"; data: Report }
   | { event: "unavailable"; status: string; reason: string }
   | { event: "done"; total_ms: number };
+
+// ------------------------------------------------------------------ news (pipelines/news.py → news_items)
+
+export type Relevance = "HIGH" | "MEDIUM" | "LOW" | "NOT_ASSESSED";
+export interface NewsItem {
+  id: string; title: string; url: string; language: string; published_at: string; retrieved_at: string;
+  summary: string | null; countries: string[]; categories: string[]; relevance: Relevance; relevance_reason: string;
+  source: { id: string; name: string; tier: number | null; tier_label: string | null };
+  companies: { security_id: string; name: string; link: "named" | "sector" }[];
+}
+export interface NewsList {
+  items: NewsItem[]; count: number; categories: string[];
+  sources: { name: string; tier: number; connected: boolean }[];
+  some_sources_unavailable: boolean; notice: string | null; relevance_method: string; terms: string;
+}
+export interface NewsDetail extends NewsItem {
+  markets: { country: string; exchange: string; currency: string }[];
+  indicators: ({ series_id: string; label: string } & ({ available: true; value: string; unit: string; date: string; source_url: string } | { available: false; reason: string }))[];
+  related_companies: { security_id: string; name: string; ticker: string; exchange: string; currency: string; link: string; why: string }[];
+  why_it_matters: string | null; caution: string;
+}

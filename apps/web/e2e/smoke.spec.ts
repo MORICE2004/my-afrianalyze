@@ -85,7 +85,7 @@ test("search finds NMB by ticker and CRDB despite a typo, and Enter opens the re
   await box.fill("crdb bnk");
   await expect(page.getByRole("option").first()).toContainText("CRDB Bank Plc");
   await box.fill("zzzz");
-  await expect(page.getByTestId("search-no-results")).toContainText("No listed company matches");
+  await expect(page.getByTestId("search-no-results")).toContainText("No company matched");
   await box.fill("nmb");
   await box.press("ArrowDown");
   await box.press("ArrowUp");
@@ -205,7 +205,8 @@ test("Excel export is Pro: locked in the page and refused by the server", async 
   test.skip(!!process.env.OFFLINE, "needs the API");
   await openCompany(page, "DSE:NMB");
   await page.getByTestId("export-excel-locked").click();
-  await expect(page.locator("main")).toContainText("The analyst workbook is part of AfriEdge Pro.");
+  await expect(page.getByTestId("pro-explainer")).toContainText("Available with AfriEdge Pro");
+  await expect(page.getByTestId("pro-explainer")).toContainText("13 sheets");
   // Hiding a button is not the check: the server refuses a signed-out request and a Free account alike.
   expect((await page.request.get("/api/export/DSE:NMB")).status()).toBe(401);
   await signUp(page, "free");
@@ -335,4 +336,57 @@ test("markets shows the session, activity, movers and sectors, and Kenya and Uga
   await expect(page.getByTestId("sectors")).toContainText("Banks, Finance & Investments");
   await expect(page.getByTestId("market-NSE")).toContainText("Kenya market data is not yet connected.");
   await expect(page.getByTestId("market-USE")).toContainText("Uganda market data is not yet connected.");
+});
+
+test("news lists official stories with source, time, relevance and a link out, and opens a story in context", async ({ page }) => {
+  test.skip(!!process.env.OFFLINE, "needs the API");
+  const errors = watchErrors(page);
+  await page.goto("/news", { waitUntil: "networkidle" });
+  await expect(page.getByTestId("news-card").first()).toBeVisible();
+  const body = await page.locator("main").innerText();
+  expect(body).not.toMatch(/breaking|bullish|bearish/i);
+  await expect(page.getByTestId("news-sources")).toContainText("Central Bank of Kenya");
+  await page.getByRole("link", { name: "Kenya", exact: true }).click();
+  await expect(page).toHaveURL(/country=KE/);
+  await page.getByTestId("news-card").first().getByRole("heading").getByRole("link").click();
+  await page.waitForURL(/\/news\/[0-9a-f]{40}$/, { timeout: 30000 });
+  await expect(page.getByTestId("news-story")).toContainText("Why it may matter to East African markets");
+  await expect(page.getByTestId("read-source")).toHaveAttribute("href", /^https:\/\//);
+  expect(errors).toEqual([]);
+});
+
+test("the home page shows market-relevant news; Ctrl+K opens quick search and goes to a company", async ({ page }) => {
+  test.skip(!!process.env.OFFLINE, "needs the API");
+  await page.goto("/", { waitUntil: "networkidle" });
+  await expect(page.getByTestId("home-news")).toContainText("Economic news");
+  await page.keyboard.press("Control+k");
+  await expect(page.getByTestId("command-palette")).toBeVisible();
+  await page.keyboard.type("crdb");
+  await expect(page.getByTestId("command-palette")).toContainText("CRDB Bank Plc");
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/report\/DSE(%3A|:)CRDB/);
+});
+
+test("a withheld view explains itself and 'Review assumptions' opens the valuation", async ({ page }) => {
+  test.skip(!!process.env.OFFLINE, "needs the API");
+  await openCompany(page, "DSE:NMB");
+  const word = await page.getByTestId("view-word").innerText();
+  test.skip(word !== "View unavailable", `NMB's view is ${word}`);
+  await expect(page.getByTestId("model-view")).toContainText("Current valuation methods give conflicting results.");
+  await page.getByTestId("review-assumptions").click();
+  await expect(page.getByRole("tab", { name: "Valuation" })).toHaveAttribute("data-state", "active");
+  await page.getByTestId("verification-badge").click();
+  await expect(page.locator("body")).toContainText("two independent extraction methods");
+});
+
+test("with reduced motion the company page still shows every state, and the privacy page lists what is stored", async ({ browser }) => {
+  test.skip(!!process.env.OFFLINE, "needs the API");
+  const ctx = await browser.newContext({ reducedMotion: "reduce" });
+  const page = await ctx.newPage();
+  await openCompany(page, "DSE:NMB");
+  await expect(page.getByTestId("model-view")).toBeVisible();
+  await expect(page.getByTestId("quote-header")).toContainText("TZS");
+  await page.goto("/privacy");
+  await expect(page.locator("main")).toContainText("no analytics or advertising cookies");
+  await ctx.close();
 });
