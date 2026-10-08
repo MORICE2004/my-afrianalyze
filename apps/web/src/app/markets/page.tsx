@@ -38,30 +38,17 @@ function Movers({ title, rows, testId }: { title: string; rows: Mover[]; testId:
   );
 }
 
+// Breadth as plain counts. Colour marks direction on the words themselves; no decorative bar.
 function Breadth({ b }: { b: NonNullable<MarketsOverview["movers"]["breadth"]> }) {
-  const parts = [
-    { n: b.up, label: "up", cls: "bg-pos" },
-    { n: b.unchanged + b.no_trade, label: "flat or no trade", cls: "bg-line-strong" },
-    { n: b.down, label: "down", cls: "bg-neg" },
-  ];
-  const total = parts.reduce((a, p) => a + p.n, 0) || 1;
   return (
-    <div>
-      <div className="flex h-2.5 overflow-hidden rounded-full bg-surface-2" role="img"
-        aria-label={`${b.up} up, ${b.down} down, ${b.unchanged + b.no_trade} flat or without a trade`}>
-        {parts.map((p) => p.n > 0 && <span key={p.label} className={p.cls} style={{ width: `${(p.n / total) * 100}%` }} />)}
-      </div>
-      <p className="mt-2 text-xs text-muted">
-        <span className="text-pos">{b.up} up</span> · <span className="text-neg">{b.down} down</span> · {b.unchanged} unchanged · {b.no_trade} without a trade
-        {b.not_updated ? ` · ${b.not_updated} not updated` : ""}
-      </p>
-    </div>
+    <p className="text-sm text-muted" data-testid="breadth">
+      <span className="font-medium text-pos">{b.up} up</span> · <span className="font-medium text-neg">{b.down} down</span> · {b.unchanged} unchanged · {b.no_trade} without a trade
+      {b.not_updated ? ` · ${b.not_updated} not updated` : ""}
+    </p>
   );
 }
 
 function Sectors({ indices }: { indices: IndexSummary[] }) {
-  const ok = indices.filter((i): i is Extract<IndexSummary, { available: true }> => i.available);
-  const max = Math.max(0.0001, ...ok.map((i) => Math.abs(Number(i.change_ytd ?? 0))));
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm" data-testid="sectors">
@@ -72,7 +59,7 @@ function Sectors({ indices }: { indices: IndexSummary[] }) {
             <th className="px-3 py-2 text-right font-medium">Day</th>
             <th className="px-3 py-2 text-right font-medium">1 month</th>
             <th className="px-3 py-2 text-right font-medium">1 year</th>
-            <th className="w-[32%] py-2 pl-3 text-left font-medium">Year to date</th>
+            <th className="py-2 pl-3 text-right font-medium">Year to date</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-line">
@@ -83,15 +70,7 @@ function Sectors({ indices }: { indices: IndexSummary[] }) {
               <td className="px-3 py-2.5 text-right"><Change value={i.change_1d} /></td>
               <td className="px-3 py-2.5 text-right"><Change value={i.change_1m} digits={1} /></td>
               <td className="px-3 py-2.5 text-right"><Change value={i.change_1y} digits={1} /></td>
-              <td className="py-2.5 pl-3">
-                <div className="flex items-center gap-2">
-                  <div className="h-2 flex-1 rounded-full bg-surface-2">
-                    <div className={`h-2 rounded-full ${Number(i.change_ytd) >= 0 ? "bg-pos" : "bg-neg"}`}
-                      style={{ width: `${(Math.abs(Number(i.change_ytd ?? 0)) / max) * 100}%` }} />
-                  </div>
-                  <Change value={i.change_ytd} digits={1} className="w-20 text-right" />
-                </div>
-              </td>
+              <td className="py-2.5 pl-3 text-right"><Change value={i.change_ytd} digits={1} /></td>
             </tr>
           ) : (
             <tr key={i.id}><td className="py-2.5 pr-3">{i.name}</td><td colSpan={5} className="px-3 py-2.5 text-right text-xs text-muted">Not available</td></tr>

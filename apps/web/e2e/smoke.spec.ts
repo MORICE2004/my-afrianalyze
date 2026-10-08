@@ -15,7 +15,7 @@ const ROUTES: { path: string; name: string; expectText: RegExp }[] = [
   { path: "/dashboard", name: "dashboard", expectText: /Sign in to see your portfolios/i },
   { path: "/watchlist", name: "watchlist", expectText: /Your watchlist is empty/i },
   { path: "/settings", name: "settings", expectText: /Appearance/i },
-  { path: "/login", name: "login", expectText: /Sign in to AfriEdge/i },
+  { path: "/login", name: "login", expectText: /Research on listed African companies is open to read/i },
   { path: "/funds", name: "funds", expectText: /LICENSE_REVIEW_REQUIRED/ },
   { path: "/health", name: "health", expectText: /Used today/i },
   { path: "/admin", name: "admin", expectText: /Sign in to continue/i },
@@ -143,7 +143,9 @@ test("a statement value opens its evidence: document, page, period, validation a
   await expect(card).toContainText("Document");
   await expect(card).toContainText("Page");
   await expect(card).toContainText("Validation");
-  await expect(card.locator("a[href*='/api/v1/sources/']")).toHaveAttribute("href", /#page=\d+$/);
+  // The document opens in AfriEdge's page viewer at the cited page; the original file is never linked.
+  await expect(card.getByTestId("view-source-page")).toHaveAttribute("href", /^\/sources\/\d+\?page=\d+$/);
+  await expect(card.locator("a[href*='/api/v1/sources/']")).toHaveCount(0);
 });
 
 for (const id of ["DSE:NMB", "DSE:CRDB"]) {
@@ -204,13 +206,53 @@ test("a company added to the watchlist appears on the watchlist and the dashboar
 test("Excel export is Pro: locked in the page and refused by the server", async ({ page }) => {
   test.skip(!!process.env.OFFLINE, "needs the API");
   await openCompany(page, "DSE:NMB");
-  await page.getByTestId("export-excel-locked").click();
-  await expect(page.getByTestId("pro-explainer")).toContainText("Available with AfriEdge Pro");
-  await expect(page.getByTestId("pro-explainer")).toContainText("13 sheets");
+  // View-only: a reader without the export entitlement sees no export control at all.
+  await expect(page.getByTestId("model-view")).toBeVisible();
+  await expect(page.getByTestId("exports")).toHaveCount(0);
+  await expect(page.getByTestId("download-pdf")).toHaveCount(0);
+  expect((await page.request.get("/api/export/DSE:NMB?format=pdf")).status()).toBe(401);
+  expect((await page.request.get(`${API}/api/v1/reports/DSE:NMB/pdf`)).status()).toBe(401);
   // Hiding a button is not the check: the server refuses a signed-out request and a Free account alike.
   expect((await page.request.get("/api/export/DSE:NMB")).status()).toBe(401);
   await signUp(page, "free");
   expect((await page.request.get("/api/export/DSE:NMB")).status()).toBe(403);
+  expect((await page.request.get("/api/export/DSE:NMB?format=pdf")).status()).toBe(403);
+  await openCompany(page, "DSE:NMB");
+  await expect(page.getByTestId("exports")).toHaveCount(0);
+});
+
+test("source documents are read as pages inside AfriEdge; the original file is never served to a reader", async ({ page }) => {
+  test.skip(!!process.env.OFFLINE, "needs the API");
+  const report = await (await page.request.get(`${API}/api/v1/reports/DSE:NMB`)).json();
+  const doc = report.sources.documents[0];
+  expect(doc.viewer_url).toMatch(/^\/sources\/\d+/);
+  expect(JSON.stringify(report)).not.toMatch(/\/api\/v1\/sources\/\d+\/file|data\/raw/);
+  // Signed out: the viewer asks to sign in; every document endpoint refuses.
+  await page.goto(doc.viewer_url);
+  await expect(page.getByTestId("viewer-signin")).toContainText("Sign in to read source documents");
+  for (const p of [`/api/v1/sources/${doc.document_id}/file`, `/api/v1/sources/${doc.document_id}/pages/1`, `/api/v1/sources/${doc.document_id}`]) {
+    expect((await page.request.get(`${API}${p}`)).status(), p).toBe(401);
+  }
+  expect((await page.request.get(`/api/source-page/${doc.document_id}/1`)).status()).toBe(401);
+  // Signed in as an ordinary reader: pages render as images; the original file is still refused.
+  await signUp(page, "viewer");
+  await page.goto(`${doc.viewer_url}`);
+  await expect(page.getByTestId("source-viewer")).toBeVisible();
+  const img = page.getByTestId("source-page-image");
+  await expect(img).toBeVisible();
+  expect(await img.evaluate((e: HTMLImageElement) => e.complete && e.naturalWidth > 400)).toBe(true);
+  const pageRes = await page.request.get(`/api/source-page/${doc.document_id}/1`);
+  expect(pageRes.headers()["content-type"]).toBe("image/png");
+  await expect(page.getByTestId("original-source")).toHaveAttribute("href", /^https?:\/\//);
+});
+
+test("the footer carries legal and information links only, not the main navigation", async ({ page }) => {
+  await page.goto("/about");
+  const footer = page.getByTestId("site-footer");
+  for (const l of ["Privacy", "Cookies", "Risk disclaimer", "Data methodology", "About"]) await expect(footer.getByRole("link", { name: l, exact: true })).toBeVisible();
+  for (const l of ["Markets", "Research", "Portfolio", "News"]) await expect(footer.getByRole("link", { name: l, exact: true })).toHaveCount(0);
+  await footer.getByRole("link", { name: "Risk disclaimer" }).click();
+  await expect(page.getByTestId("disclaimer-page")).toContainText("Not investment advice");
 });
 
 test("the administration page is refused to an ordinary account", async ({ page }) => {

@@ -124,10 +124,10 @@ export function ValuationRange({ report, quote }: { report: Report; quote: Quote
             className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full ${m.kind === "fair" ? "h-3.5 w-3.5 bg-fg" : m.kind === "method" ? "h-2.5 w-2.5 border-2 border-fg bg-surface" : "h-2.5 w-2.5 bg-muted"}`}
             style={{ left: pos(m.value) }} />
         ))}
-        {price && <span className="absolute top-0 h-full w-0.5 -translate-x-1/2 bg-neg" style={{ left: pos(price) }} title={`Price ${fmtPerShare(price)}`} />}
+        {price && <span className="absolute top-0 h-full w-0.5 -translate-x-1/2 bg-fg" style={{ left: pos(price) }} title={`Price ${fmtPerShare(price)}`} />}
       </div>
       <ul className="grid gap-x-6 gap-y-1 text-xs sm:grid-cols-2">
-        {price && <li className="flex justify-between"><span><span className="mr-2 inline-block h-3 w-0.5 bg-neg align-middle" />Price today</span><span>{fmtPerShare(price)}</span></li>}
+        {price && <li className="flex justify-between"><span><span className="mr-2 inline-block h-3 w-0.5 bg-fg align-middle" />Price today</span><span>{fmtPerShare(price)}</span></li>}
         {marks.map((m) => (
           <li key={m.label} className="flex justify-between gap-3">
             <span className="truncate">

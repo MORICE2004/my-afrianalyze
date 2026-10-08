@@ -355,15 +355,18 @@ def stream_research(security_id: str, session: Session = Depends(get_session)) -
 
 
 @app.get("/api/v1/reports/{security_id}/pdf")
-def get_report_pdf(security_id: str, session: Session = Depends(get_session)) -> Response:
+def get_report_pdf(security_id: str, user=Depends(auth_router.require_feature("excel_export")),
+                   session: Session = Depends(get_session)) -> Response:
+    """The research as a PDF file. A download, so it carries the same export entitlement as the workbook:
+    readers without it view the research on the page and get 401/403 here."""
     from packages.report.pdf import render_pdf
 
     report = get_report(security_id, session)
     pdf = render_pdf(report)
-    telemetry.track("report_pdf_downloaded", None, {"security_id": report["security"]["id"]})
+    telemetry.track("report_pdf_downloaded", user.id, {"security_id": report["security"]["id"]})
     name = f"AfriEdge_{report['security']['id'].replace(':', '_')}_{date.today():%Y%m%d}.pdf"
     return Response(pdf, media_type="application/pdf",
-                    headers={"Content-Disposition": f'attachment; filename="{name}"'})
+                    headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"})
 
 
 @app.get("/api/v1/reports/{security_id}/xlsx")
@@ -487,21 +490,71 @@ def get_research_run(run_id: str, session: Session = Depends(get_session)) -> di
     return describe(run)
 
 
-@app.get("/api/v1/sources/{document_id}/file")
-def get_source_file(document_id: int, session: Session = Depends(get_session)) -> FileResponse:
+def _viewable_document(session: Session, document_id: int) -> tuple[SourceDocument, Path]:
     doc = session.get(SourceDocument, document_id)
     if doc is None or not doc.file_path:
-        raise HTTPException(404, "Source file not stored")
+        raise HTTPException(404, "Document not found.")
     if doc.kind in {"licensed_price_file", "public_price_file", "public_index_file"}:
-        # Exchange price data is used to calculate, not republished: the DSE's own terms restrict
-        # redistribution, and the report already shows the address it came from. Checked before the disk,
-        # so the answer is the same whether or not the file is present.
-        raise HTTPException(403, "Exchange price data files are not redistributed")
+        # Exchange price data is used to calculate, not republished (DSE terms). Checked before the disk.
+        raise HTTPException(403, "Exchange price data files are not shown.")
     path = (REPO_ROOT / doc.file_path).resolve()
-    if not path.is_file() or REPO_ROOT.resolve() not in path.parents:
-        raise HTTPException(404, "Source file missing on disk")
-    return FileResponse(path, media_type="application/pdf", filename=Path(doc.file_path).name,
-                        content_disposition_type="inline")
+    if not path.is_file() or REPO_ROOT.resolve() not in path.parents or path.suffix.lower() != ".pdf":
+        raise HTTPException(404, "Document not available.")
+    return doc, path
+
+
+def _page_count(path: Path) -> int:
+    import pypdfium2 as pdfium
+
+    pdf = pdfium.PdfDocument(str(path))
+    try:
+        return len(pdf)
+    finally:
+        pdf.close()
+
+
+@app.get("/api/v1/sources/{document_id}")
+def get_source_meta(document_id: int, _user=Depends(auth_router.current_user),
+                    session: Session = Depends(get_session)) -> dict:
+    """What the viewer needs: title, publisher, the publisher's own address and the page count. No file path."""
+    doc, path = _viewable_document(session, document_id)
+    return {"document_id": doc.id, "title": doc.title, "publisher": doc.publisher, "kind": doc.kind,
+            "original_url": doc.url, "retrieved_at": doc.retrieved_at.isoformat() if doc.retrieved_at else None,
+            "sha256": doc.sha256, "pages": _page_count(path)}
+
+
+@app.get("/api/v1/sources/{document_id}/pages/{page}")
+def get_source_page(document_id: int, page: int, _user=Depends(auth_router.current_user),
+                    session: Session = Depends(get_session)) -> Response:
+    """One page of a stored source document, rendered on the server as a PNG image for signed-in readers.
+    The PDF itself is never sent: there is no reader endpoint that returns the file. (A page on screen can
+    always be captured; what is withheld is the original document and any bulk path to it.)"""
+    import io
+
+    import pypdfium2 as pdfium
+
+    _, path = _viewable_document(session, document_id)
+    pdf = pdfium.PdfDocument(str(path))
+    try:
+        if not 1 <= page <= len(pdf):
+            raise HTTPException(404, "No such page.")
+        image = pdf[page - 1].render(scale=1.6).to_pil()
+    finally:
+        pdf.close()
+    buf = io.BytesIO()
+    image.convert("RGB").save(buf, format="PNG", optimize=True)
+    return Response(buf.getvalue(), media_type="image/png",
+                    headers={"Cache-Control": "private, no-store", "Content-Disposition": "inline",
+                             "X-Content-Type-Options": "nosniff"})
+
+
+@app.get("/api/v1/sources/{document_id}/file")
+def get_source_file(document_id: int, _admin=Depends(auth_router.require_admin),
+                    session: Session = Depends(get_session)) -> FileResponse:
+    """The original file, for administrators checking an extraction. Readers use the page viewer above."""
+    _, path = _viewable_document(session, document_id)
+    return FileResponse(path, media_type="application/pdf", filename=path.name, content_disposition_type="attachment",
+                        headers={"Cache-Control": "no-store"})
 
 
 # ------------------------------------------------------------------ markets

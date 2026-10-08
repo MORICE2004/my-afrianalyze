@@ -399,3 +399,9 @@ class NewsItem(Base):
     relevance_reason: Mapped[str] = mapped_column(Text)
     related: Mapped[dict] = mapped_column(JSON, default=dict)
     raw_sha256: Mapped[str] = mapped_column(String(64))
+    # The publisher's own preview image (og:image), kept only when it is at least 800 px wide. The image is
+    # linked, not copied. image_checked_at records that the page was looked at, so it is not fetched again.
+    image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    image_width: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    image_height: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    image_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

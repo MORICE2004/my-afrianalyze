@@ -27,7 +27,8 @@ const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
+  // Publisher preview images for news, from the whitelisted news sources only (config/news_sources.json).
+  "img-src 'self' data: blob: https://www.worldbank.org https://www.centralbank.go.ke https://www.bot.go.tz",
   "font-src 'self' data:",
   `connect-src 'self' ${apiOrigin}${isDev ? " ws: wss:" : ""}`.trim(),
   "frame-src 'none'",

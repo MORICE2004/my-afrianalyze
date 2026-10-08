@@ -11,13 +11,13 @@ import { ToastProvider } from "@/components/ui/Toast";
 import { refreshAccount, useAccount } from "@/lib/account";
 import { ThemeToggle } from "./ThemeToggle";
 
-// Four places to go, and the rest one click away: the research product should be usable without a tour.
+// One primary navigation. The logo goes home; secondary pages sit in "More"; legal pages live in the footer only.
 export const NAV = [
-  { href: "/", label: "Dashboard", match: (p: string) => p === "/" },
   { href: "/markets", label: "Markets", match: (p: string) => p.startsWith("/markets") },
-  { href: "/research", label: "Research", match: (p: string) => p.startsWith("/research") || p.startsWith("/report") },
-  { href: "/news", label: "News", match: (p: string) => p.startsWith("/news") },
+  { href: "/research", label: "Research", match: (p: string) => p.startsWith("/research") || p.startsWith("/report") || p.startsWith("/sources") },
   { href: "/portfolio", label: "Portfolio", match: (p: string) => p.startsWith("/portfolio") || p.startsWith("/dashboard") },
+  { href: "/news", label: "News", match: (p: string) => p.startsWith("/news") },
+  { href: "/health", label: "Data sources", match: (p: string) => p.startsWith("/health") },
 ];
 export const MORE = [
   { href: "/fixed-income", label: "Fixed income" },
@@ -25,6 +25,10 @@ export const MORE = [
   { href: "/watchlist", label: "Watchlist" },
   { href: "/settings", label: "Settings" },
 ];
+const LEGAL = [
+  ["/about", "About"], ["/methodology", "Data methodology"], ["/disclaimer", "Risk disclaimer"],
+  ["/privacy", "Privacy"], ["/privacy#cookies", "Cookies"],
+] as const;
 
 function AccountMenu() {
   const { status, user } = useAccount();
@@ -88,6 +92,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     setOpen(false);
   }
   const moreActive = MORE.some((m) => pathname.startsWith(m.href));
+  // The sign-in page is a full-screen composition of its own.
+  if (pathname === "/login") return <ToastProvider>{children}</ToastProvider>;
 
   return (
     <ToastProvider>
@@ -166,18 +172,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         )}
       </header>
       <main id="main" className="mx-auto w-full max-w-[1320px] flex-1 px-4 py-6 sm:px-6 sm:py-8">{children}</main>
-      <footer className="border-t border-line">
-        <div className="mx-auto grid max-w-[1320px] gap-4 px-4 py-6 text-xs text-muted sm:grid-cols-[1fr_auto] sm:px-6">
-          <div>
-            <div className="text-sm font-semibold text-fg">AfriEdge</div>
-            <div>African financial intelligence</div>
-            <p className="mt-2 max-w-md text-faint">For research and education only. Not investment advice.</p>
+      <footer className="border-t border-line" data-testid="site-footer">
+        <div className="mx-auto flex max-w-[1320px] flex-col gap-3 px-4 py-6 text-xs text-muted sm:flex-row sm:items-start sm:justify-between sm:px-6">
+          <div className="max-w-xl">
+            <span className="font-semibold text-fg">AfriEdge</span> · African financial intelligence
+            <p className="mt-1 text-faint">For research and education only. Not investment advice. Market data is end of day and is shown with the date it applies to.</p>
           </div>
-          <nav aria-label="Footer" className="flex flex-wrap content-start gap-x-5 gap-y-2">
-            {[["/markets", "Markets"], ["/research", "Research"], ["/portfolio", "Portfolio"], ["/news", "News"],
-              ["/health", "Data sources"], ["/privacy", "Privacy & cookies"]].map(([h, l]) => (
-              <Link key={h} href={h} className="hover:text-fg">{l}</Link>
-            ))}
+          <nav aria-label="Legal and information" className="flex flex-wrap gap-x-5 gap-y-2">
+            {LEGAL.map(([h, l]) => <Link key={h} href={h} className="hover:text-fg">{l}</Link>)}
           </nav>
         </div>
       </footer>

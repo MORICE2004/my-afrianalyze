@@ -28,6 +28,7 @@
   --chart-1: #141414;
   --chart-2: #6b7280;
   --chart-grid: #e6e6e2;
+  --auth-ground: #f3f1ec;
   color-scheme: light;
 }
 
@@ -52,6 +53,7 @@
   --chart-1: #ececea;
   --chart-2: #8b919a;
   --chart-grid: #26292e;
+  --auth-ground: #0f1012;
   color-scheme: dark;
 
   /*

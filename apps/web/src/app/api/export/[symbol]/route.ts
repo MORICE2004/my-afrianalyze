@@ -3,7 +3,7 @@ import { sessionToken } from "@/lib/session";
 
 const API = (process.env.API_URL_INTERNAL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
 
-// The Pro workbook. The browser cannot send the session to the API itself (the token lives in an httpOnly cookie
+// Pro exports: the workbook (default) or the PDF report (?format=pdf). The browser cannot send the session to the API itself (the token lives in an httpOnly cookie
 // here), so this forwards the request with the token and passes the file through. The API decides who may have it.
 export async function GET(_req: Request, ctx: RouteContext<"/api/export/[symbol]">) {
   const { symbol } = await ctx.params;
@@ -21,7 +21,8 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/export/[symbol]
     headers.set("x-afriedge-proxy-key", secret);
   }
   try {
-    const res = await fetch(`${API}/api/v1/reports/${encodeURIComponent(id)}/xlsx`, { headers, cache: "no-store" });
+    const format = new URL(_req.url).searchParams.get("format") === "pdf" ? "pdf" : "xlsx";
+    const res = await fetch(`${API}/api/v1/reports/${encodeURIComponent(id)}/${format}`, { headers, cache: "no-store" });
     if (!res.ok) {
       const body = await res.json().catch(() => ({ detail: `Export failed (${res.status})` }));
       return NextResponse.json(body, { status: res.status });

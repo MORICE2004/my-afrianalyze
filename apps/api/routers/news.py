@@ -53,6 +53,8 @@ def _item(n: NewsItem, src: dict) -> dict:
     return {"id": n.id, "title": n.title, "url": n.url, "language": n.language,
             "published_at": _aware(n.published_at).isoformat(), "retrieved_at": _aware(n.retrieved_at).isoformat(),
             "summary": n.summary, "countries": n.countries, "categories": n.categories,
+            "image": ({"url": n.image_url, "width": n.image_width, "height": n.image_height, "credit": s.get("name", n.source_id)}
+                      if n.image_url else None),
             "relevance": n.relevance, "relevance_reason": n.relevance_reason,
             "source": {"id": n.source_id, "name": s.get("name", n.source_id), "tier": s.get("tier"),
                        "tier_label": TIER_LABEL.get(s.get("tier"))},

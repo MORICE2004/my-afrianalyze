@@ -75,7 +75,7 @@ def test_production_hides_unreviewed_reports(monkeypatch):
     monkeypatch.setattr(settings, "APP_ENV", AppEnvironment.PRODUCTION)
     r = client.get("/api/v1/reports/DSE:NMB")
     assert r.status_code == 403 and "not been reviewed" in r.json()["detail"]
-    assert client.get("/api/v1/reports/DSE:NMB/pdf").status_code == 403
+    assert client.get("/api/v1/reports/DSE:NMB/pdf").status_code in (401, 403)
 
 
 def test_the_share_price_is_shown_only_with_the_source_it_came_from(report):
@@ -86,7 +86,7 @@ def test_the_share_price_is_shown_only_with_the_source_it_came_from(report):
     assert price["currency"] == "TZS" and price["trade_date"]
     src = price["source"]
     assert "dse.co.tz" in src["url"] and len(src["sha256"]) == 64 and src["retrieved_at"]
-    assert "file_url" not in src, "exchange price files are not served on"
+    assert "viewer_url" not in src and "file_url" not in src, "exchange price files are not shown"
 
 
 def test_a_trade_label_appears_only_when_there_is_a_valuation_behind_it(report):
@@ -145,7 +145,32 @@ def test_stale_inputs_are_flagged(report):
         assert inp["status"] in {"VERIFIED", "STALE"} and inp["age_days"] >= 0 and inp["source_url"]
 
 
-def test_pdf_says_draft_and_carries_the_disclaimer():
+class _User:
+    id, role, email = 1, "user", "reader@example.invalid"
+
+
+@pytest.fixture()
+def as_user(monkeypatch):
+    """A signed-in reader (role and plan chosen per test) without touching the users table."""
+    from apps.api.routers import auth as auth_router
+
+    who = _User()
+    app.dependency_overrides[auth_router.current_user] = lambda: who
+    monkeypatch.setattr(auth_router, "features", lambda session, user: set(getattr(user, "feats", set())))
+    yield who
+    app.dependency_overrides.clear()
+
+
+def test_report_pdf_is_an_export_refused_without_the_entitlement(as_user):
+    app.dependency_overrides.clear()
+    assert client.get("/api/v1/reports/DSE:NMB/pdf").status_code == 401
+    from apps.api.routers import auth as auth_router
+    app.dependency_overrides[auth_router.current_user] = lambda: as_user
+    assert client.get("/api/v1/reports/DSE:NMB/pdf").status_code == 403
+
+
+def test_pdf_says_draft_and_carries_the_disclaimer(as_user):
+    as_user.feats = {"excel_export"}
     r = client.get("/api/v1/reports/DSE:NMB/pdf")
     assert r.status_code == 200 and r.headers["content-type"] == "application/pdf"
     pdf = pdfium.PdfDocument(r.content)
@@ -161,11 +186,33 @@ def test_pdf_says_draft_and_carries_the_disclaimer():
             assert word not in whole, "no trade call without a valuation behind it"
 
 
-def test_source_files_are_served_and_paths_are_checked(report):
+def test_source_documents_are_viewed_as_pages_never_downloaded(report, as_user):
+    from apps.api.routers import auth as auth_router
+
     doc = report["sources"]["documents"][0]
-    r = client.get(f"/api/v1/sources/{doc['document_id']}/file")
+    did = doc["document_id"]
+    assert doc["viewer_url"].startswith(f"/sources/{did}") and "file_url" not in doc
+    # A signed-in reader gets the page count and rendered pages, never the file or its location on disk.
+    meta = client.get(f"/api/v1/sources/{did}").json()
+    assert meta["pages"] > 0 and "file_path" not in meta and "data/" not in str(meta)
+    r = client.get(f"/api/v1/sources/{did}/pages/1")
+    assert r.status_code == 200 and r.headers["content-type"] == "image/png" and r.content[1:4] == b"PNG"
+    assert "no-store" in r.headers["cache-control"]
+    assert client.get(f"/api/v1/sources/{did}/pages/{meta['pages'] + 1}").status_code == 404
+    # The original file: refused to a reader, given to an administrator.
+    assert client.get(f"/api/v1/sources/{did}/file").status_code == 403
+    as_user.role = "admin"
+    r = client.get(f"/api/v1/sources/{did}/file")
     assert r.status_code == 200 and r.content[:4] == b"%PDF"
     assert client.get("/api/v1/sources/999999/file").status_code == 404
+    # Signed out: nothing at all.
+    app.dependency_overrides.pop(auth_router.current_user)
+    for path in (f"/api/v1/sources/{did}", f"/api/v1/sources/{did}/pages/1", f"/api/v1/sources/{did}/file"):
+        assert client.get(path).status_code == 401, path
+
+
+def test_price_history_is_capped_to_what_charts_show():
+    assert client.get("/api/v1/prices/DSE:NMB?days=3650").status_code == 422
 
 
 def test_fixed_income_points_carry_sources():

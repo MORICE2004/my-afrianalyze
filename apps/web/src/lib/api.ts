@@ -40,9 +40,6 @@ export async function apiPost<T>(path: string, payload: unknown): Promise<ApiRes
   });
 }
 
-export function sourceFileUrl(fileUrl: string): string {
-  return `${API_URL}${fileUrl}`;
-}
 
 // ------------------------------------------------------------------ types
 
@@ -120,7 +117,7 @@ export interface DocRef {
   title: string;
   page: number | null;
   url: string;
-  file_url?: string;   // absent for sources we do not serve on, such as exchange price files
+  viewer_url?: string; // AfriEdge's page viewer; absent for sources not shown, such as exchange price files
   sha256: string | null;
   retrieved_at: string;
 }
@@ -381,6 +378,7 @@ export type Relevance = "HIGH" | "MEDIUM" | "LOW" | "NOT_ASSESSED";
 export interface NewsItem {
   id: string; title: string; url: string; language: string; published_at: string; retrieved_at: string;
   summary: string | null; countries: string[]; categories: string[]; relevance: Relevance; relevance_reason: string;
+  image: { url: string; width: number; height: number; credit: string } | null;
   source: { id: string; name: string; tier: number | null; tier_label: string | null };
   companies: { security_id: string; name: string; link: "named" | "sector" }[];
 }

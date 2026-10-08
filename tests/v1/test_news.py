@@ -178,3 +178,60 @@ def test_api_lists_filters_and_says_when_sources_are_unavailable(client, db, mon
     assert all("available" in i for i in d["indicators"])
     assert client.get("/api/v1/news/not-an-id").status_code == 404
     assert client.get("/api/v1/news/" + "0" * 40).status_code == 404
+
+
+def test_og_image_must_be_https_on_the_publishers_own_site():
+    page = '<meta property="og:image" content="https://www.worldbank.org/x/media_1.jpg?width=1200&#x26;format=pjpg">'
+    assert news.og_image(page, "https://www.worldbank.org/en/news/a") == "https://www.worldbank.org/x/media_1.jpg?width=1200&format=pjpg"
+    assert news.og_image('<meta property="og:image" content="http://169.254.169.254/latest">', "https://www.worldbank.org/a") is None
+    assert news.og_image('<meta property="og:image" content="https://evil.example/x.jpg">', "https://www.worldbank.org/a") is None
+    assert news.og_image("<p>no image</p>", "https://www.worldbank.org/a") is None
+    generic = '<meta property="og:image" content="https://www.worldbank.org/content/dam/wbr/share-logo/social-share.jpg">'
+    assert news.og_image(generic, "https://www.worldbank.org/a") is None  # a site logo is not a story image
+
+
+def test_small_images_are_not_kept(db, monkeypatch):  # noqa: F811
+    import io
+
+    from PIL import Image
+
+    def png(w, h):
+        b = io.BytesIO(); Image.new("RGB", (w, h)).save(b, "PNG"); return b.getvalue()
+
+    class R:
+        def __init__(self, body, ctype):
+            self.ok, self.text, self.headers = True, body if isinstance(body, str) else "", {"content-type": ctype}
+            self.raw = io.BytesIO(body if isinstance(body, bytes) else b"")
+            self.raw.read = (lambda f: (lambda n, decode_content=True: f(n)))(self.raw.read)
+
+    sizes = {"https://www.worldbank.org/a": (1200, 675), "https://www.worldbank.org/b": (600, 400)}
+
+    def fake_get(url, **kw):
+        if url.endswith((".png",)):
+            return R(png(*sizes[url[:-6]]), "image/png")
+        return R(f'<meta property="og:image" content="{url}/i.png">', "text/html")
+
+    monkeypatch.setattr(news.requests, "get", fake_get)
+    with db() as s:
+        for u in sizes:
+            s.add(NewsItem(id=news.item_id(u), source_id="worldbank", title="t", url=u, language="en",
+                           published_at=datetime(2026, 10, 1, tzinfo=timezone.utc), retrieved_at=datetime(2026, 10, 1, tzinfo=timezone.utc),
+                           countries=["KE"], categories=[], relevance="LOW", relevance_reason="r", related={}, raw_sha256="0" * 64))
+        s.commit()
+        assert news.attach_images(s) == 1
+        s.commit()
+        kept = {r.url: r.image_url for r in s.query(NewsItem)}
+        assert kept["https://www.worldbank.org/a"].endswith("/i.png") and kept["https://www.worldbank.org/b"] is None
+
+
+def test_an_image_shared_by_several_stories_is_treated_as_generic(db):  # noqa: F811
+    with db() as s:
+        for i, img in enumerate(["https://www.worldbank.org/a/logo-like.jpg", "https://www.worldbank.org/b/logo-like.jpg", "https://www.worldbank.org/own.jpg"]):
+            s.add(NewsItem(id=f"{i:040d}", source_id="worldbank", title="t", url=f"https://www.worldbank.org/{i}", language="en",
+                           published_at=datetime(2026, 10, 1, tzinfo=timezone.utc), retrieved_at=datetime(2026, 10, 1, tzinfo=timezone.utc),
+                           countries=["KE"], categories=[], relevance="LOW", relevance_reason="r", related={}, raw_sha256="0" * 64,
+                           image_url=img, image_width=900, image_height=500))
+        s.commit()
+        assert news.drop_shared_images(s) == 2
+        s.commit()
+        assert [r.image_url for r in s.query(NewsItem).order_by(NewsItem.id)] == [None, None, "https://www.worldbank.org/own.jpg"]

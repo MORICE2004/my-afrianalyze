@@ -45,7 +45,7 @@ def test_a_no_trade_day_shows_no_high_or_low():
 
 
 def test_index_series_leave_out_round_trip_days_and_say_so():
-    r = client.get("/api/v1/prices/DSE:DSEI", params={"days": 3700}).json()
+    r = client.get("/api/v1/prices/DSE:DSEI", params={"days": 1900}).json()  # the most a reader may request
     days = {p["date"] for p in r["points"]}
     assert "2026-08-24" not in days and "2026-08-21" in days
     assert any("source error" in n for n in r["notes"])

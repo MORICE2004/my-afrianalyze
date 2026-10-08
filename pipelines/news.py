@@ -203,6 +203,94 @@ def store(session, source: dict, raw: bytes, items: list[dict], securities: list
     return counts
 
 
+MIN_IMAGE_WIDTH = 640  # rows show images at most ~210 px wide; the lead story needs 1000 (apps/web news page)
+GENERIC_IMAGE = re.compile(r"(share-logo|social-share|default|placeholder|/logo|logo\.)", re.I)
+MAX_IMAGE_BYTES = 8_000_000
+IMAGES_PER_RUN = 40
+
+
+def og_image(page_html: str, page_url: str) -> str | None:
+    """The publisher's declared preview image, only if it is https on the article's own site (or a subdomain
+    of it). Anything else is ignored rather than fetched: the page cannot point this job at another host."""
+    from urllib.parse import urljoin, urlparse
+
+    m = (re.search(r"""<meta[^>]+property=["']og:image(?::secure_url)?["'][^>]+content=["']([^"']+)["']""", page_html, re.I)
+         or re.search(r"""<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']""", page_html, re.I))
+    if not m:
+        return None
+    url = urljoin(page_url, html.unescape(m.group(1)).strip())
+    site = urlparse(page_url).hostname or ""
+    host = urlparse(url).hostname or ""
+    base = ".".join(site.split(".")[-2:])
+    if urlparse(url).scheme != "https" or not (host == site or host.endswith("." + base)):
+        return None
+    # A site-wide sharing logo says nothing about the story; it is treated as no image.
+    if GENERIC_IMAGE.search(urlparse(url).path):
+        return None
+    return url
+
+
+def image_size(content: bytes) -> tuple[int, int] | None:
+    import io
+
+    from PIL import Image
+
+    try:
+        with Image.open(io.BytesIO(content)) as im:
+            return im.size
+    except Exception:
+        return None
+
+
+def attach_images(session, limit: int = IMAGES_PER_RUN) -> int:
+    """For stories on HTML pages not yet checked: read the page's og:image, download the image once to measure
+    it, and keep its address only if it is wide enough to show well. The image bytes are not stored."""
+    rows = (session.query(NewsItem).filter(NewsItem.image_checked_at.is_(None))
+            .order_by(NewsItem.published_at.desc()).limit(limit).all())
+    found = 0
+    for row in rows:
+        row.image_checked_at = now()
+        if row.url.lower().endswith(".pdf") or not row.url.startswith("https://"):
+            continue
+        try:
+            page = requests.get(row.url, headers=UA, timeout=20)
+            if not page.ok or "html" not in page.headers.get("content-type", ""):
+                continue
+            img = og_image(page.text, row.url)
+            if not img:
+                continue
+            r = requests.get(img, headers=UA, timeout=20, stream=True)
+            if not r.ok or not r.headers.get("content-type", "").startswith("image/"):
+                continue
+            content = r.raw.read(MAX_IMAGE_BYTES + 1, decode_content=True)
+            size = None if len(content) > MAX_IMAGE_BYTES else image_size(content)
+            if size and size[0] >= MIN_IMAGE_WIDTH:
+                row.image_url, row.image_width, row.image_height = img, size[0], size[1]
+                found += 1
+        except requests.RequestException:
+            continue
+    session.flush()
+    return found - drop_shared_images(session)
+
+
+def drop_shared_images(session) -> int:
+    """An image file that appears on more than one story is a publisher's generic picture (often its logo), not a
+    picture of either story, so it is not shown on any of them. Files are compared by name, because a publisher
+    may serve the same file from each article's own folder."""
+    from collections import Counter
+    from urllib.parse import urlparse
+
+    rows = session.query(NewsItem).filter(NewsItem.image_url.isnot(None)).all()
+    name = {r.id: urlparse(r.image_url).path.rsplit("/", 1)[-1] for r in rows}
+    seen = Counter(name.values())
+    n = 0
+    for r in rows:
+        if seen[name[r.id]] > 1:
+            r.image_url = r.image_width = r.image_height = None
+            n += 1
+    return n
+
+
 def record(session, key: str, ok: bool, detail: str) -> None:
     row = session.get(DataSourceStatus, key) or DataSourceStatus(source=key)
     row.last_attempt_at = now()
@@ -244,6 +332,8 @@ def main(argv: list[str]) -> int:
                 record(session, source["status_key"], False, f"{type(exc).__name__}: {str(exc)[:200]}")
                 print(f"{source['id']}: FAILED {type(exc).__name__}: {exc}", file=sys.stderr)
             session.commit()
+        print(f"images: {attach_images(session)} publisher images kept (at least {MIN_IMAGE_WIDTH} px wide)")
+        session.commit()
     return 1 if failures else 0
 
 

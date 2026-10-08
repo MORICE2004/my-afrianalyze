@@ -1,5 +1,5 @@
 import React from "react";
-import { sourceFileUrl, type DocRef } from "@/lib/api";
+import type { DocRef } from "@/lib/api";
 
 // Wraps a displayed figure so that clicking it opens the source document at the cited page.
 export function SourceLink({
@@ -12,13 +12,12 @@ export function SourceLink({
   method?: string;
 }) {
   const title = `${source.title}, page ${source.page ?? "n/a"}${method ? ` (extracted by ${method})` : ""}`;
-  // Exchange price data is not served on, so those sources carry no file. Link to the address it came from.
-  const href = source.file_url ? sourceFileUrl(source.file_url) : source.url;
+  // Stored documents open in AfriEdge's page viewer; sources without one link to the publisher's address.
+  const internal = !!source.viewer_url;
   return (
     <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
+      href={source.viewer_url ?? source.url}
+      {...(internal ? {} : { target: "_blank", rel: "noopener noreferrer" })}
       title={title}
       data-source-page={source.page ?? ""}
       className="underline decoration-neutral-300 decoration-dotted underline-offset-4 hover:decoration-black"

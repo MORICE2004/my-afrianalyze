@@ -3,7 +3,8 @@
 import * as Popover from "@radix-ui/react-popover";
 import React from "react";
 import { statusWord } from "@/components/ui/StatusBadge";
-import { sourceFileUrl, type DataStatus, type DocRef } from "@/lib/api";
+import Link from "next/link";
+import type { DataStatus, DocRef } from "@/lib/api";
 import { fmtDate } from "@/lib/format";
 
 // Click (or press Enter on) a figure to see where it came from: document, page, period, currency, how it was
@@ -12,7 +13,6 @@ export function EvidenceCell({ source, children, method, status, period, currenc
   source: DocRef; children: React.ReactNode; method?: string; status?: DataStatus; period?: string;
   currency?: string; asReported?: string; column?: string;
 }) {
-  const href = source.file_url ? sourceFileUrl(source.file_url) : source.url;
   const rows: [string, React.ReactNode][] = [
     ["Document", source.title],
     ["Page", source.page ?? "Not recorded"],
@@ -43,10 +43,19 @@ export function EvidenceCell({ source, children, method, status, period, currenc
               </React.Fragment>
             ))}
           </dl>
-          <a href={href} target="_blank" rel="noopener noreferrer"
-            className="mt-3 inline-flex items-center gap-1 rounded-md bg-selected px-3 py-1.5 text-xs font-medium text-on-selected hover:opacity-90">
-            View source{source.page ? `, page ${source.page}` : ""} ↗
-          </a>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            {source.viewer_url && (
+              <Link href={source.viewer_url} data-testid="view-source-page"
+                className="inline-flex items-center rounded-md bg-selected px-3 py-1.5 text-xs font-medium text-on-selected hover:opacity-90">
+                View {source.page ? `page ${source.page}` : "document"}
+              </Link>
+            )}
+            {source.url && (
+              <a href={source.url.split(" ")[0]} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-fg underline underline-offset-4">
+                Original publication ↗
+              </a>
+            )}
+          </div>
           <Popover.Arrow className="fill-[var(--line)]" />
         </Popover.Content>
       </Popover.Portal>

@@ -152,7 +152,7 @@ def series(session: Session, instrument_id: str, days: int) -> dict:
 
 
 @router.get("/api/v1/prices/{instrument_id}")
-def get_prices(instrument_id: str, days: int = Query(365, ge=5, le=3700),
+def get_prices(instrument_id: str, days: int = Query(365, ge=5, le=1900),  # charts show up to 5 years; no bulk history
                session: Session = Depends(get_session)) -> dict:
     iid = instrument_id.upper()
     if iid not in INDICES and session.get(Security, iid) is None:

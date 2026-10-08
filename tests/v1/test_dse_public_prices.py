@@ -169,4 +169,4 @@ def test_price_and_index_files_are_never_served_on():
     if not ids:
         pytest.skip("no price files loaded in this database")
     for doc_id in ids:
-        assert client.get(f"/api/v1/sources/{doc_id}/file").status_code == 403
+        assert client.get(f"/api/v1/sources/{doc_id}/file").status_code in (401, 403)  # never served

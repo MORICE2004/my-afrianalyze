@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import React from "react";
-import { NewsCard, timeBucket } from "@/components/news/NewsCard";
+import { FeaturedStory, NewsCard, timeBucket } from "@/components/news/NewsCard";
 import { Empty } from "@/components/ui/kit";
 import { apiGet, type NewsList } from "@/lib/api";
 
@@ -33,7 +33,9 @@ export default async function NewsPage({ searchParams }: PageProps<"/news">) {
   }
   const d = res.data;
   const now = new Date();
-  const lead = d.items.find((i) => i.relevance === "HIGH" && now.getTime() - new Date(i.published_at).getTime() < 21 * 864e5);
+  // The lead is the newest high-relevance story of the last three weeks (one with a publisher image first).
+  const recentHigh = d.items.filter((i) => i.relevance === "HIGH" && now.getTime() - new Date(i.published_at).getTime() < 21 * 864e5);
+  const lead = recentHigh.find((i) => i.image && i.image.width >= 1000) ?? recentHigh[0];
   const rest = d.items.filter((i) => i !== lead);
   const groups = (["Today", "This week", "Earlier"] as const).map((b) => [b, rest.filter((i) => timeBucket(i.published_at, now) === b)] as const);
 
@@ -73,14 +75,13 @@ export default async function NewsPage({ searchParams }: PageProps<"/news">) {
         ) : (
           <>
             {lead && (
-              <section aria-label="Most important now" className="mt-4 border-b border-line pb-2" data-testid="news-lead">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">Most relevant now</div>
-                <NewsCard item={lead} />
+              <section aria-label="Most relevant now" className="mt-6 border-b border-line pb-8" data-testid="news-lead">
+                <FeaturedStory item={lead} />
               </section>
             )}
             {groups.map(([label, items]) => items.length > 0 && (
               <section key={label} aria-label={label} className="mt-6">
-                <h2 className="text-[13px] font-semibold uppercase tracking-[0.04em] text-muted">{label}</h2>
+                <h2 className="border-b border-line pb-2 text-[13px] font-semibold uppercase tracking-[0.04em] text-muted">{label}</h2>
                 <div className="divide-y divide-line">{items.map((i) => <NewsCard key={i.id} item={i} />)}</div>
               </section>
             ))}

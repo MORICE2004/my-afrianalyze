@@ -102,8 +102,10 @@ NOT_REDISTRIBUTED = {"licensed_price_file", "public_price_file", "public_index_f
 def _doc_ref(doc: SourceDocument, page: int | None) -> dict:
     ref = {"document_id": doc.id, "title": doc.title, "page": page, "url": doc.url,
            "sha256": doc.sha256, "retrieved_at": _iso(doc.retrieved_at)}
-    if doc.kind not in NOT_REDISTRIBUTED:   # exchange price files are not served on, so no link to one
-        ref["file_url"] = f"/api/v1/sources/{doc.id}/file" + (f"#page={page}" if page else "")
+    if doc.kind not in NOT_REDISTRIBUTED:   # exchange price files are not shown, so no viewer link
+        # Readers open the document in AfriEdge's page viewer (rendered page images for signed-in users); the
+        # original file is never linked. The publisher's own address stays in "url".
+        ref["viewer_url"] = f"/sources/{doc.id}" + (f"?page={page}" if page else "")
     return ref
 
 

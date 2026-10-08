@@ -12,8 +12,8 @@ export default function PrivacyPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Privacy &amp; cookies</h1>
         <p className="mt-1 text-muted">What this site keeps in your browser, and what it does not.</p>
       </header>
-      <section className="border-t border-line pt-4">
-        <h2 className="font-semibold">Necessary</h2>
+      <section id="cookies" className="scroll-mt-20 border-t border-line pt-4">
+        <h2 className="font-semibold">Cookies: necessary only</h2>
         <ul className="mt-2 list-disc space-y-1.5 pl-5 text-muted">
           <li><span className="text-fg">Sign-in cookie</span>: set only when you sign in, so the site knows the session is yours. It cannot be read by page scripts and ends when you sign out.</li>
         </ul>
