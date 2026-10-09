@@ -566,3 +566,17 @@ Confidence: 45 of 100 (Low). The deductions are:
   `/news`, `/cookies`, `/privacy`, `/terms`, the photo library and brand files answer 200; sign-in and footer text
   present; no development indicator. The preview has no API, so market and news sections say the data service is
   unavailable (honest degraded state). Not viewed in a signed-in browser (no Vercel session in the test browser).
+
+## 2026-10-09: production deployment on Vercel + Neon
+
+- API: Vercel project `afriedge-api` (FastAPI, fra1, Large Functions on for the 182 MB of annual-report PDFs),
+  production at `https://afriedge-api.vercel.app`, `APP_ENV=PRODUCTION`, `DSE_PUBLIC_DISPLAY=true` (owner's decision
+  of 2026-10-09, accepting the DSE licensing risk until an EOD distributor licence is held). Database: Neon Postgres
+  added by the owner through the Vercel Marketplace; its password is Sensitive and never left Vercel. The build
+  (`scripts/vercel_build.py`) runs migrations, copied the research database once (accounts and portfolios removed
+  before upload), and on each deploy syncs review approvals.
+- Web: production `https://afriedge.vercel.app` (alias) and `https://web-morice2004s-projects.vercel.app`, pointed at
+  the API. Verified with `vercel curl`: home, markets, news, NMB, sign-in and the photo library render with live data.
+- Still protected: the web project's Deployment Protection covers production (`all_except_custom_domains`); the owner
+  switches it to Standard Protection to make the site public. Research shows "in review" until the owner approves
+  RA-20261009-001/002 and the API is redeployed (the build syncs the approval).
